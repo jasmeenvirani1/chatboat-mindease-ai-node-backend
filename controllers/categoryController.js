@@ -1,4 +1,4 @@
-const Category = require("../models/Category");
+const Category = require("../models/CategoryModel");
 const logger = require("../helper/logger");
 
 const CategoryController = {

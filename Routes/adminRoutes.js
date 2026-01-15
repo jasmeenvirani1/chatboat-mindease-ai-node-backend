@@ -11,9 +11,6 @@ const ChatHistory = require("../controllers/chatController.js");
 const CategoryController = require("../controllers/categoryController.js");
 
 //Public Routes
-router.post("/chat/create", ChatHistory.createChat);
-router.get("/chats", ChatHistory.getChats);
-router.delete("/chat/:id", ChatHistory.deleteChat);
 
 router.use(authenticateToken);
 
@@ -33,7 +30,9 @@ router.put("/user/:id", userController.updateUser);
 router.delete("/user/:id", userController.deleteUser);
 
 //Chat History Routes
-
+router.post("/chat/create", ChatHistory.createChat);
+router.get("/chats", ChatHistory.getChats);
+router.delete("/chat/:chatId", ChatHistory.deleteChat);
 
 //Category Routes
 router.post("/category/add", CategoryController.createCategory);
@@ -41,6 +40,7 @@ router.get("/categories", CategoryController.getAllCategories);
 router.get("/category/:id", CategoryController.getCategoryById);
 router.put("/category/:id/update", CategoryController.updateCategory);
 router.delete("/category/:id/delete", CategoryController.deleteCategory);
+
 //Log route
 router.get("/logs", (req, res) => {
   fs.readFile("./logs/app.jsonl", "utf8", (err, data) => {

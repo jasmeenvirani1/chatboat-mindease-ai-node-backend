@@ -5,11 +5,8 @@ const { Schema, model } = mongoose;
 const userSchema = new Schema(
   {
     roleId: {
-      type: [Number],
-      default: [],
-    },
-    activeRoleId: {
       type: Number,
+      default: 2,
     },
     username: { type: String, required: true },
     email: { type: String, required: true, unique: true },
@@ -20,10 +17,6 @@ const userSchema = new Schema(
     fcmToken: { type: String, default: "" },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    // 🧾 Business Details
-    city: { type: String, required: false },
-    state: { type: String, required: false },
-    country: { type: String, required: false },
   },
   {
     timestamps: true,

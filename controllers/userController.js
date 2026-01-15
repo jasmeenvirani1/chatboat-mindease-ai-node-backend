@@ -13,78 +13,56 @@ const userController = {
     logger.log(`Login attempt by: ${email}`);
 
     try {
-      // 🔍 Find user by email OR mobile
-      let user = await User.findOne({
-        $or: [{ email: new RegExp(`^${email}$`, "i") }, { mobileNo: email }],
-      })
-        .populate("categories", "name");
+      // 🔍 Basic validation
+      if (!email || !password) {
+        return res.status(400).json({
+          error: "Email and password are required",
+        });
+      }
 
-      // ❌ USER NOT FOUND
+      // 🔍 Find user by email
+      const user = await User.findOne({
+        email: new RegExp(`^${email}$`, "i"),
+      });
+
+      // ❌ User not found
       if (!user) {
         return res.status(404).json({
           error: "User not registered. Please sign up first.",
         });
       }
 
-      // ❌ INACTIVE USER
-      if (!user.isActive) {
-        return res.status(403).json({
-          error: "Access denied. User is inactive.",
-        });
-      }
-
-      // 🔐 PASSWORD CHECK
+      // 🔐 Password check
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
         logger.log(`Login failed: Incorrect password - ${email}`);
-        return res.status(401).json({ error: "Invalid credentials" });
+        return res.status(401).json({
+          error: "Invalid credentials",
+        });
       }
 
-      // 🎯 ROLE RESOLUTION
-      let finalRoleId;
-
-      if (roleId) {
-        // Role selected from frontend
-        if (!user.roleId.includes(roleId)) {
-          return res.status(403).json({
-            error: "This role is not assigned to your account",
-          });
-        }
-        finalRoleId = roleId;
-      } else if (user.activeRoleId) {
-        // Last logged-in role
-        finalRoleId = user.activeRoleId;
-      } else {
-        // Fallback → first role
-        finalRoleId = user.roleId[0];
+      // 🎯 Role check (optional but safe)
+      if (roleId && user.roleId !== roleId) {
+        return res.status(403).json({
+          error: "Invalid role for this account",
+        });
       }
 
-      // 🧠 Save last active role
-      user.activeRoleId = finalRoleId;
-      await user.save();
-
-      // 🔑 Admin detection
-      const setting = await Setting.findOne().sort({ created_at: -1 });
-      const adminEmail = setting?.adminEmail?.toLowerCase();
-      const isAdmin = adminEmail && user.email?.toLowerCase() === adminEmail;
-
-      // 🔐 JWT TOKEN
+      // 🔐 JWT token
       const token = jwt.sign(
         {
           id: user._id,
           email: user.email,
-          roleId: finalRoleId,
-          roles: user.roleId,
-          isAdmin: isAdmin || false,
+          roleId: user.roleId,
         },
         JWT_SECRET,
         { expiresIn: "10d" }
       );
 
-      logger.log(`Login successful: ${email} | Role: ${finalRoleId}`);
+      logger.log(`Login successful: ${email}`);
 
-      // ✅ SUCCESS RESPONSE
-      return res.json({
+      // ✅ Success response
+      return res.status(200).json({
         message: "Login successful",
         token,
         user: {
@@ -92,9 +70,6 @@ const userController = {
           email: user.email,
           username: user.username,
           roleId: user.roleId,
-          activeRoleId: finalRoleId,
-          categories: user.categories,
-          subscription: user.subscriptionId,
         },
       });
     } catch (error) {
@@ -107,23 +82,7 @@ const userController = {
   },
 
   register: async (req, res) => {
-    const {
-      roleId,
-      companyName,
-      email,
-      username,
-      password,
-      mobileNo,
-      gstNumber,
-      gstRegistrationDate,
-      legalStatusOfFirm,
-      annualTurnover,
-      indiamartMemberSince,
-      country,
-      state,
-      categories,
-      city,
-    } = req.body;
+    const { roleId, email, username, password, mobileNo } = req.body;
 
     logger.log(`Registration attempt for ${email}`);
 
@@ -136,42 +95,12 @@ const userController = {
         return res.status(400).json({ error: "Role is required" });
       }
 
-      let user = await User.findOne({ email });
-
-      // -----------------------------
-      // 🟢 USER EXISTS → ADD ROLE
-      // -----------------------------
-      if (user) {
-        // ❌ Role already exists
-        if (user.roleId?.includes(roleId)) {
-          return res.status(400).json({
-            error: "This role is already registered for this email",
-          });
-        }
-
-        // ➕ Add new role
-        user.roleId.push(roleId);
-        user.activeRoleId = roleId;
-
-        // Optional: update missing profile fields
-        user.companyName = user.companyName || companyName;
-        user.mobileNo = user.mobileNo || mobileNo;
-        user.country = user.country || country;
-        user.state = user.state || state;
-        user.city = user.city || city;
-        user.categories = user.categories?.length
-          ? user.categories
-          : categories;
-
-        await user.save();
-
-        logger.log(`Role ${roleId} added to existing user ${email}`);
-
-        return res.status(200).json({
-          message: "New role added successfully",
-          userId: user._id,
-          roleId: user.roleId,
-          activeRoleId: user.activeRoleId,
+      // 🔴 CHECK IF EMAIL ALREADY EXISTS
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        logger.log(`Registration failed: Email already exists - ${email}`);
+        return res.status(400).json({
+          error: "Email is already registered",
         });
       }
 
@@ -187,29 +116,14 @@ const userController = {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const newUser = new User({
-        roleIds: [roleId],
-        activeRoleId: roleId,
-        companyName,
+        roleId: roleId,
         email,
         username,
         password: hashedPassword,
         mobileNo,
-        gstNumber,
-        gstRegistrationDate,
-        legalStatusOfFirm,
-        annualTurnover,
-        indiamartMemberSince,
-        country,
-        state,
-        categories,
-        city,
       });
 
       await newUser.save();
-
-      // 📧 Welcome email
-      const roleType = roleId === 2 ? "Vendor" : "Buyer";
-      await sendWelcomeEmail(email, username, roleType);
 
       logger.log(`Registration successful for ${email}`);
 
@@ -217,7 +131,6 @@ const userController = {
         message: "User registered successfully",
         userId: newUser._id,
         roleId: newUser.roleId,
-        activeRoleId: newUser.activeRoleId,
       });
     } catch (error) {
       logger.error(`Registration error for ${email}`, error);
