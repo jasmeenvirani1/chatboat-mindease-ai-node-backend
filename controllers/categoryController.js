@@ -4,7 +4,7 @@ const logger = require("../helper/logger");
 const CategoryController = {
   createCategory: async (req, res) => {
     try {
-      const { name, description } = req.body;
+      const { name, description, icon } = req.body;
 
       if (!name) {
         logger.log("⚠️ Category name missing");
@@ -14,7 +14,7 @@ const CategoryController = {
         });
       }
 
-      const category = await Category.create({ name, description });
+      const category = await Category.create({ name, description, icon: icon || '💬' });
 
       logger.log("✅ Category Created:", category._id);
       res.status(201).json({
@@ -84,38 +84,66 @@ const CategoryController = {
     }
   },
 
-  updateCategory: async (req, res) => {
+  // updateCategory: async (req, res) => {
 
-    try {
-      const category = await Category.findOneAndUpdate(
-        { _id: req.params.id, isDeleted: false },
-        req.body,
-        { new: true }
-      );
+  //   try {
+  //     const category = await Category.findOneAndUpdate(
+  //       { _id: req.params.id, isDeleted: false },
+  //       req.body,
+  //       { new: true }
+  //     );
 
-      if (!category) {
-        logger.log("⚠️ Category Not Found for Update");
-        return res.status(404).json({
-          success: false,
-          message: "Category not found",
-        });
-      }
+  //     if (!category) {
+  //       logger.log("⚠️ Category Not Found for Update");
+  //       return res.status(404).json({
+  //         success: false,
+  //         message: "Category not found",
+  //       });
+  //     }
 
-      logger.log("✅ Category Updated:", category._id);
+  //     logger.log("✅ Category Updated:", category._id);
 
-      res.status(200).json({
-        success: true,
-        message: "Category updated successfully",
-        data: category,
-      });
-    } catch (error) {
-      logger.error("❌ Update Category Error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to update category",
-      });
+  //     res.status(200).json({
+  //       success: true,
+  //       message: "Category updated successfully",
+  //       data: category,
+  //     });
+  //   } catch (error) {
+  //     logger.error("❌ Update Category Error:", error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "Failed to update category",
+  //     });
+  //   }
+  // },
+updateCategory: async (req, res) => {
+  try {
+    const allowed = ["name", "description", "icon", "color", "isActive"];
+    const updates = {};
+
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
-  },
+
+    const category = await Category.findOneAndUpdate(
+      { _id: req.params.id, isDeleted: false },
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+
+    if (!category) {
+      return res.status(404).json({ success: false, message: "Category not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Category updated successfully",
+      data: category,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Failed to update category" });
+  }
+},
 
   deleteCategory: async (req, res) => {
 

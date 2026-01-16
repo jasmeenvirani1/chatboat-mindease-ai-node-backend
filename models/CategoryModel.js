@@ -11,6 +11,7 @@ const CategorySchema = new Schema(
       type: String,
       default: "",
     },
+     icon: { type: String, default: "message-square" },
     isActive: {
       type: Boolean,
       default: true,
