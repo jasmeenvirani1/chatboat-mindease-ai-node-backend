@@ -1,0 +1,346 @@
+{"timestamp":"2026-01-15T04:45:52.531Z","type":"ERROR","message":"Chat Error:","stack":"ValidationError: ChatHistory validation failed: userId: Path `userId` is required.\n    at Document.invalidate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\document.js:3187:32)\n    at D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\document.js:2980:17\n    at D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\schemaType.js:1368:9\n    at process.processTicksAndRejections (node:internal/process/task_queues:77:11)"}
+{"timestamp":"2026-01-15T05:33:14.002Z","type":"ERROR","message":"Chat Error:","stack":"ValidationError: ChatHistory validation failed: userId: Cast to ObjectId failed for value \"3\" (type string) at path \"userId\" because of \"BSONError\"\n    at Document.invalidate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\document.js:3187:32)\n    at model.$set (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\document.js:1458:12)\n    at model.$set (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\document.js:1115:16)\n    at model.Document (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\document.js:166:12)\n    at model.Model (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:125:12)\n    at new model (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:4602:15)\n    at D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:2809:20\n    at Array.map (<anonymous>)\n    at Function.create (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:2797:34)\n    at createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:64:34)"}
+{"timestamp":"2026-01-15T05:38:04.365Z","type":"INFO","message":"Registration attempt for testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:38:04.569Z","type":"ERROR","message":"Registration error for testuser1@gmail.com","stack":"ReferenceError: sendWelcomeEmail is not defined\n    at register (D:\\MERN\\MindEase-AI\\Backend\\controllers\\userController.js:183:7)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+{"timestamp":"2026-01-15T05:38:19.277Z","type":"INFO","message":"Registration attempt for testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:38:19.316Z","type":"ERROR","message":"Registration error for testuser1@gmail.com","stack":"TypeError: user.roleId?.includes is not a function\n    at register (D:\\MERN\\MindEase-AI\\Backend\\controllers\\userController.js:137:26)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+{"timestamp":"2026-01-15T05:40:55.121Z","type":"INFO","message":"Registration attempt for testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:40:55.162Z","type":"INFO","message":"Registration failed: Email already exists - testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:41:06.909Z","type":"INFO","message":"Registration attempt for testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:41:07.082Z","type":"INFO","message":"Registration successful for testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:41:32.587Z","type":"INFO","message":"Login attempt by: undefined"}
+{"timestamp":"2026-01-15T05:42:04.656Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:42:04.691Z","type":"ERROR","message":"Login error for testuser1@gmail.com","stack":"StrictPopulateError: Cannot populate path `categories` because it is not in your schema. Set the `strictPopulate` option to false to override.\n    at getModelsMapForPopulate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\helpers\\populate\\getModelsMapForPopulate.js:50:12)\n    at populate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:4238:21)\n    at _populate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:4198:5)\n    at D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:4170:5\n    at new Promise (<anonymous>)\n    at Function.populate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\model.js:4169:10)\n    at D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\query.js:2472:11\n    at D:\\MERN\\MindEase-AI\\Backend\\node_modules\\mongoose\\lib\\query.js:3099:21\n    at process.processTicksAndRejections (node:internal/process/task_queues:77:11)"}
+{"timestamp":"2026-01-15T05:45:36.236Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T05:45:36.714Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:29:33.033Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:29:33.196Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:32:56.648Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:32:56.786Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:34:35.093Z","type":"INFO","message":"Registration attempt for s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:34:35.394Z","type":"INFO","message":"Registration successful for s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:34:35.407Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:34:35.515Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:51:55.918Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:51:56.021Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:52:01.766Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:52:01.864Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:52:07.040Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:52:07.145Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:52:30.579Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:52:30.679Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:55:04.832Z","type":"INFO","message":"Login attempt by: admin@example.com"}
+{"timestamp":"2026-01-15T06:55:14.242Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:55:14.347Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:55:21.951Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:55:22.051Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T06:59:29.498Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T06:59:29.598Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:21:16.543Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:21:16.657Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:22:50.632Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:22:50.634Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:23:08.348Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:23:08.352Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:23:48.688Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:23:48.691Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:24:25.302Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:24:25.433Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:24:33.735Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:24:33.891Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:29:20.026Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:29:20.088Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:29:20.444Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:29:20.447Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:29:46.075Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:29:46.077Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:30:41.650Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:30:41.651Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:33:09.049Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:33:38.279Z","type":"INFO","message":"Registration attempt for encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:33:38.492Z","type":"INFO","message":"Registration successful for encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:33:38.504Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:33:38.613Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:33:56.918Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:33:57.024Z","type":"INFO","message":"Login failed: Incorrect password - encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:34:45.613Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:34:45.716Z","type":"INFO","message":"Login failed: Incorrect password - encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:35:02.605Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:35:02.713Z","type":"INFO","message":"Login failed: Incorrect password - encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:36:05.612Z","type":"INFO","message":"Registration attempt for encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:36:06.202Z","type":"INFO","message":"Registration successful for encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:36:06.212Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:36:12.538Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:36:37.678Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:36:38.207Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:37:23.047Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:37:23.048Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:37:36.047Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:37:36.049Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:37:42.855Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:37:42.857Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:37:51.281Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:37:51.341Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:38:10.599Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:38:10.601Z","type":"INFO","message":"✅ Total Categories Found: 0"}
+{"timestamp":"2026-01-15T07:41:14.872Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T07:42:25.323Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T07:42:54.808Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T07:43:15.486Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T07:43:44.702Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T07:44:05.453Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:44:05.570Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:44:06.231Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:44:06.296Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:45:09.873Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:45:09.955Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:46:06.081Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T07:46:12.340Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:46:12.437Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:46:34.424Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:46:34.569Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:46:51.933Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:46:51.996Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:46:55.386Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T07:46:55.487Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T07:47:03.308Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:47:03.409Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:47:12.236Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:47:12.240Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:49:18.846Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:49:18.848Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:49:36.046Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:49:36.145Z","type":"INFO","message":"Login failed: Incorrect password - encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:49:47.265Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:49:47.363Z","type":"INFO","message":"Login failed: Incorrect password - encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:50:33.668Z","type":"INFO","message":"Registration attempt for encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:50:33.796Z","type":"INFO","message":"Registration successful for encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:50:33.806Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:50:33.906Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:50:49.921Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:50:49.923Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:51:00.599Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:51:00.699Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T07:51:10.007Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T07:51:22.261Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T07:51:22.357Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T07:51:31.799Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:51:31.898Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T07:51:35.682Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:51:35.684Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:51:53.540Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:51:53.542Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:52:50.161Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:52:50.163Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:53:23.868Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T07:53:23.983Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T08:47:15.333Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T08:47:15.335Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T08:53:39.157Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T08:53:39.257Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T08:54:03.838Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:03.936Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:08.647Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:08.759Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:12.465Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:12.563Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:16.389Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:16.486Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:20.334Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:20.443Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T08:54:23.595Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T08:54:23.597Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T08:54:34.310Z","type":"ERROR","message":"Chat Error:","stack":"Error: 400 Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\n    at APIError.generate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\core\\error.js:45:20)\n    at OpenAI.makeStatusError (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:165:32)\n    at OpenAI.makeRequest (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:333:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:60:26)"}
+{"timestamp":"2026-01-15T08:54:42.058Z","type":"ERROR","message":"Chat Error:","stack":"Error: 400 Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\n    at APIError.generate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\core\\error.js:45:20)\n    at OpenAI.makeStatusError (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:165:32)\n    at OpenAI.makeRequest (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:333:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:60:26)"}
+{"timestamp":"2026-01-15T08:55:04.214Z","type":"ERROR","message":"Chat Error:","stack":"Error: 400 Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\n    at APIError.generate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\core\\error.js:45:20)\n    at OpenAI.makeStatusError (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:165:32)\n    at OpenAI.makeRequest (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:333:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:60:26)"}
+{"timestamp":"2026-01-15T08:56:03.469Z","type":"ERROR","message":"Chat Error:","stack":"Error: 400 Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\n    at APIError.generate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\core\\error.js:45:20)\n    at OpenAI.makeStatusError (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:165:32)\n    at OpenAI.makeRequest (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:333:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:60:26)"}
+{"timestamp":"2026-01-15T08:56:30.470Z","type":"ERROR","message":"Chat Error:","stack":"Error: 400 Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\n    at APIError.generate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\core\\error.js:45:20)\n    at OpenAI.makeStatusError (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:165:32)\n    at OpenAI.makeRequest (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:333:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:60:26)"}
+{"timestamp":"2026-01-15T08:56:57.426Z","type":"INFO","message":"Login attempt by: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T08:56:57.525Z","type":"INFO","message":"Login successful: testuser1@gmail.com"}
+{"timestamp":"2026-01-15T08:57:10.271Z","type":"ERROR","message":"Chat Error:","stack":"Error: 400 Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\n    at APIError.generate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\core\\error.js:45:20)\n    at OpenAI.makeStatusError (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:165:32)\n    at OpenAI.makeRequest (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:333:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:60:26)"}
+{"timestamp":"2026-01-15T08:58:07.694Z","type":"ERROR","message":"Chat Error:","stack":"Error: 400 Unsupported value: 'temperature' does not support 0.7 with this model. Only the default (1) value is supported.\n    at APIError.generate (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\core\\error.js:45:20)\n    at OpenAI.makeStatusError (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:165:32)\n    at OpenAI.makeRequest (D:\\MERN\\MindEase-AI\\Backend\\node_modules\\openai\\client.js:333:30)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async createChat (D:\\MERN\\MindEase-AI\\Backend\\controllers\\chatController.js:60:26)"}
+{"timestamp":"2026-01-15T09:02:45.346Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:02:45.349Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:02:59.877Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:02:59.881Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:03:22.228Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:03:22.245Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:04:02.772Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:04:02.774Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:11:05.500Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:11:05.501Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:13:08.395Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:13:08.396Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:14:54.774Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:14:54.775Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:18:55.697Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:18:55.700Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:21:15.962Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:21:16.085Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:22:14.413Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:22:14.523Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:23:29.121Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:23:29.123Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:24:29.714Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:24:29.716Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:25:22.933Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:25:23.045Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:25:32.313Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:25:32.414Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:25:47.780Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:25:47.884Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:25:54.677Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:25:54.683Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:26:19.116Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:26:19.118Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:30:40.865Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:30:40.868Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:30:58.639Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:30:58.642Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:33:39.634Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:33:39.639Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:36:30.327Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:36:30.328Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:38:14.630Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:38:14.632Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:42:06.878Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:42:07.107Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:45:24.409Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:45:24.416Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:45:42.743Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:45:42.848Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:47:41.945Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:47:42.375Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:47:45.071Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:47:45.090Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:48:12.514Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:48:12.630Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:48:18.802Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:48:18.835Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:48:30.888Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:48:31.002Z","type":"INFO","message":"Login failed: Incorrect password - s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:48:34.633Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:48:34.740Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:48:38.623Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:48:38.626Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:49:01.166Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:49:01.281Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:49:17.241Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:49:17.243Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:49:28.089Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:49:28.190Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T09:52:00.725Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T09:52:00.728Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:00:33.932Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:00:33.934Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:21:54.786Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:21:54.793Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:23:20.642Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:23:20.645Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:23:49.016Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:23:49.020Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:24:33.699Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:24:33.701Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:25:03.654Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:25:03.656Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:25:34.553Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T10:25:34.670Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T10:26:58.665Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:26:59.283Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:32:20.350Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:32:20.352Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:37:46.612Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:37:46.617Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:38:50.015Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:38:50.109Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:38:50.201Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:38:50.203Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:38:59.689Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:38:59.696Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:42:39.697Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:42:39.699Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:46:54.567Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:46:54.570Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T10:57:56.054Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T10:57:56.167Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T10:58:07.117Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T10:58:08.349Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T10:59:28.083Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T10:59:28.191Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T11:03:11.583Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:03:11.747Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:03:12.120Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:03:12.282Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:06:36.299Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:06:36.371Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:16:49.256Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:16:49.319Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:16:54.351Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:16:54.414Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:16:59.657Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T11:17:00.045Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T11:19:11.978Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:19:16.777Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:19:16.781Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:19:24.961Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T11:19:25.063Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T11:21:10.607Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T11:21:35.348Z","type":"INFO","message":"✅ Total Categories Found: 6"}
+{"timestamp":"2026-01-15T11:21:35.351Z","type":"INFO","message":"✅ Total Categories Found: 6"}
+{"timestamp":"2026-01-15T11:21:42.665Z","type":"INFO","message":"✅ Category Soft Deleted:"}
+{"timestamp":"2026-01-15T11:22:16.873Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T11:28:05.379Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T11:28:05.510Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T11:31:42.586Z","type":"INFO","message":"✅ Total Categories Found: 6"}
+{"timestamp":"2026-01-15T11:31:42.654Z","type":"INFO","message":"✅ Total Categories Found: 6"}
+{"timestamp":"2026-01-15T11:31:49.647Z","type":"INFO","message":"✅ Category Soft Deleted:"}
+{"timestamp":"2026-01-15T11:31:51.415Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:31:51.420Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:33:26.558Z","type":"INFO","message":"✅ Category Created:"}
+{"timestamp":"2026-01-15T11:33:32.135Z","type":"INFO","message":"✅ Total Categories Found: 6"}
+{"timestamp":"2026-01-15T11:33:32.138Z","type":"INFO","message":"✅ Total Categories Found: 6"}
+{"timestamp":"2026-01-15T11:33:39.848Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T11:33:40.014Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T11:33:56.860Z","type":"INFO","message":"✅ Category Soft Deleted:"}
+{"timestamp":"2026-01-15T11:43:35.697Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:43:35.700Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:46:56.522Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T11:46:56.661Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T11:47:04.736Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:47:04.739Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:49:30.184Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:49:50.800Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:50:04.616Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:50:11.433Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:50:25.607Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:50:30.455Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:50:34.169Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T11:50:40.543Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:50:40.545Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T11:50:47.159Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T11:50:47.269Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T13:04:57.360Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:04:57.551Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:07:43.553Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:07:43.555Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:08:23.021Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:08:23.027Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:11:59.216Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:11:59.217Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:12:25.132Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T13:12:25.384Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T13:13:22.674Z","type":"INFO","message":"Login attempt by: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T13:13:30.663Z","type":"INFO","message":"Login successful: encdev77@gmail.com"}
+{"timestamp":"2026-01-15T13:13:42.781Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T13:13:54.496Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T13:14:11.097Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T13:14:19.982Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T13:14:24.578Z","type":"INFO","message":"✅ Category Updated:"}
+{"timestamp":"2026-01-15T13:14:30.395Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:14:30.426Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:14:36.351Z","type":"INFO","message":"Login attempt by: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T13:14:36.461Z","type":"INFO","message":"Login successful: s.andiip2277@gmail.com"}
+{"timestamp":"2026-01-15T13:14:39.373Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:14:39.375Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:15:53.087Z","type":"INFO","message":"✅ Total Categories Found: 5"}
+{"timestamp":"2026-01-15T13:15:53.109Z","type":"INFO","message":"✅ Total Categories Found: 5"}

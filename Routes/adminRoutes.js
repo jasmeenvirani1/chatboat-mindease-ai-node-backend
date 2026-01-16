@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 const fs = require("fs");
 const authenticateToken = require("../middleware/authenticateToken.js");
-const {
-  threeuploads,
-} = require("../utils/imageUploder.js");
+const { threeuploads, multiupload } = require("../utils/imageUploder.js");
 const SettingController = require("../controllers/settingController.js");
 const userController = require("../controllers/userController.js");
 const ChatHistory = require("../controllers/chatController.js");
@@ -30,7 +28,7 @@ router.put("/user/:id", userController.updateUser);
 router.delete("/user/:id", userController.deleteUser);
 
 //Chat History Routes
-router.post("/chat/create", ChatHistory.createChat);
+router.post("/chat/create", multiupload("chat"), ChatHistory.createChat);
 router.get("/chats", ChatHistory.getChats);
 router.delete("/chat/:chatId", ChatHistory.deleteChat);
 

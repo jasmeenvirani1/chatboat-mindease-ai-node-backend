@@ -1,10 +1,10 @@
 const ChatHistory = require("../models/ChatModel.js");
+const Category = require("../models/CategoryModel.js");
 const openai = require("../helper/openAi.js");
 const logger = require("../helper/logger.js");
 
 const chatController = {
   createChat: async (req, res) => {
-    console.log("hereee ->>");
     try {
       const { userId, categoryId, chatId, userMessage } = req.body;
 
@@ -16,25 +16,42 @@ const chatController = {
       }
 
       let chat = null;
+      let categoryName = null;
+
+      /** 📌 LOAD CATEGORY NAME (IF PROVIDED) */
+      if (categoryId) {
+        const category = await Category.findById(categoryId).select("name");
+        if (category) {
+          categoryName = category.name;
+        }
+      }
+
+      /** 🧠 SYSTEM PROMPT WITH CATEGORY CONTEXT */
+      const systemPrompt = `
+        You are a friendly and polite assistant.
+        Speak in a simple, natural, and conversational tone.
+        Do NOT act like a doctor, therapist, lawyer, or professional advisor.
+        Do NOT give medical or psychological advice.
+        Explain things like a helpful friend.
+        Keep responses clear, positive, and easy to understand.
+        Be respectful of Thai culture and people, and when relevant, tailor examples or explanations in a way that feels familiar and relatable to Thai audiences.
+        Always reply in the same language the user uses.
+        ${
+          categoryName
+            ? `This conversation is related to the category: "${categoryName}". Focus your answers around this topic.`
+            : ""
+        }
+        `;
 
       /** 🧠 GPT MESSAGE CONTEXT */
       const messages = [
         {
           role: "system",
-          content: `
-            You are a friendly and polite assistant.
-            Speak in a simple, natural, and conversational tone.
-            Do NOT act like a doctor, therapist, lawyer, or professional advisor.
-            Do NOT give medical or psychological advice.
-            Explain things like a helpful friend.
-            Keep responses clear, positive, and easy to understand.
-            Be respectful of Thai culture and people, and when relevant, tailor examples or explanations in a way that feels familiar and relatable to Thai audiences.
-            Always reply in the same language the user uses.
-        `,
+          content: systemPrompt.trim(),
         },
       ];
 
-      /** 🔁 IF CHAT EXISTS → LOAD HISTORY */
+      /** 🔁 LOAD CHAT HISTORY */
       if (chatId) {
         chat = await ChatHistory.findById(chatId);
 
@@ -45,20 +62,20 @@ const chatController = {
           });
         }
 
-        // Add previous messages to GPT context
-        chat.chats.forEach((c) => {
+        // Add previous messages (limit for speed)
+        chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
           messages.push({ role: "assistant", content: c.aiResponse });
         });
       }
 
-      /** ➕ ADD CURRENT USER MESSAGE */
+      /** ➕ CURRENT USER MESSAGE */
       messages.push({
         role: "user",
         content: userMessage,
       });
 
-      /** 🤖 CALL OPENAI */
+      /** 🤖 OPENAI CALL */
       const completion = await openai.chat.completions.create({
         model: "gpt-5-nano",
         messages,
@@ -73,13 +90,11 @@ const chatController = {
         aiResponse,
       };
 
-      /** 💾 SAVE TO DATABASE */
+      /** 💾 SAVE CHAT */
       if (chat) {
-        // Existing chat
         chat.chats.push(chatMessage);
         await chat.save();
       } else {
-        // New chat
         chat = await ChatHistory.create({
           userId,
           categoryId,
@@ -95,7 +110,6 @@ const chatController = {
         data: chat,
       });
     } catch (error) {
-      console.log("display here ->>>");
       logger.error("Chat Error:", error);
       return res.status(500).json({
         success: false,
