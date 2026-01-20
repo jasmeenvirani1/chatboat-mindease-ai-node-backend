@@ -17,17 +17,20 @@ const chatController = {
 
       let chat = null;
       let categoryName = null;
+      let categoryPrompt = null;
 
       /** 📌 LOAD CATEGORY NAME (IF PROVIDED) */
       if (categoryId) {
-        const category = await Category.findById(categoryId).select("name");
+        const category =
+          await Category.findById(categoryId).select("name prompt");
         if (category) {
           categoryName = category.name;
+          categoryPrompt = category.prompt?.trim() || null;
         }
       }
 
       /** 🧠 SYSTEM PROMPT WITH CATEGORY CONTEXT */
-      const systemPrompt = `
+      const defaultPrompt = `
         You are HealJai, an emotional companion for users.
 
         Your role is to listen, reflect feelings, and stay with emotions.
@@ -55,13 +58,18 @@ const chatController = {
         SUCCESS CRITERIA:
         If the user feels emotionally seen and less alone → SUCCESS
         If the response sounds smart but emotionally cold → FAILURE
-
-        ${
-          categoryName
-            ? `Context: This conversation is related to "${categoryName}". Do NOT give solutions. Stay emotionally present within this context.`
-            : ""
-        }
         `.trim();
+
+      // ✅ Use categoryPrompt if present, otherwise defaultPrompt
+      const basePrompt =
+        categoryPrompt && categoryPrompt.trim()
+          ? categoryPrompt.trim()
+          : defaultPrompt;
+
+      // ✅ Optional: append category name context once (if you still want it)
+      const systemPrompt = categoryName
+        ? `${basePrompt}\n\nContext: This conversation is related to "${categoryName}". Do NOT give solutions. Stay emotionally present within this context.`
+        : basePrompt;
 
       /** 🧠 GPT MESSAGE CONTEXT */
       const messages = [
