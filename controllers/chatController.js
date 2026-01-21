@@ -66,10 +66,26 @@ const chatController = {
           ? categoryPrompt.trim()
           : defaultPrompt;
 
+      const name = (categoryName || "").toLowerCase();
+      const isAstrology = [
+        "astro",
+        "astrology",
+        "horoscope",
+        "zodiac",
+        "tarot",
+        "uranian",
+        "lifegraph",
+        "ดูดวง",
+        "ดวง",
+        "ไพ่",
+      ].some((k) => name.includes(k));
+
       // ✅ Optional: append category name context once (if you still want it)
-      const systemPrompt = categoryName
-        ? `${basePrompt}\n\nContext: This conversation is related to "${categoryName}". Do NOT give solutions. Stay emotionally present within this context.`
-        : basePrompt;
+      const systemPrompt = isAstrology
+        ? basePrompt // astrology prompt ONLY
+        : categoryName
+          ? `${basePrompt}\n\nContext: This conversation is related to "${categoryName}". Stay emotionally present within this context.`
+          : basePrompt;
 
       /** 🧠 GPT MESSAGE CONTEXT */
       const messages = [
@@ -89,12 +105,20 @@ const chatController = {
             message: "Chat session not found",
           });
         }
+        const shouldIncludeHistory =
+          chat.categoryId?.toString() === categoryId?.toString();
 
+        if (shouldIncludeHistory) {
+          chat.chats.slice(-4).forEach((c) => {
+            messages.push({ role: "user", content: c.userMessage });
+            messages.push({ role: "assistant", content: c.aiResponse });
+          });
+        }
         // Add previous messages (limit for speed)
-        chat.chats.slice(-4).forEach((c) => {
-          messages.push({ role: "user", content: c.userMessage });
-          messages.push({ role: "assistant", content: c.aiResponse });
-        });
+        // chat.chats.slice(-4).forEach((c) => {
+        //   messages.push({ role: "user", content: c.userMessage });
+        //   messages.push({ role: "assistant", content: c.aiResponse });
+        // });
       }
 
       /** ➕ CURRENT USER MESSAGE */
@@ -107,7 +131,7 @@ const chatController = {
       const completion = await openai.chat.completions.create({
         model: "gpt-5-nano",
         messages,
-        temperature: 1,
+        temperature: 0.2,
       });
 
       const aiResponse =
