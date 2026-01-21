@@ -3,6 +3,8 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const http = require("http");
+const cookieParser = require("cookie-parser"); // ✅ ADD THIS
+
 const adminRoutes = require("./Routes/adminRoutes");
 const authRoutes = require("./Routes/authRoutes");
 
@@ -14,6 +16,8 @@ const app = express();
 // Middleware
 // app.use(cors());
 // server.js
+app.use(cookieParser());
+
 const corsOptions = {
   origin: [
     "http://localhost:3000",
