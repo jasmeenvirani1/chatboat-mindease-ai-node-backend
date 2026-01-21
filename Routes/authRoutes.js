@@ -43,6 +43,12 @@ router.get("/auth/apple/start", (req, res) => {
 });
 
 router.post("/auth/apple/callback", async (req, res) => {
+    console.log("✅ Apple callback hit");
+  console.log("method:", req.method);
+  console.log("headers content-type:", req.headers["content-type"]);
+  console.log("body:", req.body);
+  console.log("query:", req.query);
+  console.log("cookies:", req.cookies);
   try {
     const { code, state } = req.body;
 
@@ -67,7 +73,7 @@ router.post("/auth/apple/callback", async (req, res) => {
     // res.cookie("token", appTokenData.token, { httpOnly:true, secure:true, sameSite:"lax" });
     // return res.redirect(`${process.env.FRONTEND_URL}/`);
   } catch (err) {
-    console.error(err);
+    console.error("❌ callback error:", err?.response?.data || err);
     return res.redirect(`${process.env.FRONTEND_URL}/login?apple=failed`);
   }
 });
