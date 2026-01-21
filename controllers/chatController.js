@@ -131,7 +131,7 @@ const chatController = {
       const completion = await openai.chat.completions.create({
         model: "gpt-5-nano",
         messages,
-        temperature: 0.2,
+        temperature: 1,
       });
 
       const aiResponse =
