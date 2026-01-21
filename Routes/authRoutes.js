@@ -25,8 +25,8 @@ router.get("/auth/apple/start", (req, res) => {
   // If you want: store state in cookie/session to validate in callback
   res.cookie("apple_oauth_state", state, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: false, // true in HTTPS production
+    sameSite: "none",
+    secure: true, // true in HTTPS production
   });
 
   const redirectUri = process.env.APPLE_REDIRECT_URI; // MUST match Apple console
