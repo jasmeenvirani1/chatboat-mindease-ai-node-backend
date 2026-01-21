@@ -34,7 +34,7 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
 app.options("*", cors(corsOptions));
-
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use("/api/public", express.static(path.join(__dirname, "public")));
 
