@@ -5,7 +5,20 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const logger = require("../helper/logger");
 const TempOtp = require("../models/OTPmodel");
-const JWT_SECRET = "jwttoken"; // Move to .env in production
+const { OAuth2Client } = require("google-auth-library");
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const JWT_SECRET = "jwttoken";
+// const { jwtVerify, createRemoteJWKSet } = require("jose");
+// Apple JWKS URL (public keys)
+// const APPLE_JWKS = createRemoteJWKSet(
+//   new URL("https://appleid.apple.com/auth/keys")
+// );
+
+const makeUsernameFromEmail = (email) => {
+  const base = (email || "user").split("@")[0];
+  return base.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20) || "user";
+};
 
 const userController = {
   loginUser: async (req, res) => {
@@ -137,6 +150,192 @@ const userController = {
       return res.status(500).json({ error: error.message });
     }
   },
+
+  googleLogin: async (req, res) => {
+    try {
+      const { idToken, roleId } = req.body;
+
+      if (!idToken) {
+        return res.status(400).json({ error: "idToken is required" });
+      }
+
+      // ✅ Verify token with Google
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload) {
+        return res.status(401).json({ error: "Invalid Google token" });
+      }
+
+      const googleId = payload.sub;
+      const email = payload.email;
+      const emailVerified = payload.email_verified;
+      const name = payload.name || "";
+      const picture = payload.picture || "";
+
+      if (!email || !emailVerified) {
+        return res.status(401).json({ error: "Google email not verified" });
+      }
+
+      // ✅ Find user by email
+      let user = await User.findOne({ email: new RegExp(`^${email}$`, "i") });
+
+      // ✅ If not exists -> create user (no password)
+      if (!user) {
+        user = await User.create({
+          roleId: roleId || 2,
+          email,
+          username: name || makeUsernameFromEmail(email),
+          password: null,
+          googleId: googleId || "",
+          provider: "google",
+          avatar: picture,
+          isActive: true,
+          isDeleted: false,
+        });
+      } else {
+        // ✅ If user exists, link Google account (do not break existing local login)
+        // (You can keep password login working as-is.)
+        user.googleId = user.googleId || googleId || "";
+        user.provider = user.provider || "google";
+        user.avatar = user.avatar || picture;
+
+        // optional: role check if you want strict roles
+        // if (roleId && user.roleId !== roleId) {
+        //   return res
+        //     .status(403)
+        //     .json({ error: "Invalid role for this account" });
+        // }
+
+        await user.save();
+      }
+
+      if (!user.isActive || user.isDeleted) {
+        return res.status(403).json({ error: "User is disabled or deleted" });
+      }
+
+      // ✅ Issue SAME JWT as your normal login
+      const token = jwt.sign(
+        { id: user._id, email: user.email, roleId: user.roleId },
+        JWT_SECRET,
+        { expiresIn: "10d" }
+      );
+
+      return res.status(200).json({
+        message: "Google login successful",
+        token,
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          roleId: user.roleId,
+        },
+      });
+    } catch (error) {
+      console.error("Google login error:", error);
+      return res.status(500).json({
+        error: "Google login failed",
+        details: error.message,
+      });
+    }
+  },
+
+  appleLogin: async (req, res) => {
+  try {
+    const { code, roleId } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ error: "authorization code is required" });
+    }
+
+    // 🔐 Generate client_secret
+    const clientSecret = generateAppleClientSecret();
+
+    // 🔁 Exchange code → tokens
+    const tokenResponse = await axios.post(
+      "https://appleid.apple.com/auth/token",
+      new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        client_id: process.env.APPLE_CLIENT_ID,
+        client_secret: clientSecret,
+      }).toString(),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+
+    const { id_token } = tokenResponse.data;
+    if (!id_token) {
+      return res.status(401).json({ error: "Apple id_token missing" });
+    }
+
+    // ✅ Verify id_token (jose loaded here)
+    const { jwtVerify } = await getJose();
+    const APPLE_JWKS = await getAppleJwks();
+
+    const { payload } = await jwtVerify(id_token, APPLE_JWKS, {
+      issuer: "https://appleid.apple.com",
+      audience: process.env.APPLE_CLIENT_ID,
+    });
+
+    const appleId = payload.sub;
+    const email = payload.email || null;
+
+    let user = await User.findOne({
+      $or: [
+        { appleId },
+        ...(email ? [{ email: new RegExp(`^${email}$`, "i") }] : []),
+      ],
+    });
+
+    if (!user) {
+      user = await User.create({
+        roleId: roleId ? Number(roleId) : 2,
+        email: email || `${appleId}@apple.local`,
+        username: email ? makeUsernameFromEmail(email) : "apple_user",
+        password: null,
+        appleId,
+        provider: "apple",
+        isActive: true,
+        isDeleted: false,
+      });
+    } else {
+      user.appleId = user.appleId || appleId;
+      user.provider = "apple";
+      await user.save();
+    }
+
+    if (!user.isActive || user.isDeleted) {
+      return res.status(403).json({ error: "User is disabled or deleted" });
+    }
+
+    const appToken = jwt.sign(
+      { id: user._id, email: user.email, roleId: user.roleId },
+      JWT_SECRET,
+      { expiresIn: "10d" }
+    );
+
+    return res.status(200).json({
+      message: "Apple login successful",
+      token: appToken,
+      user: {
+        _id: user._id,
+        email: user.email,
+        username: user.username,
+        roleId: user.roleId,
+      },
+    });
+  } catch (error) {
+    console.error("Apple login error:", error.response?.data || error);
+    return res.status(500).json({
+      error: "Apple login failed",
+      details: error.message,
+    });
+  }
+},
+
 
   sendOtp: async (req, res) => {
     const { email } = req.body;

@@ -11,7 +11,11 @@ const CategorySchema = new Schema(
       type: String,
       default: "",
     },
-     icon: { type: String, default: "message-square" },
+    prompt: {
+      type: String,
+      default: "",
+    },
+    icon: { type: String, default: "message-square" },
     isActive: {
       type: Boolean,
       default: true,
@@ -21,7 +25,7 @@ const CategorySchema = new Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = model("Category", CategorySchema);

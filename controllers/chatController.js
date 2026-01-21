@@ -17,17 +17,20 @@ const chatController = {
 
       let chat = null;
       let categoryName = null;
+      let categoryPrompt = null;
 
       /** 📌 LOAD CATEGORY NAME (IF PROVIDED) */
       if (categoryId) {
-        const category = await Category.findById(categoryId).select("name");
+        const category =
+          await Category.findById(categoryId).select("name prompt");
         if (category) {
           categoryName = category.name;
+          categoryPrompt = category.prompt?.trim() || null;
         }
       }
 
       /** 🧠 SYSTEM PROMPT WITH CATEGORY CONTEXT */
-      const systemPrompt = `
+      const defaultPrompt = `
         You are HealJai, an emotional companion for users.
 
         Your role is to listen, reflect feelings, and stay with emotions.
@@ -55,13 +58,34 @@ const chatController = {
         SUCCESS CRITERIA:
         If the user feels emotionally seen and less alone → SUCCESS
         If the response sounds smart but emotionally cold → FAILURE
-
-        ${
-          categoryName
-            ? `Context: This conversation is related to "${categoryName}". Do NOT give solutions. Stay emotionally present within this context.`
-            : ""
-        }
         `.trim();
+
+      // ✅ Use categoryPrompt if present, otherwise defaultPrompt
+      const basePrompt =
+        categoryPrompt && categoryPrompt.trim()
+          ? categoryPrompt.trim()
+          : defaultPrompt;
+
+      const name = (categoryName || "").toLowerCase();
+      const isAstrology = [
+        "astro",
+        "astrology",
+        "horoscope",
+        "zodiac",
+        "tarot",
+        "uranian",
+        "lifegraph",
+        "ดูดวง",
+        "ดวง",
+        "ไพ่",
+      ].some((k) => name.includes(k));
+
+      // ✅ Optional: append category name context once (if you still want it)
+      const systemPrompt = isAstrology
+        ? basePrompt // astrology prompt ONLY
+        : categoryName
+          ? `${basePrompt}\n\nContext: This conversation is related to "${categoryName}". Stay emotionally present within this context.`
+          : basePrompt;
 
       /** 🧠 GPT MESSAGE CONTEXT */
       const messages = [
@@ -81,12 +105,20 @@ const chatController = {
             message: "Chat session not found",
           });
         }
+        const shouldIncludeHistory =
+          chat.categoryId?.toString() === categoryId?.toString();
 
+        if (shouldIncludeHistory) {
+          chat.chats.slice(-4).forEach((c) => {
+            messages.push({ role: "user", content: c.userMessage });
+            messages.push({ role: "assistant", content: c.aiResponse });
+          });
+        }
         // Add previous messages (limit for speed)
-        chat.chats.slice(-4).forEach((c) => {
-          messages.push({ role: "user", content: c.userMessage });
-          messages.push({ role: "assistant", content: c.aiResponse });
-        });
+        // chat.chats.slice(-4).forEach((c) => {
+        //   messages.push({ role: "user", content: c.userMessage });
+        //   messages.push({ role: "assistant", content: c.aiResponse });
+        // });
       }
 
       /** ➕ CURRENT USER MESSAGE */

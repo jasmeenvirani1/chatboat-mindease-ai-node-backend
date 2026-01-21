@@ -15,6 +15,7 @@ const userSchema = new Schema(
     otp: { type: String },
     otpExpiry: { type: Date },
     fcmToken: { type: String, default: "" },
+    provider: { type: String, default: ""},
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
   },

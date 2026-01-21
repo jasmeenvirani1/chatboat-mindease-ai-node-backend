@@ -12,5 +12,11 @@ router.post('/verifyOtp', userController.verifyOtp);
 router.put('/resetPasswordWithOtp', userController.resetPasswordWithOtp);
 router.put('/fcmToken/:id', userController.updatefcmToken);
 router.get('/settings', SettingController.index);
+router.post('/googleLogin', userController.googleLogin);
+
+
+
+
+// router.post('/appleLogin', userController.appleLogin);
 
 module.exports = router;
