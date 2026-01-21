@@ -19,6 +19,74 @@ const makeUsernameFromEmail = (email) => {
   const base = (email || "user").split("@")[0];
   return base.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20) || "user";
 };
+async function appleLoginService({ code, roleId }) {
+  const clientSecret = generateAppleClientSecret();
+
+  const tokenResponse = await axios.post(
+    "https://appleid.apple.com/auth/token",
+    new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      client_id: process.env.APPLE_CLIENT_ID,
+      client_secret: clientSecret,
+      redirect_uri: process.env.APPLE_REDIRECT_URI,
+    }).toString(),
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+  );
+
+  const { id_token } = tokenResponse.data;
+  if (!id_token) throw new Error("Apple id_token missing");
+
+  const { jwtVerify } = await getJose();
+  const APPLE_JWKS = await getAppleJwks();
+
+  const { payload } = await jwtVerify(id_token, APPLE_JWKS, {
+    issuer: "https://appleid.apple.com",
+    audience: process.env.APPLE_CLIENT_ID,
+  });
+
+  const appleId = payload.sub;
+  const email = payload.email || null;
+
+  let user = await User.findOne({
+    $or: [
+      { appleId },
+      ...(email ? [{ email: new RegExp(`^${email}$`, "i") }] : []),
+    ],
+  });
+
+  if (!user) {
+    user = await User.create({
+      roleId: roleId ? Number(roleId) : 2,
+      email: email || `${appleId}@apple.local`,
+      username: email ? makeUsernameFromEmail(email) : "apple_user",
+      password: null,
+      appleId,
+      provider: "apple",
+      isActive: true,
+      isDeleted: false,
+    });
+  } else {
+    user.appleId = user.appleId || appleId;
+    user.provider = "apple";
+    await user.save();
+  }
+
+  if (!user.isActive || user.isDeleted) {
+    throw new Error("User is disabled or deleted");
+  }
+
+  const appToken = jwt.sign(
+    { id: user._id, email: user.email, roleId: user.roleId },
+    process.env.JWT_SECRET,
+    { expiresIn: "10d" }
+  );
+
+  return {
+    token: appToken,
+    user: { _id: user._id, email: user.email, username: user.username, roleId: user.roleId },
+  };
+}
 
 const userController = {
   loginUser: async (req, res) => {
@@ -243,99 +311,128 @@ const userController = {
     }
   },
 
-  appleLogin: async (req, res) => {
+//   appleLogin: async (req, res) => {
+//   try {
+//     const { code, roleId } = req.body;
+
+//     if (!code) {
+//       return res.status(400).json({ error: "authorization code is required" });
+//     }
+
+//     // 🔐 Generate client_secret
+//     const clientSecret = generateAppleClientSecret();
+
+//     // 🔁 Exchange code → tokens
+//     // const tokenResponse = await axios.post(
+//     //   "https://appleid.apple.com/auth/token",
+//     //   new URLSearchParams({
+//     //     grant_type: "authorization_code",
+//     //     code,
+//     //     client_id: process.env.APPLE_CLIENT_ID,
+//     //     client_secret: clientSecret,
+//     //   }).toString(),
+//     //   { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+//     // );
+//     const tokenResponse = await axios.post(
+//   "https://appleid.apple.com/auth/token",
+//   new URLSearchParams({
+//     grant_type: "authorization_code",
+//     code,
+//     client_id: process.env.APPLE_CLIENT_ID,
+//     client_secret: clientSecret,
+//     redirect_uri: process.env.APPLE_REDIRECT_URI, // ✅ REQUIRED and must match exactly
+//   }).toString(),
+//   { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+// );
+
+
+//     const { id_token } = tokenResponse.data;
+//     if (!id_token) {
+//       return res.status(401).json({ error: "Apple id_token missing" });
+//     }
+
+//     // ✅ Verify id_token (jose loaded here)
+//     const { jwtVerify } = await getJose();
+//     const APPLE_JWKS = await getAppleJwks();
+
+//     const { payload } = await jwtVerify(id_token, APPLE_JWKS, {
+//       issuer: "https://appleid.apple.com",
+//       audience: process.env.APPLE_CLIENT_ID,
+//     });
+
+//     const appleId = payload.sub;
+//     const email = payload.email || null;
+
+//     let user = await User.findOne({
+//       $or: [
+//         { appleId },
+//         ...(email ? [{ email: new RegExp(`^${email}$`, "i") }] : []),
+//       ],
+//     });
+
+//     if (!user) {
+//       user = await User.create({
+//         roleId: roleId ? Number(roleId) : 2,
+//         email: email || `${appleId}@apple.local`,
+//         username: email ? makeUsernameFromEmail(email) : "apple_user",
+//         password: null,
+//         appleId,
+//         provider: "apple",
+//         isActive: true,
+//         isDeleted: false,
+//       });
+//     } else {
+//       user.appleId = user.appleId || appleId;
+//       user.provider = "apple";
+//       await user.save();
+//     }
+
+//     if (!user.isActive || user.isDeleted) {
+//       return res.status(403).json({ error: "User is disabled or deleted" });
+//     }
+
+//     const appToken = jwt.sign(
+//       { id: user._id, email: user.email, roleId: user.roleId },
+//       JWT_SECRET,
+//       { expiresIn: "10d" }
+//     );
+
+//     return res.status(200).json({
+//       message: "Apple login successful",
+//       token: appToken,
+//       user: {
+//         _id: user._id,
+//         email: user.email,
+//         username: user.username,
+//         roleId: user.roleId,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("Apple login error:", error.response?.data || error);
+//     return res.status(500).json({
+//       error: "Apple login failed",
+//       details: error.message,
+//     });
+//   }
+// },
+appleLogin: async (req, res) => {
   try {
     const { code, roleId } = req.body;
+    if (!code) return res.status(400).json({ error: "authorization code is required" });
 
-    if (!code) {
-      return res.status(400).json({ error: "authorization code is required" });
-    }
-
-    // 🔐 Generate client_secret
-    const clientSecret = generateAppleClientSecret();
-
-    // 🔁 Exchange code → tokens
-    const tokenResponse = await axios.post(
-      "https://appleid.apple.com/auth/token",
-      new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        client_id: process.env.APPLE_CLIENT_ID,
-        client_secret: clientSecret,
-      }).toString(),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-    );
-
-    const { id_token } = tokenResponse.data;
-    if (!id_token) {
-      return res.status(401).json({ error: "Apple id_token missing" });
-    }
-
-    // ✅ Verify id_token (jose loaded here)
-    const { jwtVerify } = await getJose();
-    const APPLE_JWKS = await getAppleJwks();
-
-    const { payload } = await jwtVerify(id_token, APPLE_JWKS, {
-      issuer: "https://appleid.apple.com",
-      audience: process.env.APPLE_CLIENT_ID,
-    });
-
-    const appleId = payload.sub;
-    const email = payload.email || null;
-
-    let user = await User.findOne({
-      $or: [
-        { appleId },
-        ...(email ? [{ email: new RegExp(`^${email}$`, "i") }] : []),
-      ],
-    });
-
-    if (!user) {
-      user = await User.create({
-        roleId: roleId ? Number(roleId) : 2,
-        email: email || `${appleId}@apple.local`,
-        username: email ? makeUsernameFromEmail(email) : "apple_user",
-        password: null,
-        appleId,
-        provider: "apple",
-        isActive: true,
-        isDeleted: false,
-      });
-    } else {
-      user.appleId = user.appleId || appleId;
-      user.provider = "apple";
-      await user.save();
-    }
-
-    if (!user.isActive || user.isDeleted) {
-      return res.status(403).json({ error: "User is disabled or deleted" });
-    }
-
-    const appToken = jwt.sign(
-      { id: user._id, email: user.email, roleId: user.roleId },
-      JWT_SECRET,
-      { expiresIn: "10d" }
-    );
+    const data = await appleLoginService({ code, roleId });
 
     return res.status(200).json({
       message: "Apple login successful",
-      token: appToken,
-      user: {
-        _id: user._id,
-        email: user.email,
-        username: user.username,
-        roleId: user.roleId,
-      },
+      token: data.token,
+      user: data.user,
     });
   } catch (error) {
     console.error("Apple login error:", error.response?.data || error);
-    return res.status(500).json({
-      error: "Apple login failed",
-      details: error.message,
-    });
+    return res.status(500).json({ error: "Apple login failed", details: error.message });
   }
-},
-
+}
+,
 
   sendOtp: async (req, res) => {
     const { email } = req.body;
