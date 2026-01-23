@@ -35,6 +35,12 @@ const ChatHistorySchema = new Schema(
       default: null,
     },
 
+    subCategoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "SubCategory",
+      default: null,
+    },
+
     sessionTitle: {
       type: String,
       default: "New Chat",
