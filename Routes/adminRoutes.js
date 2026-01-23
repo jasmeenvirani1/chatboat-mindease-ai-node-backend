@@ -7,6 +7,7 @@ const SettingController = require("../controllers/settingController.js");
 const userController = require("../controllers/userController.js");
 const ChatHistory = require("../controllers/chatController.js");
 const CategoryController = require("../controllers/categoryController.js");
+const SubCategoryController = require("../controllers/subCategoryController.js");
 
 //Public Routes
 
@@ -38,6 +39,13 @@ router.get("/categories", CategoryController.getAllCategories);
 router.get("/category/:id", CategoryController.getCategoryById);
 router.put("/category/:id/update", CategoryController.updateCategory);
 router.delete("/category/:id/delete", CategoryController.deleteCategory);
+
+//SubCategory Routes
+router.post("/subcategory/add", SubCategoryController.createSubCategory);
+router.get("/subcategories", SubCategoryController.getAllSubCategories);
+router.get("/subcategory/:categoryId", SubCategoryController.getSubCategoriesByCategory);
+router.put("/subcategory/:id/update", SubCategoryController.updateSubCategory);
+router.delete("/subcategory/:id/delete", SubCategoryController.deleteSubCategory);
 
 //Log route
 router.get("/logs", (req, res) => {

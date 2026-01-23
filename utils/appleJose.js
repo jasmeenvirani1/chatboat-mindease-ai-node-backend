@@ -1,18 +1,18 @@
-const jose = require("jose");
+// const jose = require("jose");
 
-let appleJWKS = null;
+// let appleJWKS = null;
 
-async function getJose() {
-  return jose;
-}
+// async function getJose() {
+//   return jose;
+// }
 
-async function getAppleJwks() {
-  if (!appleJWKS) {
-    appleJWKS = jose.createRemoteJWKSet(
-      new URL("https://appleid.apple.com/auth/keys")
-    );
-  }
-  return appleJWKS;
-}
+// async function getAppleJwks() {
+//   if (!appleJWKS) {
+//     appleJWKS = jose.createRemoteJWKSet(
+//       new URL("https://appleid.apple.com/auth/keys")
+//     );
+//   }
+//   return appleJWKS;
+// }
 
-module.exports = { getJose, getAppleJwks };
+// module.exports = { getJose, getAppleJwks };
