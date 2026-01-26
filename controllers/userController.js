@@ -56,11 +56,11 @@ const userController = {
       }
 
       // 🎯 Role check (optional but safe)
-      if (roleId && user.roleId !== roleId) {
-        return res.status(403).json({
-          error: "Invalid role for this account",
-        });
-      }
+      // if (roleId && user.roleId !== roleId) {
+      //   return res.status(403).json({
+      //     error: "Invalid role for this account",
+      //   });
+      // }
 
       // 🔐 JWT token
       const token = jwt.sign(
