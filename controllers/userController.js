@@ -6,6 +6,7 @@ const nodemailer = require("nodemailer");
 const logger = require("../helper/logger");
 const TempOtp = require("../models/OTPmodel");
 const { OAuth2Client } = require("google-auth-library");
+const Chat = require("../models/ChatModel")
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = "jwttoken";
@@ -22,7 +23,7 @@ const makeUsernameFromEmail = (email) => {
 
 const userController = {
   loginUser: async (req, res) => {
-    const { email, password, roleId } = req.body;
+    const { email, password, roleId, anonymousChatIds = [] } = req.body; // Add anonymousChatIds from frontend
     logger.log(`Login attempt by: ${email}`);
 
     try {
@@ -72,9 +73,33 @@ const userController = {
         { expiresIn: "10d" }
       );
 
+      // ✅ If anonymous chat IDs provided, find and update them
+      let migratedChats = [];
+      if (anonymousChatIds && anonymousChatIds.length > 0) {
+        try {
+          // Find all anonymous chats
+          const chats = await Chat.find({
+            _id: { $in: anonymousChatIds },
+            userId: { $exists: false } // Only chats without userId (anonymous)
+          });
+          
+          // Update each chat with user ID
+          for (const chat of chats) {
+            chat.userId = user._id;
+            await chat.save();
+            migratedChats.push(chat._id);
+          }
+          
+          logger.log(`Migrated ${migratedChats.length} chats to user ${user._id}`);
+        } catch (migrationError) {
+          logger.error("Error migrating anonymous chats:", migrationError);
+          // Don't fail login if migration fails
+        }
+      }
+
       logger.log(`Login successful: ${email}`);
 
-      // ✅ Success response
+      // ✅ Success response - include migrated chats
       return res.status(200).json({
         message: "Login successful",
         token,
@@ -84,6 +109,7 @@ const userController = {
           username: user.username,
           roleId: user.roleId,
         },
+        migratedChats: migratedChats, // Send back which chats were migrated
       });
     } catch (error) {
       logger.error(`Login error for ${email}`, error);

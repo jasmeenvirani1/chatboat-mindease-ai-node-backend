@@ -10,6 +10,7 @@ const CategoryController = require("../controllers/categoryController.js");
 const SubCategoryController = require("../controllers/subCategoryController.js");
 
 //Public Routes
+router.post("/chat/create", multiupload("chat"), ChatHistory.createChat);
 
 router.use(authenticateToken);
 
@@ -29,7 +30,6 @@ router.put("/user/:id", userController.updateUser);
 router.delete("/user/:id", userController.deleteUser);
 
 //Chat History Routes
-router.post("/chat/create", multiupload("chat"), ChatHistory.createChat);
 router.get("/chats", ChatHistory.getChats);
 router.delete("/chat/:chatId", ChatHistory.deleteChat);
 
