@@ -23,7 +23,7 @@ const makeUsernameFromEmail = (email) => {
 
 const userController = {
   loginUser: async (req, res) => {
-    const { email, password, roleId, anonymousChatIds = [] } = req.body; // Add anonymousChatIds from frontend
+    const { email, password, anonymousChatIds = [] } = req.body; // Add anonymousChatIds from frontend
     logger.log(`Login attempt by: ${email}`);
 
     try {
