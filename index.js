@@ -4,12 +4,12 @@ const cors = require("cors");
 const path = require("path");
 const http = require("http");
 const cookieParser = require("cookie-parser"); // ✅ ADD THIS
-
+const { startDailyMessageCron } = require("./cron/HeadlineCron.js");
 const adminRoutes = require("./Routes/adminRoutes");
 const authRoutes = require("./Routes/authRoutes");
 
 require("./db/db.js");
-
+startDailyMessageCron();
 // Create Express app
 const app = express();
 

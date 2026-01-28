@@ -8,9 +8,13 @@ const userController = require("../controllers/userController.js");
 const ChatHistory = require("../controllers/chatController.js");
 const CategoryController = require("../controllers/categoryController.js");
 const SubCategoryController = require("../controllers/subCategoryController.js");
+const CaseController = require("../controllers/casesController.js");
+const HeadlineController = require("../controllers/headlineController.js");
 
 //Public Routes
 router.post("/chat/create", multiupload("chat"), ChatHistory.createChat);
+router.get("/headlines", HeadlineController.getAllHeadlines);
+router.get("/headline/:date", HeadlineController.getHeadlineByDate);
 
 router.use(authenticateToken);
 
@@ -46,6 +50,16 @@ router.get("/subcategories", SubCategoryController.getAllSubCategories);
 router.get("/subcategory/:categoryId", SubCategoryController.getSubCategoriesByCategory);
 router.put("/subcategory/:id/update", SubCategoryController.updateSubCategory);
 router.delete("/subcategory/:id/delete", SubCategoryController.deleteSubCategory);
+
+//Case Routes
+router.post("/cases/add", CaseController.createCase);
+router.get("/cases", CaseController.getAllCases);
+router.get("/cases/:id", CaseController.getCaseById);
+router.put("/cases/:id/update", CaseController.updateCaseById);
+router.delete("/cases/:id/delete", CaseController.deleteCaseById);
+
+// Headline Routes
+
 
 //Log route
 router.get("/logs", (req, res) => {
