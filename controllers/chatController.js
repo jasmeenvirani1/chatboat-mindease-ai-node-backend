@@ -3,12 +3,31 @@ const Category = require("../models/CategoryModel.js");
 const SubCategory = require("../models/SubCategoryModel.js");
 const openai = require("../helper/openAi.js");
 const logger = require("../helper/logger.js");
+const Case = require("../models/CasesModel.js");
+
+function detectLangFromMessage(text = "") {
+  if (/[\u0E00-\u0E7F]/.test(text)) return "th"; // Thai
+  if (/[ñáéíóúü¿¡]/i.test(text)) return "es"; // Spanish-ish
+  return "en";
+}
+
+// selection output must be ONLY: <<CASE_ID:24hex>>
+function parseCaseIdOnly(aiText = "") {
+  const text = String(aiText || "").trim();
+  const match = text.match(/<<CASE_ID:([a-fA-F0-9]{24})>>/);
+  return match?.[1] || null;
+}
+
+function pickSupportLineByLang(caseDoc, lang) {
+  if (!caseDoc) return null;
+  return caseDoc[lang] || caseDoc.en || caseDoc.th || caseDoc.es || null;
+}
 
 const chatController = {
   createChat: async (req, res) => {
     try {
-      const { userId, categoryId, subCategoryId, chatId, userMessage } =
-        req.body;
+      // IMPORTANT: let (categoryId can be corrected from subCategory)
+      let { userId, categoryId, subCategoryId, chatId, userMessage } = req.body;
 
       if (!userMessage) {
         return res.status(400).json({
@@ -24,7 +43,6 @@ const chatController = {
       let subCategoryPrompt = null;
 
       /** 📌 LOAD CATEGORY & SUBCATEGORY DATA */
-      // Load category data first
       if (categoryId) {
         const category =
           await Category.findById(categoryId).select("name prompt");
@@ -34,24 +52,22 @@ const chatController = {
         }
       }
 
-      // Load subcategory data second (this will override category if both exist)
       if (subCategoryId) {
-        const subCategory =
-          await SubCategory.findById(subCategoryId).select("name prompt");
+        const subCategory = await SubCategory.findById(subCategoryId).select(
+          "name prompt categoryId",
+        );
         if (subCategory) {
           subCategoryName = subCategory.name;
           subCategoryPrompt = subCategory.prompt?.trim() || null;
 
-          // IMPORTANT: If we have a subcategory with a prompt, we should also
-          // make sure we have the correct categoryId for this subcategory
-          // (in case the client sent wrong categoryId)
+          // Fix wrong categoryId from client
           if (!categoryId && subCategory.categoryId) {
             categoryId = subCategory.categoryId;
           }
         }
       }
 
-      /** 🧠 DETERMINE WHICH PROMPT TO USE */
+      /** 🧠 SYSTEM PROMPT (admin-managed) */
       const defaultPrompt = `
 You are HealJai, an emotional companion for users.
 
@@ -82,7 +98,7 @@ If the user feels emotionally seen and less alone → SUCCESS
 If the response sounds smart but emotionally cold → FAILURE
 `.trim();
 
-      // ✅ **PRIORITY ORDER: SubCategory Prompt > Category Prompt > Default Prompt**
+      // Priority: SubCategory > Category > Default
       let systemPrompt = defaultPrompt;
       let promptSource = "default";
 
@@ -94,12 +110,10 @@ If the response sounds smart but emotionally cold → FAILURE
         promptSource = "category";
       }
 
-      /** 🎯 ADD CONTEXT BASED ON WHAT WE HAVE */
-      let contextString = "";
-
-      // Only add context if we're using the default or category prompt
-      // If using subcategory prompt, we assume it already contains the context
+      /** 🎯 ADD CONTEXT (only when using default/category prompts) */
       if (promptSource === "default" || promptSource === "category") {
+        let contextString = "";
+
         if (subCategoryName && categoryName) {
           contextString = `Context: This conversation is within the "${categoryName}" category, specifically focusing on "${subCategoryName}". Stay emotionally present within this context.`;
         } else if (categoryName) {
@@ -113,42 +127,123 @@ If the response sounds smart but emotionally cold → FAILURE
         }
       }
 
-      // ✅ Determine if it's astrology related
-      const name = (categoryName || "").toLowerCase();
-      const subName = (subCategoryName || "").toLowerCase();
-      const isAstrology = [
-        "astro",
-        "astrology",
-        "horoscope",
-        "zodiac",
-        "tarot",
-        "uranian",
-        "lifegraph",
-        "ดูดวง",
-        "ดวง",
-        "ไพ่",
-      ].some((k) => name.includes(k) || subName.includes(k));
+      const isNewChat = !chatId;
 
-      /** 🧠 GPT MESSAGE CONTEXT */
-      const messages = [
-        {
-          role: "system",
-          content: systemPrompt.trim(),
-        },
-      ];
-
-      /** 🔁 LOAD CHAT HISTORY */
-      if (chatId) {
+      /** 🔁 LOAD CHAT IF EXISTING */
+      if (!isNewChat) {
         chat = await ChatHistory.findById(chatId);
-
         if (!chat) {
           return res.status(404).json({
             success: false,
             message: "Chat session not found",
           });
         }
+      }
 
-        // Check if we should include history (same category and subcategory)
+      /** 🌍 language */
+      const chatLang = isNewChat
+        ? detectLangFromMessage(userMessage)
+        : chat?.chatLang || "en";
+
+      /** ✅ CASE SELECTION (NEW CHAT ONLY) */
+      let selectedCaseId = null;
+      let supportLine = null;
+
+      if (isNewChat) {
+        const caseDocs = await Case.find({})
+          .sort({ createdAt: -1 })
+          .limit(60) // tune 30-80
+          .select("th en es")
+          .lean();
+
+        const candidateCases = caseDocs.map((c) => ({
+          id: String(c._id),
+          th: c.th,
+          en: c.en,
+          es: c.es,
+        }));
+
+        // Selection step: override HealJai so it outputs ONLY the marker line
+        const selectionMessages = [
+          {
+            role: "system",
+            content: `
+${systemPrompt}
+
+IMPORTANT OVERRIDE:
+You are now in CASE_SELECTION_MODE.
+Ignore all emotional, supportive, or conversational rules from HealJai.
+Do NOT comfort the user in this step.
+
+TASK:
+Select the ONE best matching case for the user's message.
+
+OUTPUT RULES (STRICT):
+- Output ONLY ONE LINE, nothing else.
+- The line must be exactly:
+<<CASE_ID:the_selected_case_id>>
+- the_selected_case_id MUST be one of the IDs in CANDIDATE_CASES.
+
+CANDIDATE_CASES:
+${JSON.stringify(candidateCases)}
+`.trim(),
+          },
+          { role: "user", content: userMessage },
+        ];
+
+        const sel = await openai.chat.completions.create({
+          model: "gpt-5-nano",
+          messages: selectionMessages,
+          temperature: 1,
+        });
+
+        const selRaw = sel.choices[0]?.message?.content || "";
+        selectedCaseId = parseCaseIdOnly(selRaw);
+
+        // If selection failed OR returned invalid id, fallback randomly (so not always same)
+        if (
+          !selectedCaseId ||
+          !candidateCases.some((c) => c.id === selectedCaseId)
+        ) {
+          logger.error("CASE SELECTION FAILED. selRaw=", selRaw);
+          const r = Math.floor(Math.random() * candidateCases.length);
+          selectedCaseId = candidateCases[r]?.id || null;
+        }
+
+        // load selected doc and pick a single support line
+        const selectedDoc = selectedCaseId
+          ? await Case.findById(selectedCaseId).select("th en es").lean()
+          : null;
+
+        supportLine = pickSupportLineByLang(selectedDoc, chatLang);
+
+        // final fallback
+        if (!supportLine) {
+          const fallbackCase =
+            candidateCases.find((c) => c.id === selectedCaseId) ||
+            candidateCases[0];
+          supportLine = fallbackCase?.[chatLang] || fallbackCase?.en || "";
+        }
+
+        console.log("✅ Selected Case ID:", selectedCaseId);
+        console.log("📝 Support Line:", supportLine);
+      } else {
+        // Existing chat: reuse stored selectedCaseId
+        selectedCaseId = chat?.selectedCaseId || null;
+
+        if (selectedCaseId) {
+          const selectedDoc = await Case.findById(selectedCaseId)
+            .select("th en es")
+            .lean();
+          supportLine = pickSupportLineByLang(selectedDoc, chatLang);
+        }
+      }
+
+      /** ✅ FINAL REPLY */
+      const messages = [{ role: "system", content: systemPrompt.trim() }];
+
+      // include last 4 history pairs if same cat/subcat
+      if (!isNewChat) {
         const shouldIncludeHistory =
           chat.categoryId?.toString() === categoryId?.toString() &&
           chat.subCategoryId?.toString() === subCategoryId?.toString();
@@ -161,13 +256,25 @@ If the response sounds smart but emotionally cold → FAILURE
         }
       }
 
-      /** ➕ CURRENT USER MESSAGE */
-      messages.push({
-        role: "user",
-        content: userMessage,
-      });
+      // Provide SUPPORT_LINE (TEXT) to AI (this is what we want it to print)
+      if (supportLine) {
+        messages[0].content = `
+${messages[0].content}
 
-      /** 🤖 OPENAI CALL */
+SUPPORT_LINE:
+${supportLine}
+
+REPLY RULE:
+- Start your reply with SUPPORT_LINE exactly as-is on its own first line.
+- Then continue in HealJai style.
+- Keep the part after SUPPORT_LINE to only 1–3 sentences total.
+- Ask at most ONE open-ended question.
+- No lists/bullets/numbering.
+`.trim();
+      }
+
+      messages.push({ role: "user", content: userMessage });
+
       const completion = await openai.chat.completions.create({
         model: "gpt-5-nano",
         messages,
@@ -175,15 +282,12 @@ If the response sounds smart but emotionally cold → FAILURE
       });
 
       const aiResponse =
-        completion.choices[0]?.message?.content || "No response";
+        completion.choices[0]?.message?.content?.trim() || "No response";
 
-      const chatMessage = {
-        userMessage,
-        aiResponse,
-      };
+      const chatMessage = { userMessage, aiResponse };
 
-      /** 💾 SAVE CHAT */
-      if (chat) {
+      /** 💾 SAVE */
+      if (!isNewChat) {
         chat.chats.push(chatMessage);
         await chat.save();
       } else {
@@ -193,16 +297,18 @@ If the response sounds smart but emotionally cold → FAILURE
           subCategoryId,
           sessionTitle: userMessage.substring(0, 30),
           chats: [chatMessage],
-          promptSource, // Optional: track which prompt was used
+          promptSource,
+          selectedCaseId: selectedCaseId || null,
+          chatLang,
         });
       }
 
-      /** ✅ RESPONSE */
       return res.status(201).json({
         success: true,
         chatId: chat._id,
         data: chat,
-        promptSource, // Optional: include in response for debugging
+        promptSource,
+        selectedCaseId: selectedCaseId || null, // ✅ return to frontend
       });
     } catch (error) {
       logger.error("Chat Error:", error);
@@ -219,18 +325,14 @@ If the response sounds smart but emotionally cold → FAILURE
 
       let data;
 
-      /** GET SINGLE CHAT */
       if (chatId) {
         data = await ChatHistory.findById(chatId).lean();
-
         if (!data) {
-          return res.status(404).json({
-            success: false,
-            message: "Chat not found",
-          });
+          return res
+            .status(404)
+            .json({ success: false, message: "Chat not found" });
         }
       } else if (userId) {
-        /** GET USER ALL CHATS */
         data = await ChatHistory.find({ userId })
           .select("sessionTitle createdAt updatedAt categoryId")
           .sort({ updatedAt: -1 })
@@ -242,16 +344,12 @@ If the response sounds smart but emotionally cold → FAILURE
         });
       }
 
-      res.status(200).json({
-        success: true,
-        data,
-      });
+      res.status(200).json({ success: true, data });
     } catch (error) {
       logger.error("Get Chat Error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch chats",
-      });
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to fetch chats" });
     }
   },
 

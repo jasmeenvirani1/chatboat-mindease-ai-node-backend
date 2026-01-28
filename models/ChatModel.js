@@ -18,7 +18,7 @@ const ChatMessageSchema = new Schema(
       default: Date.now,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const ChatHistorySchema = new Schema(
@@ -41,6 +41,13 @@ const ChatHistorySchema = new Schema(
       default: null,
     },
 
+    selectedCaseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Case",
+      default: null,
+    },
+    chatLang: { type: String, enum: ["th", "en", "es"], default: "en" },
+
     sessionTitle: {
       type: String,
       default: "New Chat",
@@ -51,7 +58,7 @@ const ChatHistorySchema = new Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = model("ChatHistory", ChatHistorySchema);
