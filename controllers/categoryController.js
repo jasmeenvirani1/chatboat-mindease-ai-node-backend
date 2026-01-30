@@ -55,9 +55,6 @@ const CategoryController = {
     }
   },
 
-  /**
-   * 3️⃣ GET CATEGORY BY ID
-   */
   getCategoryById: async (req, res) => {
     try {
       const category = await Category.findOne({
