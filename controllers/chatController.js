@@ -225,8 +225,8 @@ ${JSON.stringify(candidateCases)}
           supportLine = fallbackCase?.[chatLang] || fallbackCase?.en || "";
         }
 
-        console.log("✅ Selected Case ID:", selectedCaseId);
-        console.log("📝 Support Line:", supportLine);
+        // console.log("✅ Selected Case ID:", selectedCaseId);
+        // console.log("📝 Support Line:", supportLine);
       } else {
         // Existing chat: reuse stored selectedCaseId
         selectedCaseId = chat?.selectedCaseId || null;

@@ -14,70 +14,17 @@ router.put('/resetPasswordWithOtp', userController.resetPasswordWithOtp);
 router.put('/fcmToken/:id', userController.updatefcmToken);
 router.get('/settings', SettingController.index);
 router.post('/googleLogin', userController.googleLogin);
+router.get("/auth/apple/start", userController.appleStart);
+router.post("/appleLogin", userController.appleLogin);
+// IMPORTANT: needs urlencoded body parser
+router.post("/api/auth/apple/callback",
+  express.urlencoded({ extended: false }),
+  (req, res) => {
+    const { code, state } = req.body; // ✅ code comes in body now
 
-
-
-
-router.post('/appleLogin', userController.appleLogin);
-// routes/auth.js (or wherever)
-router.get("/auth/apple/start", (req, res) => {
-  const state = require("crypto").randomBytes(16).toString("hex");
-
-  // If you want: store state in cookie/session to validate in callback
-  res.cookie("apple_oauth_state", state, {
-    httpOnly: true,
-    sameSite: "none",
-    secure: true, // true in HTTPS production
-  });
-
-  const redirectUri = process.env.APPLE_REDIRECT_URI; // MUST match Apple console
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: process.env.APPLE_CLIENT_ID, // Service ID
-    redirect_uri: redirectUri,
-    scope: "name email",
-    response_mode: "form_post", // or "form_post"
-    state,
-  });
-
-  res.redirect(`https://appleid.apple.com/auth/authorize?${params.toString()}`);
-});
-
-router.post("/auth/apple/callback", async (req, res) => {
-    console.log("✅ Apple callback hit");
-  console.log("method:", req.method);
-  console.log("headers content-type:", req.headers["content-type"]);
-  console.log("body:", req.body);
-  console.log("query:", req.query);
-  console.log("cookies:", req.cookies);
-  try {
-    const { code, state } = req.body;
-
-    if (!code) return res.status(400).send("Missing code");
-
-    const savedState = req.cookies.apple_oauth_state;
-    if (savedState && state !== savedState) {
-      return res.status(400).send("Invalid state");
-    }
-
-    // Reuse your existing function by calling it directly:
-    // Make a fake req/res OR better: extract code into a service function
-    const appTokenData = await appleLoginService({ code, roleId: 2 }); // implement below
-
-    // Option A (simple): redirect with token in query
-    // NOTE: token in query is not ideal but easy
-    return res.redirect(
-      `${process.env.FRONTEND_URL}/apple/success?token=${encodeURIComponent(appTokenData.token)}`
-    );
-
-    // Option B (better): set httpOnly cookie then redirect
-    // res.cookie("token", appTokenData.token, { httpOnly:true, secure:true, sameSite:"lax" });
-    // return res.redirect(`${process.env.FRONTEND_URL}/`);
-  } catch (err) {
-    console.error("❌ callback error:", err?.response?.data || err);
-    return res.redirect(`${process.env.FRONTEND_URL}/login?apple=failed`);
+    // Option A: redirect to frontend with code
+    return res.redirect(`${process.env.FRONTEND_URL}/auth/apple/callback?code=${encodeURIComponent(code)}`);
   }
-});
-
+);
 
 module.exports = router;

@@ -1,3 +1,4 @@
+const axios = require("axios");
 const User = require("../models/UserModel");
 const Setting = require("../models/SettingModel");
 const bcrypt = require("bcrypt");
@@ -6,20 +7,29 @@ const nodemailer = require("nodemailer");
 const logger = require("../helper/logger");
 const TempOtp = require("../models/OTPmodel");
 const { OAuth2Client } = require("google-auth-library");
-const Chat = require("../models/ChatModel")
-
+const Chat = require("../models/ChatModel");
+const { generateAppleClientSecret } = require("../utils/appleClientSecret");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = "jwttoken";
-// const { jwtVerify, createRemoteJWKSet } = require("jose");
-// Apple JWKS URL (public keys)
-// const APPLE_JWKS = createRemoteJWKSet(
-//   new URL("https://appleid.apple.com/auth/keys")
-// );
 
 const makeUsernameFromEmail = (email) => {
   const base = (email || "user").split("@")[0];
   return base.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20) || "user";
 };
+let _appleJwks = null;
+
+async function getAppleJwks() {
+  if (_appleJwks) return _appleJwks;
+  const jose = await import("jose");
+  _appleJwks = jose.createRemoteJWKSet(
+    new URL("https://appleid.apple.com/auth/keys"),
+  );
+  return _appleJwks;
+}
+
+async function getJose() {
+  return import("jose");
+}
 
 const userController = {
   loginUser: async (req, res) => {
@@ -70,7 +80,7 @@ const userController = {
           roleId: user.roleId,
         },
         JWT_SECRET,
-        { expiresIn: "10d" }
+        { expiresIn: "10d" },
       );
 
       // ✅ If anonymous chat IDs provided, find and update them
@@ -80,17 +90,19 @@ const userController = {
           // Find all anonymous chats
           const chats = await Chat.find({
             _id: { $in: anonymousChatIds },
-            userId: { $exists: false } // Only chats without userId (anonymous)
+            userId: { $exists: false }, // Only chats without userId (anonymous)
           });
-          
+
           // Update each chat with user ID
           for (const chat of chats) {
             chat.userId = user._id;
             await chat.save();
             migratedChats.push(chat._id);
           }
-          
-          logger.log(`Migrated ${migratedChats.length} chats to user ${user._id}`);
+
+          logger.log(
+            `Migrated ${migratedChats.length} chats to user ${user._id}`,
+          );
         } catch (migrationError) {
           logger.error("Error migrating anonymous chats:", migrationError);
           // Don't fail login if migration fails
@@ -247,7 +259,7 @@ const userController = {
       const token = jwt.sign(
         { id: user._id, email: user.email, roleId: user.roleId },
         JWT_SECRET,
-        { expiresIn: "10d" }
+        { expiresIn: "10d" },
       );
 
       return res.status(200).json({
@@ -270,99 +282,113 @@ const userController = {
   },
 
   appleLogin: async (req, res) => {
-  try {
-    const { code, roleId } = req.body;
+    try {
+      const { code, roleId } = req.body;
 
-    if (!code) {
-      return res.status(400).json({ error: "authorization code is required" });
-    }
+      if (!code) {
+        return res
+          .status(400)
+          .json({ error: "authorization code is required" });
+      }
 
-    // 🔐 Generate client_secret
-    const clientSecret = generateAppleClientSecret();
+      // 🔐 Generate client_secret
+      const clientSecret = await generateAppleClientSecret();
 
-    // 🔁 Exchange code → tokens
-    const tokenResponse = await axios.post(
-      "https://appleid.apple.com/auth/token",
-      new URLSearchParams({
-        grant_type: "authorization_code",
-        code,
-        client_id: process.env.APPLE_CLIENT_ID,
-        client_secret: clientSecret,
-        redirect_uri: process.env.APPLE_REDIRECT_URI
-      }).toString(),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-    );
+      // 🔁 Exchange code → tokens
+      const tokenResponse = await axios.post(
+        "https://appleid.apple.com/auth/token",
+        new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          client_id: process.env.APPLE_CLIENT_ID,
+          client_secret: clientSecret,
+          redirect_uri: process.env.APPLE_REDIRECT_URI,
+        }).toString(),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+      );
 
-    const { id_token } = tokenResponse.data;
-    if (!id_token) {
-      return res.status(401).json({ error: "Apple id_token missing" });
-    }
+      const { id_token } = tokenResponse.data;
+      if (!id_token) {
+        return res.status(401).json({ error: "Apple id_token missing" });
+      }
 
-    // ✅ Verify id_token (jose loaded here)
-    const { jwtVerify } = await getJose();
-    const APPLE_JWKS = await getAppleJwks();
+      // ✅ Verify id_token (jose loaded here)
+      const jose = await getJose();
+      const APPLE_JWKS = await getAppleJwks();
 
-    const { payload } = await jwtVerify(id_token, APPLE_JWKS, {
-      issuer: "https://appleid.apple.com",
-      audience: process.env.APPLE_CLIENT_ID,
-    });
-
-    const appleId = payload.sub;
-    const email = payload.email || null;
-
-    let user = await User.findOne({
-      $or: [
-        { appleId },
-        ...(email ? [{ email: new RegExp(`^${email}$`, "i") }] : []),
-      ],
-    });
-
-    if (!user) {
-      user = await User.create({
-        roleId: roleId ? Number(roleId) : 2,
-        email: email || `${appleId}@apple.local`,
-        username: email ? makeUsernameFromEmail(email) : "apple_user",
-        password: null,
-        appleId,
-        provider: "apple",
-        isActive: true,
-        isDeleted: false,
+      const { payload } = await jose.jwtVerify(id_token, APPLE_JWKS, {
+        issuer: "https://appleid.apple.com",
+        audience: process.env.APPLE_CLIENT_ID,
       });
-    } else {
-      user.appleId = user.appleId || appleId;
-      user.provider = "apple";
-      await user.save();
-    }
 
-    if (!user.isActive || user.isDeleted) {
-      return res.status(403).json({ error: "User is disabled or deleted" });
-    }
+      const appleId = payload.sub;
+      const email = payload.email || null;
 
-    const appToken = jwt.sign(
-      { id: user._id, email: user.email, roleId: user.roleId },
-      JWT_SECRET,
-      { expiresIn: "10d" }
+      let user = await User.findOne({
+        $or: [
+          { appleId: appleId },
+          ...(email ? [{ email: new RegExp(`^${email}$`, "i") }] : []),
+        ],
+      });
+
+      if (!user) {
+        user = await User.create({
+          roleId: roleId ? Number(roleId) : 2,
+          email: email || `${appleId}@apple.local`,
+          username: email ? makeUsernameFromEmail(email) : "apple_user",
+          password: null,
+          appleId,
+          provider: "apple",
+          isActive: true,
+          isDeleted: false,
+        });
+      } else {
+        user.appleId = user.appleId || appleId;
+        user.provider = "apple";
+        await user.save();
+      }
+
+      if (!user.isActive || user.isDeleted) {
+        return res.status(403).json({ error: "User is disabled or deleted" });
+      }
+
+      const appToken = jwt.sign(
+        { id: user._id, email: user.email, roleId: user.roleId },
+        JWT_SECRET,
+        { expiresIn: "10d" },
+      );
+
+      return res.status(200).json({
+        message: "Apple login successful",
+        token: appToken,
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          roleId: user.roleId,
+        },
+      });
+    } catch (error) {
+      console.error("Apple login error:", error.response?.data || error);
+      return res.status(500).json({
+        error: "Apple login failed",
+        details: error.message,
+      });
+    }
+  },
+
+  appleStart: (req, res) => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      response_mode: "form_post",
+      client_id: process.env.APPLE_CLIENT_ID,
+      redirect_uri: process.env.APPLE_REDIRECT_URI, // must be frontend callback
+      scope: "name email",
+    });
+    return res.redirect(
+      `https://appleid.apple.com/auth/authorize?${params.toString()}`,
     );
-
-    return res.status(200).json({
-      message: "Apple login successful",
-      token: appToken,
-      user: {
-        _id: user._id,
-        email: user.email,
-        username: user.username,
-        roleId: user.roleId,
-      },
-    });
-  } catch (error) {
-    console.error("Apple login error:", error.response?.data || error);
-    return res.status(500).json({
-      error: "Apple login failed",
-      details: error.message,
-    });
-  }
-},
-
+  },
 
   sendOtp: async (req, res) => {
     const { email } = req.body;
@@ -403,7 +429,7 @@ const userController = {
         await TempOtp.findOneAndUpdate(
           { email: email.toLowerCase() },
           { otp, otpExpiry },
-          { upsert: true, new: true }
+          { upsert: true, new: true },
         );
       }
 
@@ -544,7 +570,7 @@ const userController = {
       ]);
 
       logger.log(
-        `Fetched ${users.length} users. Filter: ${JSON.stringify(filter)}`
+        `Fetched ${users.length} users. Filter: ${JSON.stringify(filter)}`,
       );
 
       res.status(200).json({
@@ -561,7 +587,7 @@ const userController = {
   getUserById: async (req, res) => {
     try {
       const user = await User.findById(req.params.id).populate(
-        "name price desc isActive"
+        "name price desc isActive",
       );
       if (!user) {
         logger.log(`User not found: ID ${req.params.id}`);
@@ -597,7 +623,7 @@ const userController = {
         updateData,
         {
           new: true,
-        }
+        },
       );
 
       if (!updatedUser) {
@@ -606,7 +632,7 @@ const userController = {
       }
 
       logger.log(
-        `Updated user: ${updatedUser.username} (ID: ${req.params.id})`
+        `Updated user: ${updatedUser.username} (ID: ${req.params.id})`,
       );
       res.status(200).json(updatedUser);
     } catch (err) {
@@ -619,7 +645,7 @@ const userController = {
       const deletedUser = await User.findByIdAndDelete(
         req.params.id,
         { $set: { isDeleted: true } },
-        { new: true }
+        { new: true },
       );
       if (!deletedUser) {
         logger.log(`Delete failed: User not found - ID ${req.params.id}`);
@@ -645,7 +671,7 @@ const userController = {
       const updatedUser = await User.findByIdAndUpdate(
         req.params.id,
         { fcmToken }, // Only update fcmToken
-        { new: true }
+        { new: true },
       );
 
       if (!updatedUser) {
@@ -654,13 +680,13 @@ const userController = {
       }
 
       logger.log(
-        `Updated FCM token for user: ${updatedUser.name} (ID: ${req.params.id})`
+        `Updated FCM token for user: ${updatedUser.name} (ID: ${req.params.id})`,
       );
       res.status(200).json(updatedUser);
     } catch (err) {
       logger.error(
         `Error updating FCM token for user ID ${req.params.id}`,
-        err
+        err,
       );
       res.status(500).json({ error: err.message });
     }
