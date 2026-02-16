@@ -4,6 +4,7 @@ const SubCategory = require("../models/SubCategoryModel.js");
 const openai = require("../helper/openAi.js");
 const logger = require("../helper/logger.js");
 const Case = require("../models/CasesModel.js");
+const { generateGeminiResponse } = require("../helper/geminiService.js");
 
 function detectLangFromMessage(text = "") {
   if (/[\u0E00-\u0E7F]/.test(text)) return "th"; // Thai
@@ -275,14 +276,18 @@ REPLY RULE:
 
       messages.push({ role: "user", content: userMessage });
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5-nano",
-        messages,
-        temperature: 1,
-      });
+      // const completion = await openai.chat.completions.create({
+      //   model: "gpt-5-nano",
+      //   messages,
+      //   temperature: 1,
+      // });
 
-      const aiResponse =
-        completion.choices[0]?.message?.content?.trim() || "No response";
+      const completion = await generateGeminiResponse(messages);
+
+      // const aiResponse =
+      //   completion.choices[0]?.message?.content?.trim() || "No response";
+
+      const aiResponse = completion?.trim() || "No response";
 
       const chatMessage = { userMessage, aiResponse };
 
