@@ -28,7 +28,8 @@ const chatController = {
   createChat: async (req, res) => {
     try {
       // IMPORTANT: let (categoryId can be corrected from subCategory)
-      let { userId, categoryId, subCategoryId, chatId, userMessage } = req.body;
+      let { userId, categoryId, subCategoryId, chatId, userMessage, memory } =
+        req.body;
 
       if (!userMessage) {
         return res.status(400).json({
@@ -109,6 +110,20 @@ If the response sounds smart but emotionally cold → FAILURE
       } else if (categoryPrompt && categoryPrompt.trim()) {
         systemPrompt = categoryPrompt.trim();
         promptSource = "category";
+      }
+
+      /** 🧠 USER MEMORY CONTEXT */
+      if (memory && memory.trim()) {
+        // console.log("Adding user memory to system prompt.");
+        systemPrompt = `
+${systemPrompt}
+
+USER BIRTH DETAILS:
+${memory.trim()}
+
+IMPORTANT RULE:
+If Birth Time or Birth Place is missing, proceed with available information
+`.trim();
       }
 
       /** 🎯 ADD CONTEXT (only when using default/category prompts) */
