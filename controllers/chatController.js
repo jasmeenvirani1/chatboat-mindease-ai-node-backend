@@ -207,13 +207,15 @@ ${JSON.stringify(candidateCases)}
           { role: "user", content: userMessage },
         ];
 
-        const sel = await openai.chat.completions.create({
-          model: "gpt-5-nano",
-          messages: selectionMessages,
-          temperature: 1,
-        });
+        // const sel = await openai.chat.completions.create({
+        //   model: "gpt-5-nano",
+        //   messages: selectionMessages,
+        //   temperature: 1,
+        // });
 
-        const selRaw = sel.choices[0]?.message?.content || "";
+        // const selRaw = sel.choices[0]?.message?.content || "";
+        const selRaw = await generateGeminiResponse(selectionMessages);
+
         selectedCaseId = parseCaseIdOnly(selRaw);
 
         // If selection failed OR returned invalid id, fallback randomly (so not always same)
@@ -281,11 +283,11 @@ SUPPORT_LINE:
 ${supportLine}
 
 REPLY RULE:
-- Start your reply with SUPPORT_LINE exactly as-is on its own first line.
+- Start your reply with SUPPORT_LINE text exactly as-is on its own first line.
 - Then continue in HealJai style.
 - Keep the part after SUPPORT_LINE to only 1–3 sentences total.
 - Ask at most ONE open-ended question.
-- No lists/bullets/numbering.
+- Please do not write SUPPORT_LINE label in the final reply, only the support line text itself.
 `.trim();
       }
 

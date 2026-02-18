@@ -34,6 +34,7 @@ const SettingController = {
         smtpUsername,
         smtpPassword,
         smtpFromEmail,
+        gemini_api_key,
       } = req.body;
 
       const uploadDir = path.join(__dirname, "../public/uploads/settings");
@@ -59,9 +60,9 @@ const SettingController = {
       }
 
       // Handle uploads safely
-      const headerFinal = handleFile(req.files.headerLogo[0], "headerLogo");
-      const footerFinal = handleFile(req.files.footerLogo[0], "footerLogo");
-      const faviconFinal = handleFile(req.files.favicon[0], "favicon", ".ico");
+      // const headerFinal = handleFile(req.files.headerLogo[0], "headerLogo");
+      // const footerFinal = handleFile(req.files.footerLogo[0], "footerLogo");
+      // const faviconFinal = handleFile(req.files.favicon[0], "favicon", ".ico");
 
       const settings = new Setting({
         siteName,
@@ -75,14 +76,15 @@ const SettingController = {
         twitterLink,
         copyrightYear,
         adminEmail,
-        headerLogo: headerFinal,
-        footerLogo: footerFinal,
-        favicon: faviconFinal,
+        // headerLogo: headerFinal,
+        // footerLogo: footerFinal,
+        // favicon: faviconFinal,
         smtpHost,
         smtpPort,
         smtpUsername,
         smtpPassword,
         smtpFromEmail,
+        gemini_api_key,
       });
 
       await settings.save();
