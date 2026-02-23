@@ -10,11 +10,16 @@ const CategoryController = require("../controllers/categoryController.js");
 const SubCategoryController = require("../controllers/subCategoryController.js");
 const CaseController = require("../controllers/casesController.js");
 const HeadlineController = require("../controllers/headlineController.js");
+const {
+  createTarotHistory,
+} = require("../controllers/tarotCategoryController.js");
 
 //Public Routes
 router.post("/chat/create", multiupload("chat"), ChatHistory.createChat);
 router.get("/headlines", HeadlineController.getAllHeadlines);
 router.get("/headline/:date", HeadlineController.getHeadlineByDate);
+
+router.post("/tarotChat/create", createTarotHistory);
 
 router.use(authenticateToken);
 
@@ -24,7 +29,7 @@ router.post("/settings/add", threeuploads("settings"), SettingController.store);
 router.put(
   "/settings/:id/update",
   threeuploads("settings"),
-  SettingController.update
+  SettingController.update,
 );
 
 //User Routes
@@ -47,9 +52,15 @@ router.delete("/category/:id/delete", CategoryController.deleteCategory);
 //SubCategory Routes
 router.post("/subcategory/add", SubCategoryController.createSubCategory);
 router.get("/subcategories", SubCategoryController.getAllSubCategories);
-router.get("/subcategory/:categoryId", SubCategoryController.getSubCategoriesByCategory);
+router.get(
+  "/subcategory/:categoryId",
+  SubCategoryController.getSubCategoriesByCategory,
+);
 router.put("/subcategory/:id/update", SubCategoryController.updateSubCategory);
-router.delete("/subcategory/:id/delete", SubCategoryController.deleteSubCategory);
+router.delete(
+  "/subcategory/:id/delete",
+  SubCategoryController.deleteSubCategory,
+);
 
 //Case Routes
 router.post("/cases/add", CaseController.createCase);
@@ -59,7 +70,6 @@ router.put("/cases/:id/update", CaseController.updateCaseById);
 router.delete("/cases/:id/delete", CaseController.deleteCaseById);
 
 // Headline Routes
-
 
 //Log route
 router.get("/logs", (req, res) => {
