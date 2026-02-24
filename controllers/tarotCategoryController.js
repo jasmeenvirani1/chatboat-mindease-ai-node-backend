@@ -101,7 +101,7 @@ Focus your interpretation on matters related to ${tarotCategoryName}:
 ${tarotCategoryName === "love" ? "- Romantic relationships, self-love, emotional connections" : ""}
 ${tarotCategoryName === "work" ? "- Career path, professional growth, workplace dynamics" : ""}
 ${tarotCategoryName === "money" ? "- Abundance, financial stability, prosperity mindset" : ""}
-${tarotCategoryName === "healjai" ? "- Emotional healing, inner peace, mind-body wellness" : ""}
+${tarotCategoryName === "healjai" ? "- Reveal core life energy, personality, career, money, love, and overall life path." : ""}
 `.trim();
 
       systemPrompt = `${systemPrompt}\n\n${categoryContext}`;
