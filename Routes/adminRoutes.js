@@ -2,7 +2,11 @@ const express = require("express");
 const router = express.Router();
 const fs = require("fs");
 const authenticateToken = require("../middleware/authenticateToken.js");
-const { threeuploads, multiupload } = require("../utils/imageUploder.js");
+const {
+  threeuploads,
+  multiupload,
+  singleupload,
+} = require("../utils/imageUploder.js");
 const SettingController = require("../controllers/settingController.js");
 const userController = require("../controllers/userController.js");
 const ChatHistory = require("../controllers/chatController.js");
@@ -20,6 +24,44 @@ router.get("/headlines", HeadlineController.getAllHeadlines);
 router.get("/headline/:date", HeadlineController.getHeadlineByDate);
 
 router.post("/tarotChat/create", createTarotHistory);
+
+// NEW: Public route for sharing images (no authentication required)
+router.post(
+  "/share-image",
+  singleupload("share-images", "image"),
+  (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: "No image uploaded",
+        });
+      }
+
+      // Get the uploaded file info
+      const file = req.file;
+
+      // Generate public URL
+      const baseUrl =
+        process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const imageUrl = `${baseUrl}/api/public/uploads/share-images/${file.filename}`;
+
+      console.log("✅ Image uploaded successfully:", imageUrl);
+
+      res.json({
+        success: true,
+        imageUrl,
+        message: "Image uploaded successfully",
+      });
+    } catch (error) {
+      console.error("❌ Upload error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Upload failed: " + error.message,
+      });
+    }
+  },
+);
 
 router.use(authenticateToken);
 
