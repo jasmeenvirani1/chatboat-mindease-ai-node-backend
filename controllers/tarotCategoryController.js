@@ -14,9 +14,40 @@ const createTarotHistory = async (req, res) => {
       tarotCategoryName,
       userMessage,
       memory,
+      question,
       selectedCards, // Array of selected cards (1 or 4)
       subCategoryId, // Add subCategoryId to get the specific tarot prompt
     } = req.body;
+
+    const isEmpty = (v) => !v || String(v).trim().length === 0;
+
+    const detectLangFromMessage = (message) => {
+      const text = String(message || "");
+      const thaiPattern = /[ก-๙]/;
+      const chinesePattern = /[\u4e00-\u9fff]/;
+      const japanesePattern = /[ぁ-んァ-ン]/;
+      const englishPattern = /[a-zA-Z]/;
+
+      if (thaiPattern.test(text)) return "th";
+      if (chinesePattern.test(text)) return "zh";
+      if (japanesePattern.test(text)) return "ja";
+      if (englishPattern.test(text)) return "en";
+
+      return "th";
+    };
+
+    const langInstruction = (lang) => {
+      switch (lang) {
+        case "th":
+          return "You MUST respond in Thai language only.";
+        case "zh":
+          return "You MUST respond in Chinese (Simplified) only.";
+        case "ja":
+          return "You MUST respond in Japanese only.";
+        default:
+          return "You MUST respond in English only.";
+      }
+    };
 
     // Validate required fields
     if (!userMessage) {
@@ -51,6 +82,13 @@ const createTarotHistory = async (req, res) => {
       }
     }
 
+    const questionText = String(question || "").trim();
+    const targetLang = isEmpty(questionText)
+      ? "th"
+      : detectLangFromMessage(questionText);
+
+    console.log("Lang:", targetLang);
+
     /** 🧠 BUILD SYSTEM PROMPT FOR TAROT */
     // Base tarot prompt (used if no subcategory prompt)
     const baseTarotPrompt = `
@@ -63,6 +101,7 @@ TAROT READING STYLE:
 - Focus on guidance, insight, and encouragement
 - Avoid fear-based, negative, or threatening language
 - Connect card meanings to astrological archetypes
+- Each card have 1 to 2 paragraph separate
 
 READING STRUCTURE FOR 1 CARD:
 - Greet and acknowledge birth details
@@ -78,7 +117,9 @@ READING STRUCTURE FOR 4 CARDS (Journey Spread):
 4. The Outcome - Where the path leads
 
 LANGUAGE RULE:
-- Always reply in the SAME language as the user
+- ${langInstruction(targetLang)}
+- If question not available(empty) replay in Thai language.
+- If question available always reply in the SAME language as the user.
 - Use soft language: "may", "seems", "tends to", "likely"
 - Never use absolute claims
 
@@ -138,17 +179,17 @@ provide a complete interpretation following the structure above.
     systemPrompt = `${systemPrompt}\n\n${cardsContext}`;
 
     /** 🌍 DETECT LANGUAGE */
-    const detectLangFromMessage = (message) => {
-      // Simple language detection - you can enhance this
-      const thaiPattern = /[ก-๙]/;
-      const chinesePattern = /[\u4e00-\u9fff]/;
-      const japanesePattern = /[ぁ-んァ-ン]/;
+    // const detectLangFromMessage = (message) => {
+    //   // Simple language detection - you can enhance this
+    //   const thaiPattern = /[ก-๙]/;
+    //   const chinesePattern = /[\u4e00-\u9fff]/;
+    //   const japanesePattern = /[ぁ-んァ-ン]/;
 
-      if (thaiPattern.test(message)) return "th";
-      if (chinesePattern.test(message)) return "zh";
-      if (japanesePattern.test(message)) return "ja";
-      return "en";
-    };
+    //   if (thaiPattern.test(message)) return "th";
+    //   if (chinesePattern.test(message)) return "zh";
+    //   if (japanesePattern.test(message)) return "ja";
+    //   return "en";
+    // };
 
     const chatLang = detectLangFromMessage(userMessage);
 
