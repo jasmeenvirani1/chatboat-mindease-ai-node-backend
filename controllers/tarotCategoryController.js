@@ -39,13 +39,13 @@ const createTarotHistory = async (req, res) => {
     const langInstruction = (lang) => {
       switch (lang) {
         case "th":
-          return "You MUST respond in Thai language only.";
+          return "You MUST respond in Thai language only. IMPORTANT: Respond entirely in Thai, no matter what language the user writes in.";
         case "zh":
-          return "You MUST respond in Chinese (Simplified) only.";
+          return "You MUST respond in Chinese (Simplified) only. IMPORTANT: Respond entirely in Chinese, no matter what language the user writes in.";
         case "ja":
-          return "You MUST respond in Japanese only.";
+          return "You MUST respond in Japanese only. IMPORTANT: Respond entirely in Japanese, no matter what language the user writes in.";
         default:
-          return "You MUST respond in English only.";
+          return "You MUST respond in English only. IMPORTANT: Respond entirely in English, no matter what language the user writes in.";
       }
     };
 
@@ -83,6 +83,7 @@ const createTarotHistory = async (req, res) => {
     }
 
     const questionText = String(question || "").trim();
+    console.log("Question:", questionText);
     const targetLang = isEmpty(questionText)
       ? "th"
       : detectLangFromMessage(questionText);
@@ -118,8 +119,6 @@ READING STRUCTURE FOR 4 CARDS (Journey Spread):
 
 LANGUAGE RULE:
 - ${langInstruction(targetLang)}
-- If question not available(empty) replay in Thai language.
-- If question available always reply in the SAME language as the user.
 - Use soft language: "may", "seems", "tends to", "likely"
 - Never use absolute claims
 
@@ -191,7 +190,7 @@ provide a complete interpretation following the structure above.
     //   return "en";
     // };
 
-    const chatLang = detectLangFromMessage(userMessage);
+    // const chatLang = detectLangFromMessage(userMessage);
 
     /** 🎯 BUILD MESSAGES FOR AI */
     const messages = [{ role: "system", content: systemPrompt.trim() }];
