@@ -5,6 +5,24 @@ const openai = require("../helper/openAi.js");
 const logger = require("../helper/logger.js");
 const Case = require("../models/CasesModel.js");
 const { generateGeminiResponse } = require("../helper/geminiService.js");
+const HeadlineModel = require("../models/HeadlineModel.js");
+
+function getKolkataMidnightDate() {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const y = parts.find((p) => p.type === "year").value;
+  const m = parts.find((p) => p.type === "month").value;
+  const d = parts.find((p) => p.type === "day").value;
+
+  return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
+}
 
 function detectLangFromMessage(text = "") {
   if (/[\u0E00-\u0E7F]/.test(text)) return "th"; // Thai
@@ -112,6 +130,11 @@ If the response sounds smart but emotionally cold → FAILURE
         promptSource = "category";
       }
 
+      const dateKey = getKolkataMidnightDate();
+      const userData = await HeadlineModel.findOne({ date: dateKey }).lean();
+
+      // console.log("Data:", userData);
+
       /** 🧠 USER MEMORY CONTEXT */
       if (memory && memory.trim()) {
         // console.log("Adding user memory to system prompt.");
@@ -121,7 +144,13 @@ ${systemPrompt}
 USER BIRTH DETAILS:
 ${memory.trim()}
 
+USER OTHER DETAILS:
+- User today's lucky color: ${userData.lucky_color}
+- User today's Energy level: ${userData.energy_level}
+- User today's Golden Hour: ${userData.golden_hour}
+
 IMPORTANT RULE:
+Response also related to "USER OTHER DETAILS"
 If Birth Time or Birth Place is missing, proceed with available information
 `.trim();
       }

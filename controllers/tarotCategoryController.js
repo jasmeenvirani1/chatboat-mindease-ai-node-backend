@@ -111,6 +111,14 @@ READING STRUCTURE FOR 1 CARD:
 - Practical guidance
 - Gentle closing
 
+READING STRUCTURE FOR 10 CARDS:
+- Give overview of next 6 to 12 months(IMPORTANT)
+- Greet and acknowledge birth details
+- Astrological context (current sky influences)
+- Card interpretation with meaning and astrological correspondences
+- Practical guidance
+- Gentle closing
+
 READING STRUCTURE FOR 4 CARDS (Journey Spread):
 1. The Foundation - Current energies at play
 2. The Challenge - Obstacles or lessons
