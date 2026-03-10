@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@google/genai": "^1.41.0",
+    "astronomy-engine": "^2.1.19",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
