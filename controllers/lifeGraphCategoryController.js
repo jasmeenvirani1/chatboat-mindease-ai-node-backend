@@ -18,6 +18,7 @@ const createLifeGraphHistory = async (req, res) => {
       //   tarotCategoryName,
       userMessage,
       memory,
+      lang,
       //   question,
       //   selectedCards, // Array of selected cards (1 or 4)
       subCategoryId, // Add subCategoryId to get the specific tarot prompt
@@ -152,6 +153,7 @@ PLANETS:
 ${realPlanets}
 
 LANGUAGE RULE:
+- ${langInstruction(lang)}
 - Use soft language: "may", "seems", "tends to", "likely"
 - Never use absolute claims
 `.trim();
@@ -191,6 +193,11 @@ RESPONSE STRUCTURE:
     }
   ]
 }
+
+LANGUAGE RULE:
+- ${langInstruction(lang)}
+- Use soft language: "may", "seems", "tends to", "likely"
+- Never use absolute claims
 
 IMPORTANT RULE:
 Give response in only json format.

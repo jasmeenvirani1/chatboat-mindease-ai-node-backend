@@ -17,6 +17,7 @@ const createUranianHistory = async (req, res) => {
       //   tarotCategoryName,
       userMessage,
       memory,
+      lang,
       //   question,
       //   selectedCards, // Array of selected cards (1 or 4)
       subCategoryId, // Add subCategoryId to get the specific tarot prompt
@@ -134,6 +135,7 @@ PLANETS:
 ${realPlanets}
 
 LANGUAGE RULE:
+- ${langInstruction(lang)}
 - Use soft language: "may", "seems", "tends to", "likely"
 - Never use absolute claims
 `.trim();
@@ -150,6 +152,16 @@ ${systemPrompt}
 USER BIRTH DETAILS:
 - Full Name: ${userName}
 ${memory.trim()}
+
+PLANETS:
+- Please don't modify given planet positions and any other things.
+- Events is not rendom it is based on planets positions.
+${realPlanets}
+
+LANGUAGE RULE:
+- ${langInstruction(lang)}
+- Use soft language: "may", "seems", "tends to", "likely"
+- Never use absolute claims
 
 IMPORTANT RULE:
 Use these birth details to personalize the astrological aspects of the reading.
