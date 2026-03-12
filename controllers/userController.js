@@ -401,7 +401,8 @@ const userController = {
 
       const adminEmail = "viranijasmeen@gmail.com";
       const supportEmail = "viranijasmeen@gmail.com";
-      const supportPassword = "gzrtvbeppsnwwbcd";
+      // gzrtvbeppsnwwbcd
+      const supportPassword = process.env.SUPPORT_PASSWORD;
 
       const user = await User.findOne({ email: new RegExp(`^${email}$`, "i") });
       const isAdmin = email.toLowerCase() === adminEmail.toLowerCase();
@@ -498,6 +499,7 @@ const userController = {
   resetPasswordWithOtp: async (req, res) => {
     const { resetToken, newPassword } = req.body;
     logger.log(`Password reset attempt`);
+    console.log("Password:", newPassword);
 
     try {
       if (!resetToken || !newPassword) {
@@ -509,7 +511,8 @@ const userController = {
 
       let decoded;
       try {
-        decoded = jwt.verify(resetToken, jwtKey);
+        const jwtkey = "jwttoken";
+        decoded = jwt.verify(resetToken, jwtkey);
       } catch (err) {
         logger.log(`Password reset failed: Invalid or expired reset token`);
         return res
