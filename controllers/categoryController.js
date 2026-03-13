@@ -4,19 +4,32 @@ const logger = require("../helper/logger");
 const CategoryController = {
   createCategory: async (req, res) => {
     try {
-      const { name, description, prompt, icon } = req.body;
-      console.log('prompt loggg ->>', prompt)
-      if (!name) {
+      const {
+        name,
+        name_th,
+        name_es,
+        description,
+        description_th,
+        description_es,
+        prompt,
+        icon,
+      } = req.body;
+      console.log("prompt loggg ->>", prompt);
+      if (!name && !name_th && !name_es) {
         logger.log("⚠️ Category name missing");
         return res.status(400).json({
           success: false,
-          message: "Category name is required",
+          message: "Category name is required in all language",
         });
       }
 
       const category = await Category.create({
         name,
+        name_th,
+        name_es,
         description,
+        description_th,
+        description_es,
         prompt: prompt || "",
         icon: icon || "💬",
       });
@@ -87,7 +100,18 @@ const CategoryController = {
 
   updateCategory: async (req, res) => {
     try {
-      const allowed = ["name", "description", "prompt", "icon", "color", "isActive"];
+      const allowed = [
+        "name",
+        "name_th",
+        "name_es",
+        "description",
+        "description_th",
+        "description_es",
+        "prompt",
+        "icon",
+        "color",
+        "isActive",
+      ];
       const updates = {};
 
       for (const key of allowed) {

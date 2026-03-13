@@ -4,8 +4,18 @@ const SubCategory = require("../models/SubCategoryModel.js");
 const SubCategoryController = {
   createSubCategory: async (req, res) => {
     try {
-      const { categoryId, name, description, prompt, icon, isActive } =
-        req.body;
+      const {
+        categoryId,
+        name,
+        name_th,
+        name_es,
+        description,
+        description_th,
+        description_es,
+        prompt,
+        icon,
+        isActive,
+      } = req.body;
 
       if (!categoryId) {
         return res
@@ -26,7 +36,11 @@ const SubCategoryController = {
       const subCategory = await SubCategory.create({
         categoryId,
         name: name.trim(),
+        name_th: name_th.trim(),
+        name_es: name_es.trim(),
         description: description ?? "",
+        description_th: description_th ?? "",
+        description_es: description_es ?? "",
         prompt: prompt ?? "",
         icon: icon ?? "message-square",
         isActive: typeof isActive === "boolean" ? isActive : true,
@@ -153,7 +167,11 @@ const SubCategoryController = {
     try {
       const allowed = [
         "name",
+        "name_th",
+        "name_es",
         "description",
+        "description_th",
+        "description_es",
         "prompt",
         "icon",
         "isActive",
