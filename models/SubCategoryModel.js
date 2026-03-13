@@ -15,8 +15,26 @@ const SubCategorySchema = new Schema(
       required: true,
       trim: true,
     },
+    name_th: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    name_es: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
     description: {
+      type: String,
+      default: "",
+    },
+    description_th: {
+      type: String,
+      default: "",
+    },
+    description_es: {
       type: String,
       default: "",
     },
@@ -41,13 +59,13 @@ const SubCategorySchema = new Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Prevent duplicate subcategory names under the same category (optional but recommended)
 SubCategorySchema.index(
   { categoryId: 1, name: 1 },
-  { unique: true, partialFilterExpression: { isDeleted: false } }
+  { unique: true, partialFilterExpression: { isDeleted: false } },
 );
 
 module.exports = model("SubCategory", SubCategorySchema);

@@ -119,6 +119,8 @@ const userController = {
           _id: user._id,
           email: user.email,
           username: user.username,
+          mobileNo: user.mobileNo,
+          preferredLanguage: user.preferredLanguage,
           roleId: user.roleId,
         },
         migratedChats: migratedChats, // Send back which chats were migrated
@@ -133,7 +135,8 @@ const userController = {
   },
 
   register: async (req, res) => {
-    const { roleId, email, username, password, mobileNo } = req.body;
+    const { roleId, email, username, password, mobileNo, preferredLanguage } =
+      req.body;
 
     logger.log(`Registration attempt for ${email}`);
 
@@ -171,6 +174,7 @@ const userController = {
         email,
         username,
         password: hashedPassword,
+        preferredLanguage,
         mobileNo,
       });
 

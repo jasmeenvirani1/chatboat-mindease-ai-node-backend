@@ -7,7 +7,23 @@ const CategorySchema = new Schema(
       type: String,
       required: true,
     },
+    name_th: {
+      type: String,
+      required: true,
+    },
+    name_es: {
+      type: String,
+      required: true,
+    },
     description: {
+      type: String,
+      default: "",
+    },
+    description_th: {
+      type: String,
+      default: "",
+    },
+    description_es: {
       type: String,
       default: "",
     },
