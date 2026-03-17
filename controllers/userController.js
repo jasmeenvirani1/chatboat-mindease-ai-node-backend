@@ -120,6 +120,9 @@ const userController = {
           email: user.email,
           username: user.username,
           mobileNo: user.mobileNo,
+          dob: user.dob,
+          dob_time: user.dob_time,
+          dob_place: user.dob_place,
           preferredLanguage: user.preferredLanguage,
           roleId: user.roleId,
         },
@@ -273,6 +276,11 @@ const userController = {
           _id: user._id,
           email: user.email,
           username: user.username,
+          mobileNo: user.mobileNo,
+          dob: user.dob,
+          dob_time: user.dob_time,
+          dob_place: user.dob_place,
+          preferredLanguage: user.preferredLanguage,
           roleId: user.roleId,
         },
       });
@@ -369,6 +377,11 @@ const userController = {
           _id: user._id,
           email: user.email,
           username: user.username,
+          mobileNo: user.mobileNo,
+          dob: user.dob,
+          dob_time: user.dob_time,
+          dob_place: user.dob_place,
+          preferredLanguage: user.preferredLanguage,
           roleId: user.roleId,
         },
       });
@@ -594,7 +607,7 @@ const userController = {
   getUserById: async (req, res) => {
     try {
       const user = await User.findById(req.params.id).populate(
-        "name price desc isActive",
+        "username email mobileNo preferredLanguage dob dob_time dob_place isActive",
       );
       if (!user) {
         logger.log(`User not found: ID ${req.params.id}`);
