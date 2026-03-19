@@ -310,6 +310,7 @@ ${messages[0].content}
 
 REPLY RULE:
 - Ask at most ONE open-ended question.
+- If in userMessage date is available then choose date of birth is userMessage not birth details date and give reading based on user date.
 `.trim();
       }
 
