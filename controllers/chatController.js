@@ -308,15 +308,8 @@ ${JSON.stringify(candidateCases)}
         messages[0].content = `
 ${messages[0].content}
 
-SUPPORT_LINE:
-${supportLine}
-
 REPLY RULE:
-- Start your reply with SUPPORT_LINE text exactly as-is on its own first line.
-- Then continue in HealJai style.
-- Keep the part after SUPPORT_LINE to only 1–3 sentences total.
 - Ask at most ONE open-ended question.
-- Please do not write SUPPORT_LINE label in the final reply, only the support line text itself.
 `.trim();
       }
 
