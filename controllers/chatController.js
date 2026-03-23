@@ -6,6 +6,7 @@ const logger = require("../helper/logger.js");
 const Case = require("../models/CasesModel.js");
 const { generateGeminiResponse } = require("../helper/geminiService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
+const User = require("../models/UserModel.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -57,6 +58,17 @@ const chatController = {
       } = req.body;
 
       console.log("Persona:", userPersona.focusPoints);
+
+      let dob0;
+
+      if (userId) {
+        const user = await User.findById(userId).select("dob");
+        if (user) {
+          dob0 = user.dob;
+        }
+      }
+
+      console.log("dob:", dob0);
 
       if (!userMessage) {
         return res.status(400).json({
@@ -151,7 +163,7 @@ If the response sounds smart but emotionally cold → FAILURE
 ${systemPrompt}
 
 USER BIRTH DETAILS:
-${memory.trim()}
+${dob0}
 
 USER AGE BASED FOCUSPOINTS:
 - FocusPoints: ${categoryName === "ThaiAstro" ? userPersona?.focusPoints : "Ignore this rule"}
