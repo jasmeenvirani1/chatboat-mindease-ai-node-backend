@@ -46,8 +46,17 @@ const chatController = {
   createChat: async (req, res) => {
     try {
       // IMPORTANT: let (categoryId can be corrected from subCategory)
-      let { userId, categoryId, subCategoryId, chatId, userMessage, memory } =
-        req.body;
+      let {
+        userId,
+        categoryId,
+        subCategoryId,
+        chatId,
+        userMessage,
+        memory,
+        userPersona,
+      } = req.body;
+
+      console.log("Persona:", userPersona.focusPoints);
 
       if (!userMessage) {
         return res.status(400).json({
@@ -143,6 +152,11 @@ ${systemPrompt}
 
 USER BIRTH DETAILS:
 ${memory.trim()}
+
+USER AGE BASED FOCUSPOINTS:
+- FocusPoints: ${categoryName === "ThaiAstro" ? userPersona?.focusPoints : "Ignore this rule"}
+- Tone: ${categoryName === "ThaiAstro" ? userPersona?.tone : "Ignore this rule"}
+- Category Mode: ${categoryName === "ThaiAstro" ? userPersona?.category : "Ignore this rule"}
 
 USER OTHER DETAILS:
 - User today's lucky color: ${userData.lucky_color}
