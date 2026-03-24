@@ -4,7 +4,10 @@ const SubCategory = require("../models/SubCategoryModel.js");
 const openai = require("../helper/openAi.js");
 const logger = require("../helper/logger.js");
 const Case = require("../models/CasesModel.js");
-const { generateGeminiResponse } = require("../helper/geminiService.js");
+const {
+  generateGeminiResponse,
+  generateGeminiResponseStream,
+} = require("../helper/geminiService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const User = require("../models/UserModel.js");
 
@@ -215,97 +218,97 @@ If Birth Time or Birth Place is missing, proceed with available information
       let selectedCaseId = null;
       let supportLine = null;
 
-      if (isNewChat) {
-        const caseDocs = await Case.find({})
-          .sort({ createdAt: -1 })
-          .limit(60) // tune 30-80
-          .select("th en es")
-          .lean();
+      //       if (isNewChat) {
+      //         const caseDocs = await Case.find({})
+      //           .sort({ createdAt: -1 })
+      //           .limit(60) // tune 30-80
+      //           .select("th en es")
+      //           .lean();
 
-        const candidateCases = caseDocs.map((c) => ({
-          id: String(c._id),
-          th: c.th,
-          en: c.en,
-          es: c.es,
-        }));
+      //         const candidateCases = caseDocs.map((c) => ({
+      //           id: String(c._id),
+      //           th: c.th,
+      //           en: c.en,
+      //           es: c.es,
+      //         }));
 
-        // Selection step: override HealJai so it outputs ONLY the marker line
-        const selectionMessages = [
-          {
-            role: "system",
-            content: `
-${systemPrompt}
+      //         // Selection step: override HealJai so it outputs ONLY the marker line
+      //         const selectionMessages = [
+      //           {
+      //             role: "system",
+      //             content: `
+      // ${systemPrompt}
 
-IMPORTANT OVERRIDE:
-You are now in CASE_SELECTION_MODE.
-Ignore all emotional, supportive, or conversational rules from HealJai.
-Do NOT comfort the user in this step.
+      // IMPORTANT OVERRIDE:
+      // You are now in CASE_SELECTION_MODE.
+      // Ignore all emotional, supportive, or conversational rules from HealJai.
+      // Do NOT comfort the user in this step.
 
-TASK:
-Select the ONE best matching case for the user's message.
+      // TASK:
+      // Select the ONE best matching case for the user's message.
 
-OUTPUT RULES (STRICT):
-- Output ONLY ONE LINE, nothing else.
-- The line must be exactly:
-<<CASE_ID:the_selected_case_id>>
-- the_selected_case_id MUST be one of the IDs in CANDIDATE_CASES.
+      // OUTPUT RULES (STRICT):
+      // - Output ONLY ONE LINE, nothing else.
+      // - The line must be exactly:
+      // <<CASE_ID:the_selected_case_id>>
+      // - the_selected_case_id MUST be one of the IDs in CANDIDATE_CASES.
 
-CANDIDATE_CASES:
-${JSON.stringify(candidateCases)}
-`.trim(),
-          },
-          { role: "user", content: userMessage },
-        ];
+      // CANDIDATE_CASES:
+      // ${JSON.stringify(candidateCases)}
+      // `.trim(),
+      //           },
+      //           { role: "user", content: userMessage },
+      //         ];
 
-        // const sel = await openai.chat.completions.create({
-        //   model: "gpt-5-nano",
-        //   messages: selectionMessages,
-        //   temperature: 1,
-        // });
+      //         // const sel = await openai.chat.completions.create({
+      //         //   model: "gpt-5-nano",
+      //         //   messages: selectionMessages,
+      //         //   temperature: 1,
+      //         // });
 
-        // const selRaw = sel.choices[0]?.message?.content || "";
-        const selRaw = await generateGeminiResponse(selectionMessages);
+      //         // const selRaw = sel.choices[0]?.message?.content || "";
+      //         const selRaw = await generateGeminiResponse(selectionMessages);
 
-        selectedCaseId = parseCaseIdOnly(selRaw);
+      //         selectedCaseId = parseCaseIdOnly(selRaw);
 
-        // If selection failed OR returned invalid id, fallback randomly (so not always same)
-        if (
-          !selectedCaseId ||
-          !candidateCases.some((c) => c.id === selectedCaseId)
-        ) {
-          logger.error("CASE SELECTION FAILED. selRaw=", selRaw);
-          const r = Math.floor(Math.random() * candidateCases.length);
-          selectedCaseId = candidateCases[r]?.id || null;
-        }
+      //         // If selection failed OR returned invalid id, fallback randomly (so not always same)
+      //         if (
+      //           !selectedCaseId ||
+      //           !candidateCases.some((c) => c.id === selectedCaseId)
+      //         ) {
+      //           logger.error("CASE SELECTION FAILED. selRaw=", selRaw);
+      //           const r = Math.floor(Math.random() * candidateCases.length);
+      //           selectedCaseId = candidateCases[r]?.id || null;
+      //         }
 
-        // load selected doc and pick a single support line
-        const selectedDoc = selectedCaseId
-          ? await Case.findById(selectedCaseId).select("th en es").lean()
-          : null;
+      //         // load selected doc and pick a single support line
+      //         const selectedDoc = selectedCaseId
+      //           ? await Case.findById(selectedCaseId).select("th en es").lean()
+      //           : null;
 
-        supportLine = pickSupportLineByLang(selectedDoc, chatLang);
+      //         supportLine = pickSupportLineByLang(selectedDoc, chatLang);
 
-        // final fallback
-        if (!supportLine) {
-          const fallbackCase =
-            candidateCases.find((c) => c.id === selectedCaseId) ||
-            candidateCases[0];
-          supportLine = fallbackCase?.[chatLang] || fallbackCase?.en || "";
-        }
+      //         // final fallback
+      //         if (!supportLine) {
+      //           const fallbackCase =
+      //             candidateCases.find((c) => c.id === selectedCaseId) ||
+      //             candidateCases[0];
+      //           supportLine = fallbackCase?.[chatLang] || fallbackCase?.en || "";
+      //         }
 
-        // console.log("✅ Selected Case ID:", selectedCaseId);
-        // console.log("📝 Support Line:", supportLine);
-      } else {
-        // Existing chat: reuse stored selectedCaseId
-        selectedCaseId = chat?.selectedCaseId || null;
+      //         // console.log("✅ Selected Case ID:", selectedCaseId);
+      //         // console.log("📝 Support Line:", supportLine);
+      //       } else {
+      //         // Existing chat: reuse stored selectedCaseId
+      //         selectedCaseId = chat?.selectedCaseId || null;
 
-        if (selectedCaseId) {
-          const selectedDoc = await Case.findById(selectedCaseId)
-            .select("th en es")
-            .lean();
-          supportLine = pickSupportLineByLang(selectedDoc, chatLang);
-        }
-      }
+      //         if (selectedCaseId) {
+      //           const selectedDoc = await Case.findById(selectedCaseId)
+      //             .select("th en es")
+      //             .lean();
+      //           supportLine = pickSupportLineByLang(selectedDoc, chatLang);
+      //         }
+      //       }
 
       /** ✅ FINAL REPLY */
       const messages = [{ role: "system", content: systemPrompt.trim() }];
@@ -336,6 +339,85 @@ REPLY RULE:
       }
 
       messages.push({ role: "user", content: userMessage });
+
+      const wantsStream =
+        String(req.query.stream || req.body.stream || "").toLowerCase() ===
+          "true" ||
+        req.query.stream === "1" ||
+        req.body.stream === 1;
+
+      if (wantsStream) {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        });
+        if (res.flushHeaders) res.flushHeaders();
+
+        let fullResponse = "";
+        let clientClosed = false;
+
+        req.on("close", () => {
+          clientClosed = true;
+        });
+
+        try {
+          const stream = await generateGeminiResponseStream(messages);
+
+          for await (const chunk of stream) {
+            if (clientClosed) break;
+            const delta = chunk?.text || "";
+            if (!delta) continue;
+            fullResponse += delta;
+            res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+          }
+
+          const aiResponse = fullResponse.trim() || "No response";
+          const chatMessage = { userMessage, aiResponse };
+
+          /** 💾 SAVE */
+          if (!isNewChat) {
+            chat.chats.push(chatMessage);
+            await chat.save();
+          } else {
+            chat = await ChatHistory.create({
+              userId,
+              categoryId,
+              subCategoryId,
+              sessionTitle: userMessage.substring(0, 30),
+              chats: [chatMessage],
+              promptSource,
+              selectedCaseId: selectedCaseId || null,
+              chatLang,
+            });
+          }
+
+          if (!clientClosed) {
+            res.write(
+              `data: ${JSON.stringify({
+                done: true,
+                chatId: chat._id,
+                promptSource,
+                selectedCaseId: selectedCaseId || null,
+              })}\n\n`,
+            );
+            res.end();
+          }
+        } catch (streamError) {
+          logger.error("Gemini stream error:", streamError);
+          if (!clientClosed) {
+            res.write(
+              `event: error\ndata: ${JSON.stringify({
+                message: streamError?.message || "Chat creation failed",
+              })}\n\n`,
+            );
+            res.end();
+          }
+        }
+
+        return;
+      }
 
       // const completion = await openai.chat.completions.create({
       //   model: "gpt-5-nano",
@@ -380,7 +462,7 @@ REPLY RULE:
       logger.error("Chat Error:", error);
       return res.status(500).json({
         success: false,
-        message: "Chat creation failed",
+        message: error?.message || "Chat creation failed",
       });
     }
   },
