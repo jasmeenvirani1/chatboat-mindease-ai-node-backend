@@ -165,11 +165,6 @@ ${systemPrompt}
 USER BIRTH DETAILS:
 ${dob0}
 
-USER AGE BASED FOCUSPOINTS:
-- FocusPoints: ${categoryName === "ThaiAstro" ? userPersona?.focusPoints : "Ignore this rule"}
-- Tone: ${categoryName === "ThaiAstro" ? userPersona?.tone : "Ignore this rule"}
-- Category Mode: ${categoryName === "ThaiAstro" ? userPersona?.category : "Ignore this rule"}
-
 USER OTHER DETAILS:
 - User today's lucky color: ${userData.lucky_color}
 - User today's Energy level: ${userData.energy_level}
