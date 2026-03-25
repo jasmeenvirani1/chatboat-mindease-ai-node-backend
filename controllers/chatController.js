@@ -163,6 +163,9 @@ If the response sounds smart but emotionally cold → FAILURE
       if (memory && memory.trim()) {
         // console.log("Adding user memory to system prompt.");
         systemPrompt = `
+MOST IMPORTANT RULE:
+- If Date of Birth change then don't ask for confirmation. Start processing with new date.
+
 ${systemPrompt}
 
 USER BIRTH DETAILS:
