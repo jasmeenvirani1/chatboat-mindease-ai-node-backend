@@ -654,7 +654,7 @@ const userController = {
       logger.log(
         `Updated user: ${updatedUser.username} (ID: ${req.params.id})`,
       );
-      res.status(200).json(updatedUser);
+      res.status(200).json({ success: true, updatedUser });
     } catch (err) {
       logger.error(`Error updating user ID ${req.params.id}`, err);
       res.status(500).json({ error: err.message });
