@@ -169,7 +169,7 @@ MOST IMPORTANT RULE:
 ${systemPrompt}
 
 USER BIRTH DETAILS:
-${dob0}
+${subCategoryName === "รหัส Healjai" ? "" : dob0}
 
 USER OTHER DETAILS:
 - User today's lucky color: ${userData.lucky_color}
