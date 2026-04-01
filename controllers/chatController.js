@@ -10,6 +10,7 @@ const {
 } = require("../helper/geminiService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const User = require("../models/UserModel.js");
+const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -32,6 +33,87 @@ function detectLangFromMessage(text = "") {
   if (/[\u0E00-\u0E7F]/.test(text)) return "th"; // Thai
   if (/[ñáéíóúü¿¡]/i.test(text)) return "es"; // Spanish-ish
   return "en";
+}
+
+function extractThaiDateTime(text = "") {
+  const source = String(text || "");
+  const monthMap = {
+    มค: 1,
+    กพ: 2,
+    มีค: 3,
+    เมย: 4,
+    พค: 5,
+    มิย: 6,
+    กค: 7,
+    สค: 8,
+    กย: 9,
+    ตค: 10,
+    พย: 11,
+    ธค: 12,
+    มกราคม: 1,
+    กุมภาพันธ์: 2,
+    มีนาคม: 3,
+    เมษายน: 4,
+    พฤษภาคม: 5,
+    มิถุนายน: 6,
+    กรกฎาคม: 7,
+    สิงหาคม: 8,
+    กันยายน: 9,
+    ตุลาคม: 10,
+    พฤศจิกายน: 11,
+    ธันวาคม: 12,
+  };
+
+  const dateRegex =
+    /(\d{1,2})\s*(ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/i;
+  const timeRegex = /(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i;
+
+  const dateMatch = source.match(dateRegex);
+  if (!dateMatch) return null;
+
+  const timeMatch = source.match(timeRegex);
+
+  const day = Number(dateMatch[1]);
+  const monthRaw = String(dateMatch[2] || "")
+    .replace(/\./g, "")
+    .trim();
+  const monthKey = monthRaw.replace(/\s+/g, "");
+  const month = monthMap[monthKey];
+  if (!month) return null;
+
+  let year = Number(dateMatch[3]);
+  if (year >= 2400) year -= 543; // Convert Buddhist Era to AD
+
+  const hourRaw = timeMatch?.[1];
+  const minuteRaw = timeMatch?.[2];
+  const meridian = timeMatch?.[3] ? timeMatch[3].toUpperCase() : null;
+
+  let timeOfBirth = null;
+  let usedDefaultTime = false;
+
+  if (hourRaw) {
+    const hour = String(Number(hourRaw));
+    const minute = String(minuteRaw ? Number(minuteRaw) : 0).padStart(2, "0");
+    timeOfBirth = meridian
+      ? `${hour}:${minute} ${meridian}`
+      : `${hour}:${minute}`;
+  } else {
+    timeOfBirth = "6:00 AM";
+    usedDefaultTime = true;
+  }
+
+  const dateOfBirth = `${String(day).padStart(2, "0")}/${String(month).padStart(
+    2,
+    "0",
+  )}/${year}`;
+
+  // console.log("test:", dateOfBirth);
+
+  return {
+    dateOfBirth,
+    timeOfBirth,
+    usedDefaultTime,
+  };
 }
 
 // selection output must be ONLY: <<CASE_ID:24hex>>
@@ -78,6 +160,33 @@ const chatController = {
           success: false,
           message: "userMessage is required",
         });
+      }
+
+      const userDateTime = extractThaiDateTime(userMessage);
+      const fallbackDob =
+        dob0 && String(dob0).trim() ? String(dob0).trim() : null;
+      const effectiveDateTime =
+        userDateTime ||
+        (fallbackDob
+          ? {
+              dateOfBirth: fallbackDob,
+              timeOfBirth: "6:00 AM",
+              usedDefaultTime: true,
+            }
+          : null);
+      let userProvidedPlanets = null;
+
+      if (effectiveDateTime) {
+        try {
+          userProvidedPlanets = await calculateUranianPlanets({
+            dateOfBirth: effectiveDateTime.dateOfBirth || fallbackDob,
+            timeOfBirth: effectiveDateTime.timeOfBirth,
+            timezoneOffsetMinutes: 330,
+            dateFormat: "DMY",
+          });
+        } catch (planetErr) {
+          logger.error("Uranian planet calc error:", planetErr);
+        }
       }
 
       let chat = null;
@@ -160,25 +269,28 @@ If the response sounds smart but emotionally cold → FAILURE
       // console.log("Data:", userData);
 
       /** 🧠 USER MEMORY CONTEXT */
+      // console.log("date:", effectiveDateTime?.dateOfBirth || dob0);
+      // console.log("time:", effectiveDateTime?.timeOfBirth || "6:00 AM");
+      // console.log("planets:", JSON.stringify(userProvidedPlanets));
       if (memory && memory.trim()) {
         // console.log("Adding user memory to system prompt.");
         systemPrompt = `
 MOST IMPORTANT RULE:
 - If Date of Birth change then don't ask for confirmation. Start processing with new date.
 
-${systemPrompt}
-
-USER BIRTH DETAILS:
-${subCategoryName === "รหัส Healjai" ? "" : dob0}
-
-USER OTHER DETAILS:
+INPUT:
+- Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}
+- Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}
 - User today's lucky color: ${userData.lucky_color}
 - User today's Energy level: ${userData.energy_level}
 - User today's Golden Hour: ${userData.golden_hour}
+- User planets position: ${JSON.stringify(userProvidedPlanets)}
 
-IMPORTANT RULE:
-Response also related to "USER OTHER DETAILS"
-If Birth Time or Birth Place is missing, proceed with available information
+OUTPUT RULES:
+- ${subCategoryName === "ThaiAstro" || subCategoryName === "Uranian" || subCategoryName === "รหัส Healjai" ? "Generate 1500-1700 words response only based on INPUT" : ""}
+- Don't show direct input in response, INPUT is only for you.
+
+${systemPrompt}
 `.trim();
       }
 
