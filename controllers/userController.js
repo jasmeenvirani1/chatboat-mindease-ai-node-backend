@@ -673,7 +673,9 @@ const userController = {
       }
 
       logger.log(`Deleted user: ${deletedUser.name} (ID: ${req.params.id})`);
-      res.status(200).json({ message: "User deleted successfully" });
+      res
+        .status(200)
+        .json({ success: true, message: "User deleted successfully" });
     } catch (err) {
       logger.error(`Error deleting user with ID ${req.params.id}`, err);
       res.status(500).json({ error: err.message });

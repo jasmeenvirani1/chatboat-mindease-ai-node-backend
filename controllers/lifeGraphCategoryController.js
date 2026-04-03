@@ -2,11 +2,29 @@
 
 const { generateGeminiResponse } = require("../helper/geminiService.js");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
+const HeadlineModel = require("../models/HeadlineModel.js");
 const LifeGraphCategoryModel = require("../models/LifeGraphCategoryModel.js");
 const SubCategory = require("../models/SubCategoryModel.js");
 const TarotCategoryModel = require("../models/TarotCategoryModel.js");
 const UranianCategoryModel = require("../models/UranianCategoryModel.js");
 const UserModel = require("../models/UserModel.js");
+
+function getKolkataMidnightDate() {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const y = parts.find((p) => p.type === "year").value;
+  const m = parts.find((p) => p.type === "month").value;
+  const d = parts.find((p) => p.type === "day").value;
+
+  return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
+}
 
 // @desc    Create a new tarot chat history
 // @route   POST /api/chat-history/tarot
@@ -15,12 +33,6 @@ const createLifeGraphHistory = async (req, res) => {
   try {
     const {
       userId,
-      //   tarotCategoryName,
-      userMessage,
-      memory,
-      lang,
-      //   question,
-      //   selectedCards, // Array of selected cards (1 or 4)
       subCategoryId, // Add subCategoryId to get the specific tarot prompt
     } = req.body;
 
@@ -54,14 +66,6 @@ const createLifeGraphHistory = async (req, res) => {
       }
     };
 
-    // Validate required fields
-    if (!userMessage) {
-      return res.status(400).json({
-        success: false,
-        message: "User message is required",
-      });
-    }
-
     let subCategoryPrompt = null;
     let subCategoryName = null;
 
@@ -83,49 +87,17 @@ const createLifeGraphHistory = async (req, res) => {
     const userName = await UserModel.findById(userId);
 
     console.log("User:", userName);
-    console.log("Memory:", memory);
-
-    let memoryData = {};
-
-    try {
-      memoryData = JSON.parse(memory);
-    } catch (err) {
-      console.error("Memory parse error:", err);
-    }
-
-    const dob = memoryData?.dob; // 19/12/2003
-    const birthTime = memoryData?.birthTime; // 11:00
-    const birthPlace = memoryData?.birthPlace;
-
-    // age calculate
-    const [day, month, year] = dob.split("/").map(Number);
-    const birthDate = new Date(year, month - 1, day);
-    const today = new Date();
-
-    let age = today.getFullYear() - birthDate.getFullYear();
-
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birthDate.getDate())
-    ) {
-      age--;
-    }
-
-    console.log("Age:", age);
-
-    console.log("DOB:", dob);
-    console.log("BirthTime:", birthTime);
-    console.log("BirthPlace:", birthPlace);
 
     // Calculate real planet positions
     const realPlanets = await calculateUranianPlanets({
-      dateOfBirth: dob,
-      timeOfBirth: birthTime,
+      dateOfBirth: userName.dob,
+      timeOfBirth: userName.dob_time || "6:00",
       timezoneOffsetMinutes: 330, // India timezone
       dateFormat: "DMY", // IMPORTANT because date is 19/12/2003
     });
+
+    const dateKey = getKolkataMidnightDate();
+    const headlineData = await HeadlineModel.findOne({ date: dateKey }).lean();
 
     console.log("Planets:", realPlanets);
 
@@ -144,8 +116,6 @@ You are an expert Vedic astrologer and life coach. Based on the birth details pr
 
 USER BIRTH DETAILS:
 - Full Name: ${userName.username}
-- Age: ${age}
-${memory.trim()}
 
 PLANETS:
 - Please don't modify given planet positions and any other things.
@@ -153,7 +123,7 @@ PLANETS:
 ${realPlanets}
 
 LANGUAGE RULE:
-- ${langInstruction(lang)}
+- ${langInstruction(userName.preferredLanguage)}
 - Use soft language: "may", "seems", "tends to", "likely"
 - Never use absolute claims
 `.trim();
@@ -163,46 +133,28 @@ LANGUAGE RULE:
     let promptSource = subCategoryPrompt ? "subcategory" : "base";
 
     /** 🧠 ADD USER BIRTH DETAILS */
-    if (memory && memory.trim()) {
+    if (true) {
       systemPrompt = `
-${systemPrompt}
 
-USER BIRTH DETAILS:
+INPUT:
 - Full Name: ${userName.username}
-${memory.trim()}
-
-PLANETS:
-- Please don't modify given planet positions and any other things.
-- Events is not rendom it is based on planets positions.
-${realPlanets}
-
-RESPONSE STRUCTURE:
-{
-  "currentAge": number,
-  "retirementAge": number,
-  "birthYear": number,
-  "lifeData": [
-    {
-      "age": number,
-      "milestone": string,
-      "description": string,
-      "significance": number,
-      "isHighlighted": boolean,
-      "trend": number,
-      "momentum": number
-    }
-  ]
-}
+- Date of Birth: ${userName.dob}
+- Time of Birth: ${userName.dob_time}
+- Place of Birth: ${userName.dob_place}
+- User today's lucky color: ${headlineData.lucky_color}
+- User today's Energy level: ${headlineData.energy_level}
+- User today's Golden Hour: ${headlineData.golden_hour}
+- User planets position: ${realPlanets}
 
 LANGUAGE RULE:
-- ${langInstruction(lang)}
-- Use soft language: "may", "seems", "tends to", "likely"
-- Never use absolute claims
+- ${langInstruction(userName.preferredLanguage)}
 
 IMPORTANT RULE:
-Give response in only json format.
-Use these birth details to personalize the astrological aspects of the reading.
-If Birth Time or Birth Place is missing, proceed with available information.
+- Give response in only json format.
+- Use these birth details to personalize the astrological aspects of the reading.
+- If Birth Time or Birth Place is missing, proceed with available information.
+
+${systemPrompt}
 `.trim();
     }
 
@@ -223,6 +175,8 @@ If Birth Time or Birth Place is missing, proceed with available information.
 
     // const chatLang = detectLangFromMessage(userMessage);
 
+    const userMessage = `${userName?.dob}`;
+
     /** 🎯 BUILD MESSAGES FOR AI */
     const messages = [{ role: "system", content: systemPrompt.trim() }];
     messages.push({ role: "user", content: userMessage });
@@ -233,7 +187,6 @@ If Birth Time or Birth Place is missing, proceed with available information.
       //   category: tarotCategoryName,
       subCategory: subCategoryName || "none",
       promptSource,
-      hasMemory: !!memory,
     });
 
     const aiResponse = await generateGeminiResponse(messages);
