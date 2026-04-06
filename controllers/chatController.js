@@ -597,7 +597,7 @@ REPLY RULE:
         }
       } else if (userId) {
         data = await ChatHistory.find({ userId })
-          .select("sessionTitle createdAt updatedAt categoryId")
+          .select("sessionTitle createdAt updatedAt categoryId subCategoryId")
           .sort({ updatedAt: -1 })
           .lean();
       } else {
