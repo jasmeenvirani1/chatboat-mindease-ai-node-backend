@@ -145,11 +145,13 @@ const chatController = {
       console.log("Persona:", userPersona.focusPoints);
 
       let dob0;
+      let userName;
 
       if (userId) {
-        const user = await User.findById(userId).select("dob");
+        const user = await User.findById(userId).select("dob username");
         if (user) {
           dob0 = user.dob;
+          userName = user.username;
         }
       }
 
@@ -265,6 +267,7 @@ If the response sounds smart but emotionally cold → FAILURE
 
       const dateKey = getKolkataMidnightDate();
       const userData = await HeadlineModel.findOne({ date: dateKey }).lean();
+      const isNewChat = !chatId;
 
       // console.log("Data:", userData);
 
@@ -272,6 +275,7 @@ If the response sounds smart but emotionally cold → FAILURE
       // console.log("date:", effectiveDateTime?.dateOfBirth || dob0);
       // console.log("time:", effectiveDateTime?.timeOfBirth || "6:00 AM");
       // console.log("planets:", JSON.stringify(userProvidedPlanets));
+      // console.log("user birth of date:", effectiveDateTime?.dateOfBirth);
       if (memory && memory.trim()) {
         // console.log("Adding user memory to system prompt.");
         systemPrompt = `
@@ -279,12 +283,15 @@ MOST IMPORTANT RULE:
 - If Date of Birth change then don't ask for confirmation. Start processing with new date.
 
 INPUT:
-- Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}
-- Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}
+- ${isNewChat ? `Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}` : ""}
+- ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
+- ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
 - User today's lucky color: ${userData.lucky_color}
 - User today's Energy level: ${userData.energy_level}
 - User today's Golden Hour: ${userData.golden_hour}
 - User planets position: ${JSON.stringify(userProvidedPlanets)}
+- User Message: ${userMessage}
+- User Name: ${userName}
 
 OUTPUT RULES:
 - ${subCategoryName === "ThaiAstro" || subCategoryName === "Uranian" || subCategoryName === "รหัส Healjai" ? "Generate 1500-1700 words response only based on INPUT" : ""}
@@ -310,8 +317,6 @@ ${systemPrompt}
           systemPrompt = `${systemPrompt}\n\n${contextString}`;
         }
       }
-
-      const isNewChat = !chatId;
 
       /** 🔁 LOAD CHAT IF EXISTING */
       if (!isNewChat) {
