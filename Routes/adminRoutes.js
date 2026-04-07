@@ -14,6 +14,7 @@ const CategoryController = require("../controllers/categoryController.js");
 const SubCategoryController = require("../controllers/subCategoryController.js");
 const CaseController = require("../controllers/casesController.js");
 const HeadlineController = require("../controllers/headlineController.js");
+const SubscriptionPlansController = require("../controllers/subscriptionPlansController.js");
 const {
   createTarotHistory,
 } = require("../controllers/tarotCategoryController.js");
@@ -120,6 +121,19 @@ router.put("/cases/:id/update", CaseController.updateCaseById);
 router.delete("/cases/:id/delete", CaseController.deleteCaseById);
 
 // Headline Routes
+
+// Subscription Plans Routes
+router.post("/subscriptionPlans/add", SubscriptionPlansController.createPlan);
+router.get("/subscriptionPlans", SubscriptionPlansController.getAllPlans);
+router.get("/subscriptionPlans/:id", SubscriptionPlansController.getPlanById);
+router.put(
+  "/subscriptionPlans/:id/update",
+  SubscriptionPlansController.updatePlanById,
+);
+router.delete(
+  "/subscriptionPlans/:id/delete",
+  SubscriptionPlansController.deletePlanById,
+);
 
 //Log route
 router.get("/logs", (req, res) => {
