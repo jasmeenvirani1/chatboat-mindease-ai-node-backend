@@ -7,6 +7,7 @@ const cookieParser = require("cookie-parser"); // ✅ ADD THIS
 const { startDailyMessageCron } = require("./cron/HeadlineCron.js");
 const adminRoutes = require("./Routes/adminRoutes");
 const authRoutes = require("./Routes/authRoutes");
+const paymentRoutes = require("./Routes/paymentRoutes");
 
 require("./db/db.js");
 startDailyMessageCron();
@@ -48,6 +49,7 @@ const server = http.createServer(app);
 // Routes
 app.use("/api/backend", adminRoutes);
 app.use("/api", authRoutes);
+app.use("/api/payment", paymentRoutes);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

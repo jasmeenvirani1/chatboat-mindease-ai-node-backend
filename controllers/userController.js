@@ -125,6 +125,10 @@ const userController = {
           dob_place: user.dob_place,
           preferredLanguage: user.preferredLanguage,
           roleId: user.roleId,
+          subscriptionId: user.subscriptionId,
+          subscriptionStartDate: user.subscriptionStartDate,
+          subscriptionEndDate: user.subscriptionEndDate,
+          subscriptionStatus: user.subscriptionStatus,
         },
         migratedChats: migratedChats, // Send back which chats were migrated
       });
@@ -282,6 +286,10 @@ const userController = {
           dob_place: user.dob_place,
           preferredLanguage: user.preferredLanguage,
           roleId: user.roleId,
+          subscriptionId: user.subscriptionId,
+          subscriptionStartDate: user.subscriptionStartDate,
+          subscriptionEndDate: user.subscriptionEndDate,
+          subscriptionStatus: user.subscriptionStatus,
         },
       });
     } catch (error) {
@@ -383,6 +391,10 @@ const userController = {
           dob_place: user.dob_place,
           preferredLanguage: user.preferredLanguage,
           roleId: user.roleId,
+          subscriptionId: user.subscriptionId,
+          subscriptionStartDate: user.subscriptionStartDate,
+          subscriptionEndDate: user.subscriptionEndDate,
+          subscriptionStatus: user.subscriptionStatus,
         },
       });
     } catch (error) {
