@@ -44,6 +44,7 @@ const createEnergyMatchHistory = async (req, res) => {
       dob_p,
       dob_time_p,
       dob_place_p,
+      relation_p,
     } = req.body;
 
     const isEmpty = (v) => !v || String(v).trim().length === 0;
@@ -145,11 +146,14 @@ LANGUAGE RULE:
     if (true) {
       systemPrompt = `
 
-INPUT:
+MY BIRTH DETAILS(INPUT):
 - My Full Name: ${name}
 - My Date of Birth: ${dob}
 - My Time of Birth: ${dob_time}
 - My Place of Birth: ${dob_place}
+- My Relation with Partner: ${relation_p}
+
+PARTNER BIRTH DETAILS(INPUT):
 - Partner's Full Name: ${name_p}
 - Partner's Date of Birth: ${dob_p}
 - Partner's Time of Birth: ${dob_time_p}
