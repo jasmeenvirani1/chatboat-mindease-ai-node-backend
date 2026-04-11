@@ -5,9 +5,14 @@ export const generateGeminiResponse = async (messages) => {
   try {
     const settings = await Setting.find();
     const gemini_api_key = settings[0]?.gemini_api_key || "";
+    const gemini_model = settings[0]?.gemini_model || "";
 
     if (!gemini_api_key) {
       throw new Error("Gemini API key not found in database");
+    }
+
+    if (!gemini_model) {
+      throw new Error("Gemini model not found in database");
     }
 
     const genAI = new GoogleGenAI({
@@ -19,7 +24,7 @@ export const generateGeminiResponse = async (messages) => {
       .join("\n");
 
     const response = await genAI.models.generateContent({
-      model: "gemini-2.5-flash-lite",
+      model: gemini_model,
       contents: prompt,
     });
 
@@ -37,11 +42,15 @@ export const generateGeminiResponseStream = async (messages) => {
   try {
     const settings = await Setting.find();
     const gemini_api_key = settings[0]?.gemini_api_key || "";
+    const gemini_model = settings[0]?.gemini_model || "";
 
     if (!gemini_api_key) {
       throw new Error("Gemini API key not found in database");
     }
 
+    if (!gemini_model) {
+      throw new Error("Gemini model not found in database");
+    }
     const genAI = new GoogleGenAI({
       apiKey: gemini_api_key,
     });
@@ -51,7 +60,7 @@ export const generateGeminiResponseStream = async (messages) => {
       .join("\n");
 
     const stream = await genAI.models.generateContentStream({
-      model: "gemini-2.5-flash-lite",
+      model: gemini_model,
       contents: prompt,
     });
 

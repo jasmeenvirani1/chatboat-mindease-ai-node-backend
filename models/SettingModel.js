@@ -24,6 +24,7 @@ const SettingSchema = new Schema(
     smtpPassword: { type: String, required: false },
     smtpFromEmail: { type: String, required: false },
     gemini_api_key: { type: String, required: false },
+    gemini_model: { type: String, required: false },
   },
   { timestamps: true },
 );
