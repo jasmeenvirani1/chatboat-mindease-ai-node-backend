@@ -7,6 +7,7 @@ const Case = require("../models/CasesModel.js");
 const {
   generateGeminiResponse,
   generateGeminiResponseStream,
+  generateGeminiResponseStreamForFreeUsers,
 } = require("../helper/geminiService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const User = require("../models/UserModel.js");
@@ -483,7 +484,12 @@ REPLY RULE:
         });
 
         try {
-          const stream = await generateGeminiResponseStream(messages);
+          let stream;
+          if (subCategoryName === "Uranian V2") {
+            stream = await generateGeminiResponseStreamForFreeUsers(messages);
+          } else {
+            stream = await generateGeminiResponseStream(messages);
+          }
 
           for await (const chunk of stream) {
             if (clientClosed) break;
