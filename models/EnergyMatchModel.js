@@ -28,6 +28,10 @@ const EnergyMatchHistorySchema = new Schema(
       ref: "User",
       required: false,
     },
+    isConversion: {
+      type: Boolean,
+      default: false,
+    },
 
     // tarotCategoryName: {
     //   type: String,

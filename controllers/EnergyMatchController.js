@@ -45,6 +45,8 @@ const createEnergyMatchHistory = async (req, res) => {
       dob_time_p,
       dob_place_p,
       relation_p,
+      question,
+      chatId,
     } = req.body;
 
     const isEmpty = (v) => !v || String(v).trim().length === 0;
@@ -141,6 +143,94 @@ LANGUAGE RULE:
     // Priority: Use subcategory prompt if available, otherwise use base prompt
     let systemPrompt = subCategoryPrompt || baseTarotPrompt;
     let promptSource = subCategoryPrompt ? "subcategory" : "base";
+    let messages = [];
+
+    if (chatId) {
+      chat = await EnergyMatchModel.findById(chatId);
+      if (!chat) {
+        return res.status(404).json({
+          success: false,
+          message: "Chat session not found",
+        });
+      }
+    }
+
+    if (question) {
+      chat.chats.slice(-1).forEach((c) => {
+        messages.push({ role: "user", content: c.userMessage });
+        messages.push({ role: "assistant", content: c.aiResponse });
+      });
+
+      console.log("Previous messages loaded for context:", messages);
+
+      systemPrompt = `
+
+INPUT:
+- User Question: ${question}
+
+HISTORY:
+${messages
+  .map((m) => `${m.role === "user" ? "User" : "AI"}: ${m.content}`)
+  .join("\n")}
+
+MY BIRTH DETAILS(INPUT):
+- My Full Name: ${name}
+- My Date of Birth: ${dob}
+- My Time of Birth: ${dob_time}
+- My Place of Birth: ${dob_place}
+- My Relation with Partner: ${relation_p}
+
+PARTNER BIRTH DETAILS(INPUT):
+- Partner's Full Name: ${name_p}
+- Partner's Date of Birth: ${dob_p}
+- Partner's Time of Birth: ${dob_time_p}
+- Partner's Place of Birth: ${dob_place_p}
+
+ANSWER RULE:
+- Only give answer of user question.
+- Give answer in plain text.
+- Give answer using given history not based on birth deatils.
+
+LANGUAGE RULE:
+- ${langInstruction(userName.preferredLanguage)}
+
+IMPORTANT RULE:
+- Give response in plain text.
+- Use these birth details to personalize the astrological aspects of the reading.
+- If Birth Time or Birth Place is missing, proceed with available information.
+
+`.trim();
+
+      messages = [{ role: "system", content: systemPrompt.trim() }];
+      messages.push({ role: "user", content: question });
+
+      const aiResponse = await generateGeminiResponse(messages);
+      const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
+
+      const newMessage = {
+        userMessage: question,
+        aiResponse: cleanedResponse,
+        messageTime: new Date(),
+      };
+
+      const chatHistory = await EnergyMatchModel.create({
+        userId: userId || null,
+        isConversion: true,
+        //   tarotCategoryName: tarotCategoryName || null,
+        chats: [newMessage],
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: "New LifeGraph reading session created",
+        data: chatHistory,
+        promptSource,
+        historyId: chatHistory._id,
+        aiResponse: cleanedResponse,
+        //   planets: realPlanets,
+        subCategoryUsed: subCategoryName || null,
+      });
+    }
 
     /** 🧠 ADD USER BIRTH DETAILS */
     if (true) {
@@ -193,7 +283,7 @@ ${systemPrompt}
     const userMessage = `${userName?.dob}`;
 
     /** 🎯 BUILD MESSAGES FOR AI */
-    const messages = [{ role: "system", content: systemPrompt.trim() }];
+    messages = [{ role: "system", content: systemPrompt.trim() }];
     messages.push({ role: "user", content: userMessage });
 
     /** 🤖 GENERATE AI RESPONSE */
@@ -227,11 +317,14 @@ ${systemPrompt}
       chats: [newMessage],
     });
 
+    console.log("✅ New Energy Match history created with ID:", chatHistory);
+
     return res.status(201).json({
       success: true,
       message: "New LifeGraph reading session created",
       data: chatHistory,
       promptSource,
+      historyId: chatHistory._id,
       aiResponse: cleanedResponse,
       //   planets: realPlanets,
       subCategoryUsed: subCategoryName || null,
