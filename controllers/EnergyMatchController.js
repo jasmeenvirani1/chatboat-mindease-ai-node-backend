@@ -195,6 +195,7 @@ LANGUAGE RULE:
 - ${langInstruction(userName.preferredLanguage)}
 
 IMPORTANT RULE:
+- If user not provide both person birth details then process with available birth details and give answer based on that.
 - Give response in plain text.
 - Use these birth details to personalize the astrological aspects of the reading.
 - If Birth Time or Birth Place is missing, proceed with available information.
@@ -236,18 +237,22 @@ IMPORTANT RULE:
     if (true) {
       systemPrompt = `
 
-MY BIRTH DETAILS(INPUT):
-- My Full Name: ${name}
-- My Date of Birth: ${dob}
-- My Time of Birth: ${dob_time}
-- My Place of Birth: ${dob_place}
-- My Relation with Partner: ${relation_p}
-
-PARTNER BIRTH DETAILS(INPUT):
-- Partner's Full Name: ${name_p}
-- Partner's Date of Birth: ${dob_p}
-- Partner's Time of Birth: ${dob_time_p}
-- Partner's Place of Birth: ${dob_place_p}
+INPUT_JSON:
+{
+  "person1_birth_details": {
+    "name": "${name}",
+    "dob": "${dob}",
+    "time": "${dob_time || "6:00 AM"}",
+    "place": "${dob_place || "Thailand"}",
+    "relation": "${relation_p}"
+  },
+  "person2_birth_details": {
+    "name": "${name_p}",
+    "dob": "${dob_p}",
+    "time": "${dob_time_p || "6:00 AM"}",
+    "place": "${dob_place_p || "Thailand"}"
+  }
+}
 
 LANGUAGE RULE:
 - ${langInstruction(userName.preferredLanguage)}
@@ -293,6 +298,8 @@ ${systemPrompt}
       subCategory: subCategoryName || "none",
       promptSource,
     });
+
+    console.log("System Prompt:", systemPrompt);
 
     const aiResponse = await generateGeminiResponse(messages);
     const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
