@@ -13,6 +13,7 @@ const SubCategoryController = {
         description_th,
         description_es,
         prompt,
+        freeUserPrompt,
         icon,
         isActive,
       } = req.body;
@@ -42,6 +43,7 @@ const SubCategoryController = {
         description_th: description_th ?? "",
         description_es: description_es ?? "",
         prompt: prompt ?? "",
+        freeUserPrompt: freeUserPrompt ?? "",
         icon: icon ?? "message-square",
         isActive: typeof isActive === "boolean" ? isActive : true,
       });
@@ -173,6 +175,7 @@ const SubCategoryController = {
         "description_th",
         "description_es",
         "prompt",
+        "freeUserPrompt",
         "icon",
         "isActive",
         "categoryId",

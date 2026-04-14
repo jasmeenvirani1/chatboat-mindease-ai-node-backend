@@ -12,6 +12,7 @@ const CategoryController = {
         description_th,
         description_es,
         prompt,
+        freeUserPrompt,
         icon,
       } = req.body;
       console.log("prompt loggg ->>", prompt);
@@ -31,6 +32,7 @@ const CategoryController = {
         description_th,
         description_es,
         prompt: prompt || "",
+        freeUserPrompt: freeUserPrompt || "",
         icon: icon || "💬",
       });
 
@@ -108,6 +110,7 @@ const CategoryController = {
         "description_th",
         "description_es",
         "prompt",
+        "freeUserPrompt",
         "icon",
         "color",
         "isActive",

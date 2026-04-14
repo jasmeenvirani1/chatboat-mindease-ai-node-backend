@@ -43,6 +43,10 @@ const SubCategorySchema = new Schema(
       type: String,
       default: "",
     },
+    freeUserPrompt: {
+      type: String,
+      default: "",
+    },
 
     icon: {
       type: String,
