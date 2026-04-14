@@ -148,14 +148,23 @@ const chatController = {
 
       let dob0;
       let userName;
+      let subscriptionId;
+      let subscriptionStatus;
 
       if (userId) {
-        const user = await User.findById(userId).select("dob username");
+        const user = await User.findById(userId).select(
+          "dob username subscriptionId subscriptionStatus",
+        );
         if (user) {
           dob0 = user.dob;
           userName = user.username;
+          subscriptionId = user.subscriptionId;
+          subscriptionStatus = user.subscriptionStatus;
         }
       }
+
+      // console.log("subscriptionId:", subscriptionId);
+      // console.log("subscriptionStatus:", subscriptionStatus);
 
       console.log("dob:", dob0);
 
@@ -201,21 +210,36 @@ const chatController = {
 
       /** 📌 LOAD CATEGORY & SUBCATEGORY DATA */
       if (categoryId) {
-        const category =
-          await Category.findById(categoryId).select("name prompt");
+        const category = await Category.findById(categoryId).select(
+          "name prompt freeUserPrompt",
+        );
         if (category) {
+          if (subscriptionId && subscriptionStatus === "active") {
+            categoryPrompt = category.prompt?.trim() || null;
+          } else {
+            categoryPrompt = category.freeUserPrompt?.trim() || null;
+          }
           categoryName = category.name;
-          categoryPrompt = category.prompt?.trim() || null;
         }
       }
 
       if (subCategoryId) {
         const subCategory = await SubCategory.findById(subCategoryId).select(
-          "name prompt categoryId",
+          "name prompt categoryId freeUserPrompt",
         );
+        // console.log("Loaded subcategory:", subCategory);
         if (subCategory) {
+          if (subscriptionId && subscriptionStatus === "active") {
+            subCategoryPrompt = subCategory.prompt?.trim() || null;
+            // console.log("Using subcategory prompt: ", subCategoryPrompt);
+          } else {
+            subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
+            // console.log(
+            //   "Using subcategory free_user_prompt: ",
+            //   subCategoryPrompt,
+            // );
+          }
           subCategoryName = subCategory.name;
-          subCategoryPrompt = subCategory.prompt?.trim() || null;
 
           // Fix wrong categoryId from client
           if (!categoryId && subCategory.categoryId) {
