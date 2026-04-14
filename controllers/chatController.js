@@ -8,6 +8,7 @@ const {
   generateGeminiResponse,
   generateGeminiResponseStream,
   generateGeminiResponseStreamForFreeUsers,
+  generateGeminiResponseStreamForFreeUsersThaiAstro,
 } = require("../helper/geminiService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const User = require("../models/UserModel.js");
@@ -295,7 +296,7 @@ INPUT:
 - User Name: ${userName}
 
 OUTPUT RULES:
-- ${subCategoryName === "ThaiAstro" || subCategoryName === "Uranian" || subCategoryName === "รหัส Healjai" ? "Generate 1500-1700 words response only based on INPUT" : ""}
+- ${subCategoryName === "ThaiAstro V2" ? "Give response in 950 words" : ""}
 - Don't show direct input in response, INPUT is only for you.
 
 ${systemPrompt}
@@ -487,6 +488,9 @@ REPLY RULE:
           let stream;
           if (subCategoryName === "Uranian V2") {
             stream = await generateGeminiResponseStreamForFreeUsers(messages);
+          } else if (subCategoryName === "ThaiAstro V2") {
+            stream =
+              await generateGeminiResponseStreamForFreeUsersThaiAstro(messages);
           } else {
             stream = await generateGeminiResponseStream(messages);
           }
