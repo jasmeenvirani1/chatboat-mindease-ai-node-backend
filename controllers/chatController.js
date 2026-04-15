@@ -144,8 +144,6 @@ const chatController = {
         userPersona,
       } = req.body;
 
-      console.log("Persona:", userPersona.focusPoints);
-
       let dob0;
       let userName;
       let subscriptionId;
@@ -302,8 +300,30 @@ If the response sounds smart but emotionally cold → FAILURE
       // console.log("time:", effectiveDateTime?.timeOfBirth || "6:00 AM");
       // console.log("planets:", JSON.stringify(userProvidedPlanets));
       // console.log("user birth of date:", effectiveDateTime?.dateOfBirth);
-      if (memory && memory.trim()) {
+      if (
+        subCategoryName === "ThaiAstro V2" ||
+        subCategoryName === "รหัส Healjai"
+      ) {
         // console.log("Adding user memory to system prompt.");
+        systemPrompt = `
+${systemPrompt}
+
+**ข้อมูลสำหรับคำนวณ:**
+- **วันเดือนปีเกิดของผู้ใช้งาน:** ${effectiveDateTime?.dateOfBirth || dob0}
+- **เป้าหมาย:** ทำนายดวงชะตาฉบับเจาะลึกเพื่อเตรียมรับมือปี 2569
+
+### วิธีการใช้งาน
+1. คัดลอกข้อความในกรอบด้านบนทั้งหมด
+2. เปลี่ยนข้อความในวงเล็บ **[ ใส่ วัน/เดือน/ปีเกิด ตรงนี้ ]** เป็นวันเกิดที่คุณต้องการ
+3. ส่งคำสั่งให้ AI แล้วคุณจะได้ผลลัพธ์ที่มีโครงสร้างสวยงามเหมือนตัวอย่างที่ให้มาครับ
+4. ไม่ต้องให้คำตอบในรูปแบบ JSON
+5. ไม่ต้องแสดงข้อความ "ดวงชะตาประจำปี 2569"
+6. ลบช่องว่างด้านบนของคำตอบออก
+7. ใช้ emoji ในคำตอบเสมอ
+
+
+`.trim();
+      } else {
         systemPrompt = `
 MOST IMPORTANT RULE:
 - If Date of Birth change then don't ask for confirmation. Start processing with new date.
@@ -326,6 +346,8 @@ OUTPUT RULES:
 ${systemPrompt}
 `.trim();
       }
+
+      console.log("Final system prompt:", systemPrompt);
 
       /** 🎯 ADD CONTEXT (only when using default/category prompts) */
       if (promptSource === "default" || promptSource === "category") {
