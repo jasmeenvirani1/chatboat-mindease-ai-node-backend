@@ -313,7 +313,6 @@ INPUT:
 - User today's Golden Hour: ${userData.golden_hour}
 - User planets position: ${JSON.stringify(userProvidedPlanets)}
 - User Message: ${userMessage}
-- User Name: ${userName}
 
 OUTPUT RULES:
 - ${subCategoryName === "ThaiAstro V2" ? "Give response in 650 words" : ""}
