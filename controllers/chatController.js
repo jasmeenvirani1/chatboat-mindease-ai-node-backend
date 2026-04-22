@@ -13,6 +13,7 @@ const {
 const HeadlineModel = require("../models/HeadlineModel.js");
 const User = require("../models/UserModel.js");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
+const { generateClaudeResponseStream } = require("../helper/claudeService.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -189,6 +190,7 @@ const chatController = {
 
       if (effectiveDateTime) {
         try {
+          console.log("V1:", effectiveDateTime.dateOfBirth);
           userProvidedPlanets = await calculateUranianPlanets({
             dateOfBirth: effectiveDateTime.dateOfBirth || fallbackDob,
             timeOfBirth: effectiveDateTime.timeOfBirth,
@@ -317,7 +319,6 @@ INPUT:
 OUTPUT RULES:
 - ${subCategoryName === "ThaiAstro V2" ? "Give response in 650 words" : ""}
 - Don't show direct input in response, INPUT is only for you.
-- ใช้ emoji ในคำตอบเสมอ
 
 ${systemPrompt}
 `.trim();
@@ -509,9 +510,12 @@ REPLY RULE:
           let stream;
           if (subCategoryName === "Urani") {
             // stream = await generateGeminiResponseStreamForFreeUsers(messages);
-          } else if (subCategoryName === "ThaiAst") {
-            // stream =
-            //   await generateGeminiResponseStreamForFreeUsersThaiAstro(messages);
+          } else if (
+            subCategoryName === "ThaiAstro V3" ||
+            subCategoryName === "รหัส Healjai V3" ||
+            subCategoryName === "Uranian V3"
+          ) {
+            stream = await generateClaudeResponseStream(messages);
           } else {
             stream = await generateGeminiResponseStream(messages);
           }

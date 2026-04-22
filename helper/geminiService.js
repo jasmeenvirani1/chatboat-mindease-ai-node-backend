@@ -107,8 +107,8 @@ function throwingAsyncIterable(err) {
 
 async function loadGeminiSettings() {
   const settings = await Setting.find();
-  const gemini_api_key = settings[0]?.gemini_api_key || "";
-  const gemini_model = settings[0]?.gemini_model || "";
+  const gemini_api_key = settings[0]?.gemini_api_key2 || "";
+  const gemini_model = settings[0]?.gemini_model2 || "";
 
   if (!gemini_api_key) {
     throw new Error("Gemini API key not found in database");
