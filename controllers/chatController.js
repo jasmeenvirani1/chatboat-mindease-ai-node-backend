@@ -520,12 +520,46 @@ REPLY RULE:
             stream = await generateGeminiResponseStream(messages);
           }
 
+          let buffer = "";
+          let bufferFlushed = false;
+          const FIRST_WAIT_MS = 10500; // ✅ wait 5-6 sec before first flush
+          const FLUSH_INTERVAL_MS = 5; // ✅ after that, send every 50ms continuously
+          let lastFlushTime = Date.now();
+
           for await (const chunk of stream) {
             if (clientClosed) break;
             const delta = chunk?.text || "";
             if (!delta) continue;
+
             fullResponse += delta;
-            res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+            buffer += delta;
+
+            const now = Date.now();
+
+            if (!bufferFlushed) {
+              // ✅ Wait 5-6 seconds, then flush everything collected so far
+              if (now - lastFlushTime >= FIRST_WAIT_MS) {
+                res.write(`data: ${JSON.stringify({ delta: buffer })}\n\n`);
+                if (res.flush) res.flush();
+                buffer = "";
+                bufferFlushed = true;
+                lastFlushTime = now;
+              }
+            } else {
+              // ✅ After first flush, send continuously every 50ms
+              if (now - lastFlushTime >= FLUSH_INTERVAL_MS) {
+                res.write(`data: ${JSON.stringify({ delta: buffer })}\n\n`);
+                if (res.flush) res.flush();
+                buffer = "";
+                lastFlushTime = now;
+              }
+            }
+          }
+
+          // ✅ Flush remaining at end
+          if (buffer.length > 0 && !clientClosed) {
+            res.write(`data: ${JSON.stringify({ delta: buffer })}\n\n`);
+            if (res.flush) res.flush();
           }
 
           const aiResponse = fullResponse.trim() || "No response";
