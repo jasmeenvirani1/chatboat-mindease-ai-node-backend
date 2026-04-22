@@ -106,7 +106,7 @@ const SubCategoryController = {
     try {
       const {
         page = "1",
-        limit = "10",
+        limit = "20",
         search = "",
         categoryId,
         isActive, // "true" | "false" | undefined
