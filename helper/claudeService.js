@@ -129,6 +129,19 @@ function formatClaudeMessages(messages) {
   }));
 }
 
+/* -------------------- CACHE -------------------- */
+
+function buildSystemWithCache(systemPrompt) {
+  if (!systemPrompt) return undefined;
+  return [
+    {
+      type: "text",
+      text: systemPrompt,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+}
+
 /* -------------------- NON-STREAM -------------------- */
 
 const generateClaudeResponse = async (messages) => {
@@ -139,6 +152,7 @@ const generateClaudeResponse = async (messages) => {
       anthropic.messages.create({
         model: claude_model,
         max_tokens: 1000,
+        system: buildSystemWithCache(messages[0]?.content),
         messages: formatClaudeMessages(messages),
       }),
     );
@@ -160,6 +174,7 @@ const generateClaudeResponseStream = async (messages) => {
       anthropic.messages.stream({
         model: claude_model,
         max_tokens: 7500,
+        system: buildSystemWithCache(messages[0]?.content),
         messages: formatClaudeMessages(messages),
       });
 
