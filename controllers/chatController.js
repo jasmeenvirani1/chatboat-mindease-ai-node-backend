@@ -165,7 +165,7 @@ const chatController = {
       // console.log("subscriptionId:", subscriptionId);
       // console.log("subscriptionStatus:", subscriptionStatus);
 
-      console.log("dob:", dob0);
+      // console.log("dob:", dob0);
 
       if (!userMessage) {
         return res.status(400).json({
@@ -190,7 +190,7 @@ const chatController = {
 
       if (effectiveDateTime) {
         try {
-          console.log("V1:", effectiveDateTime.dateOfBirth);
+          // console.log("V1:", effectiveDateTime.dateOfBirth);
           userProvidedPlanets = await calculateUranianPlanets({
             dateOfBirth: effectiveDateTime.dateOfBirth || fallbackDob,
             timeOfBirth: effectiveDateTime.timeOfBirth,
@@ -323,7 +323,7 @@ OUTPUT RULES:
 ${systemPrompt}
 `.trim();
 
-      console.log("Final system prompt:", systemPrompt);
+      // console.log("Final system prompt:", systemPrompt);
 
       /** 🎯 ADD CONTEXT (only when using default/category prompts) */
       if (promptSource === "default" || promptSource === "category") {
@@ -513,10 +513,13 @@ REPLY RULE:
           } else if (
             subCategoryName === "ThaiAstro V3" ||
             subCategoryName === "รหัส Healjai V3" ||
-            subCategoryName === "Uranian V3"
+            subCategoryName === "Uranian V3" ||
+            categoryName === "HealJai Talk V2"
           ) {
+            console.log("Using Claude for streaming response...");
             stream = await generateClaudeResponseStream(messages);
           } else {
+            console.log("Using Gemini for streaming response...");
             stream = await generateGeminiResponseStream(messages);
           }
 
