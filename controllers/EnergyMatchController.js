@@ -88,20 +88,20 @@ const createEnergyMatchHistory = async (req, res) => {
         .select("name prompt")
         .lean();
 
-      console.log("Loaded subcategory for energy match:", subCategory);
+      // console.log("Loaded subcategory for energy match:", subCategory);
 
       if (subCategory) {
         subCategoryName = subCategory.name;
         subCategoryPrompt = subCategory.prompt?.trim() || null;
-        console.log(
-          `✅ Loaded energy match category prompt for: ${subCategoryName}`,
-        );
+        // console.log(
+        //   `✅ Loaded energy match category prompt for: ${subCategoryName}`,
+        // );
       }
     }
 
     const userName = await UserModel.findById(userId);
 
-    console.log("User:", userName);
+    // console.log("User:", userName);
 
     // Calculate real planet positions
     // const realPlanets = await calculateUranianPlanets({
@@ -161,7 +161,7 @@ LANGUAGE RULE:
         messages.push({ role: "assistant", content: c.aiResponse });
       });
 
-      console.log("Previous messages loaded for context:", messages);
+      // console.log("Previous messages loaded for context:", messages);
 
       systemPrompt = `
 
@@ -268,7 +268,7 @@ ${systemPrompt}
 
     systemPrompt = `${systemPrompt}`;
 
-    console.log("Planets:", systemPrompt);
+    // console.log("Planets:", systemPrompt);
 
     /** 🌍 DETECT LANGUAGE */
     // const detectLangFromMessage = (message) => {
@@ -292,19 +292,19 @@ ${systemPrompt}
     messages.push({ role: "user", content: userMessage });
 
     /** 🤖 GENERATE AI RESPONSE */
-    console.log("📊 LifeGraph Request Summary:", {
-      //   cardCount: selectedCards.length,
-      //   category: tarotCategoryName,
-      subCategory: subCategoryName || "none",
-      promptSource,
-    });
+    // console.log("📊 LifeGraph Request Summary:", {
+    //   //   cardCount: selectedCards.length,
+    //   //   category: tarotCategoryName,
+    //   subCategory: subCategoryName || "none",
+    //   promptSource,
+    // });
 
-    console.log("System Prompt:", systemPrompt);
+    // console.log("System Prompt:", systemPrompt);
 
     const aiResponse = await generateGeminiResponse(messages);
     const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
 
-    console.log("✅ Energy Match AI Response received:", cleanedResponse);
+    // console.log("✅ Energy Match AI Response received:", cleanedResponse);
 
     const newMessage = {
       userMessage,
@@ -324,7 +324,7 @@ ${systemPrompt}
       chats: [newMessage],
     });
 
-    console.log("✅ New Energy Match history created with ID:", chatHistory);
+    // console.log("✅ New Energy Match history created with ID:", chatHistory);
 
     return res.status(201).json({
       success: true,

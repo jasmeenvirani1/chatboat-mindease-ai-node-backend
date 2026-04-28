@@ -7,6 +7,7 @@ const Subscription = require("../models/SubscriptionPlansModel");
 // const PDFDocument = require("pdfkit"); // ✅ ADD THIS
 
 const clientUrl = process.env.PAYMENT_URL;
+let isMonthlyPlan;
 
 // ✅ Initialize transporter WITH verification
 // const transporter = nodemailer.createTransport({
@@ -256,11 +257,13 @@ const clientUrl = process.env.PAYMENT_URL;
 // ✅ Create checkout session
 const createCheckoutSession = async (req, res) => {
   try {
-    const { planId, name, price, userId } = req.body;
+    const { planId, name, price, userId, isMonthly } = req.body;
 
     if (!planId || !userId) {
       return res.status(400).json({ message: "planId and userId required" });
     }
+
+    isMonthlyPlan = isMonthly;
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card", "sepa_debit", "ideal", "klarna"],
@@ -332,7 +335,12 @@ const verifyAndSavePlan = async (req, res) => {
 
     const startDate = new Date();
     const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 30);
+
+    if (isMonthlyPlan) {
+      endDate.setDate(endDate.getDate() + 30);
+    } else {
+      endDate.setDate(endDate.getDate() + 365);
+    }
 
     // Update user subscriptions
     // await User.updateOne(

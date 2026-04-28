@@ -1,7 +1,7 @@
 const cron = require("node-cron");
 const OpenAI = require("openai");
 const DailyMessage = require("../models/HeadlineModel"); // <-- your model path
-// const User = require("../models/UserModel"); // <-- add User model to fetch birth details
+const User = require("../models/UserModel");
 const { generateGeminiResponse } = require("../helper/geminiService");
 
 const openai = new OpenAI({
@@ -26,6 +26,23 @@ function getKolkataMidnightDate() {
   return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
 }
 
+function getKolkataMidnightDateFrom(date) {
+  const base = date instanceof Date ? date : new Date(date);
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(base);
+
+  const y = parts.find((p) => p.type === "year").value;
+  const m = parts.find((p) => p.type === "month").value;
+  const d = parts.find((p) => p.type === "day").value;
+
+  return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
+}
+
 // ✅ Strict JSON parse helper
 function safeJsonParse(text) {
   try {
@@ -40,6 +57,65 @@ function safeJsonParse(text) {
       return null;
     }
   }
+}
+
+function parseAsValidDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === "number") {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const str = String(value).trim();
+  if (!str) return null;
+
+  // If stored as epoch ms (e.g. "1713952340000")
+  if (/^\d+$/.test(str)) {
+    const d = new Date(Number(str));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  // Handles ISO strings and Date#toString() values
+  const d = new Date(str);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+async function expireUserSubscriptionsIfNeeded() {
+  // Compare by DATE (Asia/Kolkata), not by time
+  const todayKey = getKolkataMidnightDate();
+
+  const activeUsers = await User.find({
+    subscriptionStatus: "active",
+    subscriptionEndDate: { $exists: true, $ne: "" },
+  })
+    .select("_id subscriptionEndDate")
+    .lean();
+
+  if (!activeUsers?.length) return;
+
+  const ops = [];
+  for (const user of activeUsers) {
+    const endDate = parseAsValidDate(user.subscriptionEndDate);
+    if (!endDate) continue;
+    const endDateKey = getKolkataMidnightDateFrom(endDate);
+    if (endDateKey.getTime() < todayKey.getTime()) {
+      ops.push({
+        updateOne: {
+          filter: { _id: user._id, subscriptionStatus: "active" },
+          update: { $set: { subscriptionStatus: "expired" } },
+        },
+      });
+    }
+  }
+
+  if (!ops.length) return;
+
+  const result = await User.bulkWrite(ops, { ordered: false });
+  console.log(
+    `✅ Subscription expiry updated: ${result.modifiedCount || 0} user(s) marked as expired`,
+  );
 }
 
 // ✅ Calculate zodiac sign from birth date
@@ -371,6 +447,13 @@ function startDailyMessageCron() {
     "0 6 * * *",
     async () => {
       try {
+        // ✅ Mark expired subscriptions
+        try {
+          await expireUserSubscriptionsIfNeeded();
+        } catch (subErr) {
+          console.error("❌ Subscription expiry cron error:", subErr);
+        }
+
         const dateKey = getKolkataMidnightDate();
 
         // ✅ prevent duplicates

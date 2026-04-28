@@ -78,15 +78,15 @@ const createLifeGraphHistory = async (req, res) => {
       if (subCategory) {
         subCategoryName = subCategory.name;
         subCategoryPrompt = subCategory.prompt?.trim() || null;
-        console.log(
-          `✅ Loaded lifeGraph subcategory prompt for: ${subCategoryName}`,
-        );
+        // console.log(
+        //   `✅ Loaded lifeGraph subcategory prompt for: ${subCategoryName}`,
+        // );
       }
     }
 
     const userName = await UserModel.findById(userId);
 
-    console.log("User:", userName);
+    // console.log("User:", userName);
 
     // Calculate real planet positions
     const realPlanets = await calculateUranianPlanets({
@@ -99,7 +99,7 @@ const createLifeGraphHistory = async (req, res) => {
     const dateKey = getKolkataMidnightDate();
     const headlineData = await HeadlineModel.findOne({ date: dateKey }).lean();
 
-    console.log("Planets:", realPlanets);
+    // console.log("Planets:", realPlanets);
 
     // const questionText = String(question || "").trim();
     // console.log("Question:", questionText);
@@ -182,17 +182,17 @@ ${systemPrompt}
     messages.push({ role: "user", content: userMessage });
 
     /** 🤖 GENERATE AI RESPONSE */
-    console.log("📊 LifeGraph Request Summary:", {
-      //   cardCount: selectedCards.length,
-      //   category: tarotCategoryName,
-      subCategory: subCategoryName || "none",
-      promptSource,
-    });
+    // console.log("📊 LifeGraph Request Summary:", {
+    //   //   cardCount: selectedCards.length,
+    //   //   category: tarotCategoryName,
+    //   subCategory: subCategoryName || "none",
+    //   promptSource,
+    // });
 
     const aiResponse = await generateGeminiResponse(messages);
     const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
 
-    console.log("✅ LifeGraph AI Response received:", cleanedResponse);
+    // console.log("✅ LifeGraph AI Response received:", cleanedResponse);
 
     const newMessage = {
       userMessage,

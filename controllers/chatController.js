@@ -14,6 +14,13 @@ const HeadlineModel = require("../models/HeadlineModel.js");
 const User = require("../models/UserModel.js");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 const { generateClaudeResponseStream } = require("../helper/claudeService.js");
+const {
+  EmotionDetection,
+  SentencesGenerator,
+  detectEmotion,
+  getSentencesForEmotion,
+} = require("../helper/SentencesGenerator.js");
+const { translateText } = require("../helper/translation.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -161,6 +168,21 @@ const chatController = {
           subscriptionStatus = user.subscriptionStatus;
         }
       }
+
+      const target = detectLangFromMessage(userMessage);
+      let translatedMessage;
+
+      if (target === "th") {
+        translatedMessage = await translateText(userMessage, target);
+        // console.log("translatedMessage:", translatedMessage);
+      } else {
+        translatedMessage = userMessage;
+      }
+
+      const emotionType = detectEmotion(translatedMessage);
+      console.log("Emotion:", emotionType);
+      const sentences = getSentencesForEmotion(emotionType);
+      console.log("Sentences:", sentences);
 
       // console.log("subscriptionId:", subscriptionId);
       // console.log("subscriptionStatus:", subscriptionStatus);
@@ -455,7 +477,14 @@ ${systemPrompt}
       //       }
 
       /** ✅ FINAL REPLY */
-      const messages = [{ role: "system", content: systemPrompt.trim() }];
+      const messages = [
+        {
+          role: "system",
+          emotion: emotionType,
+          emotion_knowledge_sentences: sentences,
+          content: systemPrompt.trim(),
+        },
+      ];
 
       // include last 4 history pairs if same cat/subcat
       if (!isNewChat) {

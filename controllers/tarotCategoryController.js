@@ -76,19 +76,19 @@ const createTarotHistory = async (req, res) => {
       if (subCategory) {
         subCategoryName = subCategory.name;
         subCategoryPrompt = subCategory.prompt?.trim() || null;
-        console.log(
-          `✅ Loaded tarot subcategory prompt for: ${subCategoryName}`,
-        );
+        // console.log(
+        //   `✅ Loaded tarot subcategory prompt for: ${subCategoryName}`,
+        // );
       }
     }
 
     const questionText = String(question || "").trim();
-    console.log("Question:", questionText);
+    // console.log("Question:", questionText);
     const targetLang = isEmpty(questionText)
       ? "th"
       : detectLangFromMessage(questionText);
 
-    console.log("Lang:", targetLang);
+    // console.log("Lang:", targetLang);
 
     /** 🧠 BUILD SYSTEM PROMPT FOR TAROT */
     // Base tarot prompt (used if no subcategory prompt)
@@ -205,20 +205,20 @@ provide a complete interpretation following the structure above.
     messages.push({ role: "user", content: userMessage });
 
     /** 🤖 GENERATE AI RESPONSE */
-    console.log("📊 Tarot Request Summary:", {
-      cardCount: selectedCards.length,
-      category: tarotCategoryName,
-      subCategory: subCategoryName || "none",
-      promptSource,
-      hasMemory: !!memory,
-    });
+    // console.log("📊 Tarot Request Summary:", {
+    //   cardCount: selectedCards.length,
+    //   category: tarotCategoryName,
+    //   subCategory: subCategoryName || "none",
+    //   promptSource,
+    //   hasMemory: !!memory,
+    // });
 
     const aiResponse = await generateGeminiResponse(messages);
     const cleanedResponse =
       aiResponse?.trim() ||
       "The cards are ready to share their wisdom with you. Please try again. 🔮";
 
-    console.log("✅ Tarot AI Response received");
+    // console.log("✅ Tarot AI Response received");
 
     const newMessage = {
       userMessage,
