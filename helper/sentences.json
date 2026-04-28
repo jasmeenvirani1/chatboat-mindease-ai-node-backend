@@ -1,0 +1,36 @@
+{
+  "sad": [
+    "It sounds like something is weighing on your heart right now.",
+    "That kind of feeling can be really heavy to carry alone.",
+    "I can sense a quiet sadness in what you're sharing.",
+    "It feels like something didn’t go the way you hoped."
+  ],
+
+  "anxious": [
+    "It sounds like your mind is racing with a lot right now.",
+    "That feeling of uncertainty can be really overwhelming.",
+    "It seems like you're holding a lot of tension inside.",
+    "There’s a sense of pressure in what you’re feeling."
+  ],
+
+  "happy": [
+    "There’s a lightness in what you’re sharing.",
+    "It feels like something is going well for you.",
+    "I can sense a positive energy in your words.",
+    "That sounds like a moment worth holding onto."
+  ],
+
+  "angry": [
+    "It sounds like something really frustrated you.",
+    "There’s a strong emotion behind your words.",
+    "That situation seems unfair to you.",
+    "I can feel the intensity in what you're saying."
+  ],
+
+  "neutral": [
+    "I’m here with you.",
+    "Tell me more about what’s on your mind.",
+    "I’m listening.",
+    "Go on, I’m here."
+  ]
+}
