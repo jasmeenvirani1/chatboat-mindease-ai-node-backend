@@ -41,7 +41,48 @@ function getKolkataMidnightDate() {
 
 function detectLangFromMessage(text = "") {
   if (/[\u0E00-\u0E7F]/.test(text)) return "th"; // Thai
+
   if (/[ñáéíóúü¿¡]/i.test(text)) return "es"; // Spanish-ish
+
+  // Japanese: Hiragana, Katakana, Kanji ranges
+  if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text)) return "ja";
+
+  // Korean: Hangul syllables
+  if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
+
+  // Chinese: Simplified (CJK Unified Ideographs common block)
+  if (
+    /[\u4E00-\u9FFF]/.test(text) &&
+    !/[\u3040-\u309F\u30A0-\u30FF]/.test(text)
+  )
+    return "zh";
+
+  // Russian / Cyrillic
+  if (/[\u0400-\u04FF]/.test(text)) return "ru";
+
+  // Arabic
+  if (/[\u0600-\u06FF]/.test(text)) return "ar";
+
+  // Hindi / Devanagari
+  if (/[\u0900-\u097F]/.test(text)) return "hi";
+
+  // Vietnamese (common diacritics)
+  if (/[ăâđêôơưĂÂĐÊÔƠƯ]/i.test(text)) return "vi";
+
+  // French (common accents - more specific than general Spanish)
+  if (/[àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ]/i.test(text) && !/[ñ¿¡]/i.test(text))
+    return "fr";
+
+  // German (unique umlauts and ß)
+  if (/[äöüßÄÖÜ]/i.test(text)) return "de";
+
+  // Italian (common accents distinct from French/Spanish)
+  if (/[àèéìíîòóùú]/i.test(text) && !/[ñ¿¡àâæçêëïœ]/i.test(text)) return "it";
+
+  // Portuguese (specific characters not common in Spanish)
+  if (/[ãõÃÕ]/i.test(text)) return "pt";
+
+  // Default to English
   return "en";
 }
 
@@ -170,6 +211,7 @@ const chatController = {
       }
 
       const target = detectLangFromMessage(userMessage);
+      console.log("Detected language:", target);
       let translatedMessage;
 
       if (target === "th") {
@@ -179,7 +221,7 @@ const chatController = {
         translatedMessage = userMessage;
       }
 
-      const emotionType = detectEmotion(translatedMessage);
+      const emotionType = await detectEmotion(translatedMessage);
       console.log("Emotion:", emotionType);
       const sentences = getSentencesForEmotion(emotionType);
       console.log("Sentences:", sentences);
@@ -341,6 +383,9 @@ INPUT:
 OUTPUT RULES:
 - ${subCategoryName === "ThaiAstro V2" ? "Give response in 650 words" : ""}
 - Don't show direct input in response, INPUT is only for you.
+
+LANGUAGE RULE (RESTRICTED):
+- Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
 
 ${systemPrompt}
 `.trim();

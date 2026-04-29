@@ -1,10 +1,65 @@
 const winkNLP = require("wink-nlp");
 const model = require("wink-eng-lite-web-model");
-const vocab = require("./vocab.json"); // adjust path if needed
+const Vocabulary = require("../models/VocabularyModel");
 
 const nlp = winkNLP(model);
 
-function detectEmotion(text) {
+let cachedEmotionVocab = null;
+let cachedAtMs = 0;
+const VOCAB_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function normalizeEmotionVocabulary(rawEmotions) {
+  // Expected/desired shape (matches your console log):
+  // { sad: [...], anxious: [...], happy: [...], angry: [...], neutral: [...] }
+  //
+  // Also supports DB shapes:
+  // - emotions: [ { word, synonyms, intensity }, ... ]
+  // - emotions: { emotions: [ ... ] }
+
+  if (!rawEmotions) return {};
+
+  if (typeof rawEmotions === "object" && !Array.isArray(rawEmotions)) {
+    if (Array.isArray(rawEmotions.emotions)) {
+      return normalizeEmotionVocabulary(rawEmotions.emotions);
+    }
+    const map = {};
+    for (const [key, value] of Object.entries(rawEmotions)) {
+      if (Array.isArray(value)) map[key] = value;
+      else if (Array.isArray(value?.synonyms)) map[key] = value.synonyms;
+    }
+    return map;
+  }
+
+  if (Array.isArray(rawEmotions)) {
+    const map = {};
+    for (const entry of rawEmotions) {
+      if (!entry || typeof entry !== "object") continue;
+      const key = entry.word;
+      if (!key || typeof key !== "string") continue;
+      const synonyms = Array.isArray(entry.synonyms) ? entry.synonyms : [];
+      map[key] = synonyms;
+    }
+    return map;
+  }
+
+  return {};
+}
+
+async function getLatestEmotionVocabulary() {
+  const now = Date.now();
+  if (cachedEmotionVocab && now - cachedAtMs < VOCAB_CACHE_TTL_MS) {
+    return cachedEmotionVocab;
+  }
+
+  const vocabulary = await Vocabulary.findOne().sort({ createdAt: -1 }).lean();
+  const normalized = normalizeEmotionVocabulary(vocabulary?.emotions);
+
+  cachedEmotionVocab = normalized;
+  cachedAtMs = now;
+  return normalized;
+}
+
+async function detectEmotion(text) {
   try {
     const msg = String(text || "").toLowerCase();
     const doc = nlp.readDoc(msg);
@@ -34,24 +89,25 @@ function detectEmotion(text) {
     }
 
     // 🔹 2. Keyword & synonym matching (from your KB)
-    vocab.emotions.forEach((emotion) => {
-      const baseWord = emotion.word;
-      const synonyms = emotion.synonyms || [];
-      const intensity = emotion.intensity || "medium";
+    const emotionsVocab = await getLatestEmotionVocabulary();
+    Object.entries(emotionsVocab).forEach(([emotionKey, value]) => {
+      if (scores[emotionKey] === undefined) return;
 
+      const synonyms = Array.isArray(value)
+        ? value
+        : Array.isArray(value?.synonyms)
+          ? value.synonyms
+          : [];
+      const intensity =
+        typeof value?.intensity === "string" ? value.intensity : "medium";
       const weight = intensity === "high" ? 3 : 2;
 
-      // check base word
-      if (msg.includes(baseWord)) {
-        scores[baseWord] += weight;
-      }
-
-      // check synonyms
-      synonyms.forEach((word) => {
-        if (msg.includes(word)) {
-          scores[baseWord] += weight;
+      for (const word of synonyms) {
+        if (typeof word !== "string" || !word) continue;
+        if (msg.includes(word.toLowerCase())) {
+          scores[emotionKey] += weight;
         }
-      });
+      }
     });
 
     // 🔹 3. Special pattern rules (important for real behavior)

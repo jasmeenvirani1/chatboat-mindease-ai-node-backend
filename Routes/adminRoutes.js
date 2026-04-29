@@ -15,6 +15,7 @@ const SubCategoryController = require("../controllers/subCategoryController.js")
 const CaseController = require("../controllers/casesController.js");
 const HeadlineController = require("../controllers/headlineController.js");
 const SubscriptionPlansController = require("../controllers/subscriptionPlansController.js");
+const VocabularyController = require("../controllers/vocabularyController.js");
 const {
   createTarotHistory,
 } = require("../controllers/tarotCategoryController.js");
@@ -138,6 +139,11 @@ router.delete(
   "/subscriptionPlans/:id/delete",
   SubscriptionPlansController.deletePlanById,
 );
+
+// Vocabulary Routes
+router.get("/vocabulary/latest", VocabularyController.getLatestVocabulary);
+router.get("/vocabulary/:id", VocabularyController.getVocabularyById);
+router.put("/vocabulary/:id/update", VocabularyController.updateVocabulary);
 
 //Log route
 router.get("/logs", (req, res) => {
