@@ -179,6 +179,17 @@ function pickSupportLineByLang(caseDoc, lang) {
   return caseDoc[lang] || caseDoc.en || caseDoc.th || caseDoc.es || null;
 }
 
+function pickRandomUnique(items, count) {
+  const arr = Array.isArray(items) ? [...items] : [];
+  const n = Math.max(0, Math.min(Number(count) || 0, arr.length));
+  // Fisher–Yates shuffle (in-place), then take first n
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, n);
+}
+
 const chatController = {
   createChat: async (req, res) => {
     try {
@@ -216,15 +227,16 @@ const chatController = {
 
       if (target === "th") {
         translatedMessage = await translateText(userMessage, target);
-        // console.log("translatedMessage:", translatedMessage);
+        console.log("translatedMessage:", translatedMessage);
       } else {
         translatedMessage = userMessage;
       }
 
       const emotionType = await detectEmotion(translatedMessage);
       console.log("Emotion:", emotionType);
-      const sentences = getSentencesForEmotion(emotionType);
-      console.log("Sentences:", sentences);
+      const allSentences = getSentencesForEmotion(emotionType);
+      const sentences = pickRandomUnique(allSentences, 10);
+      console.log("Sentences (random 10):", sentences);
 
       // console.log("subscriptionId:", subscriptionId);
       // console.log("subscriptionStatus:", subscriptionStatus);
@@ -383,6 +395,11 @@ INPUT:
 OUTPUT RULES:
 - ${subCategoryName === "ThaiAstro V2" ? "Give response in 650 words" : ""}
 - Don't show direct input in response, INPUT is only for you.
+
+TONE AND EMOTION RULES:
+- Sentences to reflect user's emotion: ${sentences.join(" | ")}
+- Answer in based on above sentences and user's emotion
+- userMessage is date then don't show above sentences.
 
 LANGUAGE RULE (RESTRICTED):
 - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
