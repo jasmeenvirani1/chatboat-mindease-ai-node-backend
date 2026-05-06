@@ -21,6 +21,7 @@ const {
   getSentencesForEmotion,
 } = require("../helper/SentencesGenerator.js");
 const { translateText } = require("../helper/translation.js");
+const { buildPrompt } = require("../helper/search.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -394,8 +395,11 @@ If the response sounds smart but emotionally cold → FAILURE
       const isNewChat = !chatId;
 
       let questionPrompt = "";
+      let matches2;
 
       if (!containsDate(userMessage)) {
+        const { prompt, matches } = await buildPrompt(userMessage, 20);
+        matches2 = matches;
         questionPrompt = `
         If user Give any question and message then use this structure in response:
         ---
@@ -434,6 +438,9 @@ Tone
 
 
 ---
+
+Sentences:
+${matches.map((m) => `- ${m.sentence} (sco`).join("\n")}
 
 Behavior
 
@@ -508,6 +515,7 @@ Overall Principle
 
 Your job is simple:
 Talk like a real, warm, gentle human — every single time.
+In response use given sentences.
 
 ---
         `;
@@ -683,11 +691,12 @@ ${questionPrompt}
       //       }
 
       /** ✅ FINAL REPLY */
+      console.log("Matches2:", matches2);
       const messages = [
         {
           role: "system",
           emotion: emotionType,
-          emotion_knowledge_sentences: sentences,
+          emotion_knowledge_sentences: matches2,
           content: systemPrompt.trim(),
         },
       ];

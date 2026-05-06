@@ -8,6 +8,7 @@ const { startDailyMessageCron } = require("./cron/HeadlineCron.js");
 const adminRoutes = require("./Routes/adminRoutes");
 const authRoutes = require("./Routes/authRoutes");
 const paymentRoutes = require("./Routes/paymentRoutes");
+const { loadIndex, search, buildPrompt } = require("./helper/search.js");
 
 require("./db/db.js");
 startDailyMessageCron();
@@ -24,7 +25,7 @@ const corsOptions = {
     "http://localhost:3000",
     "http://192.168.1.114:3000",
     "http://localhost:3001",
-    "http://192.168.1.114:3001"
+    "http://192.168.1.114:3001",
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -45,6 +46,8 @@ app.use("/api/public", express.static(path.join(__dirname, "public")));
 
 // Create HTTP server
 const server = http.createServer(app);
+
+loadIndex();
 
 // Routes
 app.use("/api/backend", adminRoutes);
