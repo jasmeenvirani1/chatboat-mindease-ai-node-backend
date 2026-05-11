@@ -28,6 +28,7 @@ const {
 const {
   createEnergyMatchHistory,
 } = require("../controllers/EnergyMatchController.js");
+const IndexBuildController = require("../controllers/indexBuildController.js");
 
 //Public Routes
 router.post("/chat/create", multiupload("chat"), ChatHistory.createChat);
@@ -78,6 +79,12 @@ router.post(
 );
 
 router.use(authenticateToken);
+
+// Index build (protected): triggers helper/build-index.js
+router
+  .route("/index/build")
+  .post(IndexBuildController.startIndexBuild)
+  .get(IndexBuildController.getIndexBuildStatus);
 
 //Setting Routes
 router.get("/settings", SettingController.index);
