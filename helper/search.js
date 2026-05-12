@@ -8,45 +8,88 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const INDEX_FILE = path.join(__dirname, "index.hnsw");
 const META_FILE = path.join(__dirname, "meta.json");
+const QUANT_FILE = path.join(__dirname, "vectors_int8.bin");
 const DIM = 384;
+// Must match the M value used in build_index_quantized.js
+const HNSW_M = 8;
 
 let embedder = null;
 let index = null;
 let meta = null;
+let indexDisabledReason = null;
+
+// ── Quantize query vector the same way build script did ──────────────────────
+function quantizeVec(floatArr) {
+  const out = new Float32Array(floatArr.length);
+  for (let i = 0; i < floatArr.length; i++) {
+    const clamped = Math.max(-1, Math.min(1, floatArr[i]));
+    // quantize to int8 range then dequantize — matches stored vectors exactly
+    out[i] = Math.round(clamped * 127) / 127;
+  }
+  return out;
+}
+
+function requiredFilesExist() {
+  return (
+    fs.existsSync(INDEX_FILE) &&
+    fs.existsSync(META_FILE) &&
+    fs.existsSync(QUANT_FILE)
+  );
+}
 
 export async function loadIndex() {
-  console.log("Loading model and index...");
+  try {
+    if (!requiredFilesExist()) {
+      indexDisabledReason =
+        "Vector index files missing (meta.json / index.hnsw / vectors_int8.bin)";
+      embedder = null;
+      index = null;
+      meta = null;
+      console.warn(
+        `⚠️  search index disabled: ${indexDisabledReason}. Run helper/build-index.js to generate files.`,
+      );
+      return { ready: false, reason: indexDisabledReason };
+    }
 
-  embedder = await pipeline(
-    "feature-extraction",
-    "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
-  );
+    console.log("Loading model and index...");
 
-  // Load meta first — we need the count to init the index correctly
-  meta = JSON.parse(fs.readFileSync(META_FILE, "utf-8"));
-  const totalSentences = meta.length;
+    embedder = await pipeline(
+      "feature-extraction",
+      "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+    );
 
-  // ✅ Must init with max elements BEFORE reading the saved index
-  index = new HierarchicalNSW("cosine", DIM);
-  index.initIndex(totalSentences); // ← this was missing
-  index.readIndexSync(INDEX_FILE); // ← now loads all points correctly
+    meta = JSON.parse(fs.readFileSync(META_FILE, "utf-8"));
+    const totalSentences = meta.length;
 
-  console.log(`Ready. ${totalSentences} sentences indexed.`);
+    index = new HierarchicalNSW("cosine", DIM);
+    // ← Pass the same M=8 used at build time, otherwise readIndexSync loads wrong graph structure
+    index.initIndex(totalSentences, HNSW_M);
+    index.readIndexSync(INDEX_FILE);
+
+    indexDisabledReason = null;
+    console.log(`✅ Ready. ${totalSentences} sentences indexed.`);
+    return { ready: true, totalSentences };
+  } catch (err) {
+    indexDisabledReason = err?.message || String(err);
+    embedder = null;
+    index = null;
+    meta = null;
+    console.warn(`⚠️  search index disabled: ${indexDisabledReason}`);
+    return { ready: false, reason: indexDisabledReason };
+  }
 }
 
 export async function search(userMessage, topK = 10) {
-  if (!embedder || !index || !meta) {
-    throw new Error("Index not loaded. Call loadIndex() first.");
-  }
+  if (!embedder || !index || !meta) return [];
 
   const output = await embedder([userMessage], {
     pooling: "mean",
     normalize: true,
   });
 
-  const queryVec = Array.from(output[0].data);
+  // ← Quantize+dequantize the query vector to match the precision of stored vectors
+  const queryVec = Array.from(quantizeVec(Array.from(output[0].data)));
 
-  // topK cannot exceed total indexed sentences
   const k = Math.min(topK, meta.length);
   const result = index.searchKnn(queryVec, k);
 
@@ -64,7 +107,8 @@ export async function buildPrompt(userMessage, topK = 10) {
   const context = matches.map((m) => m.sentence).join("\n");
 
   return {
-    prompt: `You are Healjai — a warm, empathetic Thai AI assistant.
+    prompt: matches.length
+      ? `You are Healjai — a warm, empathetic Thai AI assistant.
 Use ONLY the knowledge below to respond. Do not make things up.
 
 [Relevant knowledge]
@@ -73,7 +117,15 @@ ${context}
 [User said]
 ${userMessage}
 
+[Response]`
+      : `You are Healjai — a warm, empathetic AI assistant.
+
+[User said]
+${userMessage}
+
 [Response]`,
     matches,
+    indexReady: matches.length > 0,
+    indexDisabledReason: matches.length === 0 ? indexDisabledReason : null,
   };
 }
