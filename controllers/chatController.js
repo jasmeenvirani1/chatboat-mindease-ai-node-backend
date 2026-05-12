@@ -398,7 +398,7 @@ If the response sounds smart but emotionally cold → FAILURE
       let matches2;
 
       if (!containsDate(userMessage)) {
-        const { prompt, matches } = await buildPrompt(userMessage, 20);
+        const { prompt, matches } = await buildPrompt(userMessage, 40);
         matches2 = matches;
         questionPrompt = `
         If user Give any question and message then use this structure in response:

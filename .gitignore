@@ -6,6 +6,9 @@
 .pnp.js
 /public
 logs/
+/helper/index.hnsw
+/helper/meta.json
+/helper/vectors_int8.bin
 
 # testing
 /coverage
