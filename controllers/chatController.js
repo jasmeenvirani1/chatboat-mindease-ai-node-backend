@@ -405,7 +405,7 @@ Sentences:
 ${matches.map((m) => `- ${m.sentence} (sco`).join("\n")}
 
 Your job is simple:
-In response use given sentences. So, it is sound like real human.
+- Make response using this given sentences.
 
 ---
         `;
@@ -426,9 +426,9 @@ INPUT:
 - ${isNewChat ? `Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}` : ""}
 - ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
 - ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
-- User today's lucky color: ${userData.lucky_color}
-- User today's Energy level: ${userData.energy_level}
-- User today's Golden Hour: ${userData.golden_hour}
+- ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData.lucky_color}`}
+- ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData.energy_level}`}
+- ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData.golden_hour}`}
 - User planets position: ${JSON.stringify(userProvidedPlanets)}
 - User Message: ${userMessage}
 

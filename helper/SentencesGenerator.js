@@ -1,6 +1,6 @@
 const winkNLP = require("wink-nlp");
 const model = require("wink-eng-lite-web-model");
-const Vocabulary = require("../models/VocabularyModel");
+const wordsData = require("./words.json");
 const { translateText } = require("./translation");
 
 const nlp = winkNLP(model);
@@ -207,16 +207,13 @@ async function getLatestEmotionVocabulary() {
   }
 
   try {
-    const vocabulary = await Vocabulary.findOne()
-      .sort({ createdAt: -1 })
-      .lean();
-    const normalized = normalizeEmotionVocabulary(vocabulary?.emotions);
+    const normalized = normalizeEmotionVocabulary(wordsData);
 
     cachedEmotionVocab = normalized;
     cachedAtMs = now;
     return normalized;
   } catch (err) {
-    console.error("Emotion vocab fetch error:", err?.message || err);
+    console.error("Emotion vocab load error:", err?.message || err);
     cachedEmotionVocab = cachedEmotionVocab || {};
     cachedAtMs = now;
     return cachedEmotionVocab;
