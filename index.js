@@ -9,9 +9,11 @@ const adminRoutes = require("./Routes/adminRoutes");
 const authRoutes = require("./Routes/authRoutes");
 const paymentRoutes = require("./Routes/paymentRoutes");
 const { loadIndex, search, buildPrompt } = require("./helper/search.js");
+const { startTrendingTopicsCron } = require("./cron/TrendingTopicsCron.js");
 
 require("./db/db.js");
 startDailyMessageCron();
+startTrendingTopicsCron();
 // Create Express app
 const app = express();
 

@@ -11,6 +11,7 @@ const {
   // generateGeminiResponseStreamForFreeUsersThaiAstro,
 } = require("../helper/geminiService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
+const TrendingTopicModel = require("../models/TrendingTopicModel.js");
 const User = require("../models/UserModel.js");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 const { generateClaudeResponseStream } = require("../helper/claudeService.js");
@@ -213,6 +214,35 @@ function pickRandomUnique(items, count) {
   return arr.slice(0, n);
 }
 
+function buildTrendingTopicContext(trendingTopic) {
+  if (!trendingTopic?.context) return "";
+
+  const topics = Array.isArray(trendingTopic.context.trend_topics)
+    ? trendingTopic.context.trend_topics.filter(Boolean).join(", ")
+    : "";
+  const signalsUsed = Array.isArray(trendingTopic.signals_used)
+    ? trendingTopic.signals_used.filter(Boolean).join(", ")
+    : "";
+
+  return `
+TODAY'S TRENDING CONTEXT:
+- Economy mood: ${trendingTopic.context.economy || ""}
+- Weather feel: ${trendingTopic.context.weather || ""}
+- News highlight: ${trendingTopic.context.news_highlight || ""}
+- Social mood: ${trendingTopic.context.social_mood || ""}
+- Cultural moment: ${trendingTopic.context.cultural_moment || ""}
+- Seasonal context: ${trendingTopic.context.season_context || ""}
+- Trend topics: ${topics}
+- Current mood tag: ${trendingTopic.mood_tag || ""}
+- Signals used today: ${signalsUsed}
+
+USE RULE:
+- Use this only as soft present-moment context when it naturally fits the user's message.
+- Do not force unrelated headlines or trends into the reply.
+- Stay emotionally supportive first.
+`.trim();
+}
+
 const chatController = {
   createChat: async (req, res) => {
     try {
@@ -392,6 +422,11 @@ If the response sounds smart but emotionally cold → FAILURE
 
       const dateKey = getKolkataMidnightDate();
       const userData = await HeadlineModel.findOne({ date: dateKey }).lean();
+      const trendingTopicData = await TrendingTopicModel.findOne({
+        date: { $lte: dateKey },
+      })
+        .sort({ date: -1 })
+        .lean();
       const isNewChat = !chatId;
 
       let questionPrompt = "";
@@ -429,6 +464,7 @@ INPUT:
 - ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData.lucky_color}`}
 - ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData.energy_level}`}
 - ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData.golden_hour}`}
+- ${categoryName === "HealJai Talk" ? buildTrendingTopicContext(trendingTopicData) : ""}
 - User planets position: ${JSON.stringify(userProvidedPlanets)}
 - User Message: ${userMessage}
 
