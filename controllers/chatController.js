@@ -214,7 +214,7 @@ function pickRandomUnique(items, count) {
   return arr.slice(0, n);
 }
 
-function buildTrendingTopicContext(trendingTopic) {
+function buildTrendingTopicContext(trendingTopic, categoryName) {
   if (!trendingTopic?.context) return "";
 
   const topics = Array.isArray(trendingTopic.context.trend_topics)
@@ -227,9 +227,9 @@ function buildTrendingTopicContext(trendingTopic) {
   return `
 TODAY'S TRENDING CONTEXT:
 - Economy mood: ${trendingTopic.context.economy || ""}
-- Weather feel: ${trendingTopic.context.weather || ""}
+- ${categoryName === "HealJai Talk" ? `Weather feel: ${trendingTopic.context.weather || ""}` : ""}
 - News highlight: ${trendingTopic.context.news_highlight || ""}
-- Social mood: ${trendingTopic.context.social_mood || ""}
+- ${categoryName === "HealJai Talk" ? `Social mood: ${trendingTopic.context.social_mood || ""}` : ""}
 - Cultural moment: ${trendingTopic.context.cultural_moment || ""}
 - Seasonal context: ${trendingTopic.context.season_context || ""}
 - Trend topics: ${topics}
@@ -440,6 +440,7 @@ Sentences:
 ${matches.map((m) => `- ${m.sentence} (sco`).join("\n")}
 
 Your job is simple:
+- Convert this sentences into replay sentences.
 - Make response using this given sentences.
 
 ---
@@ -464,7 +465,7 @@ INPUT:
 - ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData.lucky_color}`}
 - ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData.energy_level}`}
 - ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData.golden_hour}`}
-- ${categoryName === "HealJai Talk" ? buildTrendingTopicContext(trendingTopicData) : ""}
+- ${categoryName === "HealJai Talk" ? buildTrendingTopicContext(trendingTopicData, categoryName) : ""}
 - User planets position: ${JSON.stringify(userProvidedPlanets)}
 - User Message: ${userMessage}
 
@@ -482,7 +483,7 @@ LANGUAGE RULE (RESTRICTED):
 
 ${systemPrompt}
 
-${questionPrompt}
+${categoryName === "HealJai Talk" ? "" : questionPrompt}
 `.trim();
 
       // console.log("Final system prompt:", systemPrompt);

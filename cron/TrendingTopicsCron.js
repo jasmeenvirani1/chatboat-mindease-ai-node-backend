@@ -139,7 +139,6 @@ Rules:
 
   const userPrompt = `
 Today's date is ${todayLabel}.
-User location is ${userLocation}.
 Timestamp to use: ${timestamp}
 
 Generate the JSON response for HealJai.
