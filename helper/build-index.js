@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SENTENCES_FILE = path.join(__dirname, "sentences.json");
+const SENTENCES_DIR = path.join(__dirname, "sentences");
 const INDEX_FILE = path.join(__dirname, "index.hnsw");
 const META_FILE = path.join(__dirname, "meta.json");
 const QUANT_FILE = path.join(__dirname, "vectors_int8.bin"); // quantized raw vectors for re-use
@@ -37,6 +38,68 @@ function dequantizeVec(int8Arr) {
 
 function getSignedInt8View(buf, offset, length) {
   return new Int8Array(buf.buffer, buf.byteOffset + offset, length);
+}
+
+function extractSentencesFromRaw(raw, sourceLabel) {
+  if (Array.isArray(raw)) {
+    return raw.filter((s) => typeof s === "string" && s.trim() !== "");
+  }
+
+  if (Array.isArray(raw?.sentences)) {
+    return raw.sentences.filter(
+      (s) => typeof s === "string" && s.trim() !== "",
+    );
+  }
+
+  throw new Error(
+    `Unsupported sentence file format in ${sourceLabel}. Expected an array or { "sentences": [] }.`,
+  );
+}
+
+function listSentenceSources() {
+  const sources = [];
+
+  if (fs.existsSync(SENTENCES_FILE)) {
+    sources.push(SENTENCES_FILE);
+  }
+
+  if (fs.existsSync(SENTENCES_DIR)) {
+    const nestedFiles = fs
+      .readdirSync(SENTENCES_DIR)
+      .filter((name) => name.toLowerCase().endsWith(".json"))
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => path.join(SENTENCES_DIR, name));
+
+    sources.push(...nestedFiles);
+  }
+
+  return sources;
+}
+
+function loadAllSentences() {
+  const sources = listSentenceSources();
+  if (!sources.length) {
+    throw new Error(
+      `No sentence files found. Add ${path.resolve(SENTENCES_FILE)} or JSON files in ${path.resolve(SENTENCES_DIR)}`,
+    );
+  }
+
+  const sentences = [];
+  const fileStats = [];
+
+  for (const filePath of sources) {
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const fileSentences = extractSentencesFromRaw(raw, path.basename(filePath));
+    for (const sentence of fileSentences) {
+      sentences.push(sentence);
+    }
+    fileStats.push({
+      file: path.basename(filePath),
+      count: fileSentences.length,
+    });
+  }
+
+  return { sentences, fileStats };
 }
 
 function loadReusableArtifacts(sentences) {
@@ -88,16 +151,11 @@ function addStoredVectorsToIndex(index, quantBuf, start, end, total) {
 
 async function buildIndex() {
   // ── 1. Load sentences ────────────────────────────────────────────────────
-  if (!fs.existsSync(SENTENCES_FILE)) {
-    throw new Error(
-      `sentences.json not found at: ${path.resolve(SENTENCES_FILE)}`,
-    );
-  }
-  const raw = JSON.parse(fs.readFileSync(SENTENCES_FILE, "utf-8"));
-  const sentences = (raw.sentences ?? raw).filter(
-    (s) => typeof s === "string" && s.trim() !== "",
-  );
+  const { sentences, fileStats } = loadAllSentences();
   console.log(`✅ Loaded ${sentences.length} sentences`);
+  console.log(
+    `📚 Sources: ${fileStats.map(({ file, count }) => `${file} (${count})`).join(", ")}`,
+  );
 
   const { reusableCount, quantData, existingCount } =
     loadReusableArtifacts(sentences);
