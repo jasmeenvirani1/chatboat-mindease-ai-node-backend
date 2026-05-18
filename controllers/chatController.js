@@ -23,6 +23,12 @@ const {
 } = require("../helper/SentencesGenerator.js");
 const { translateText } = require("../helper/translation.js");
 const { buildPrompt } = require("../helper/search.js");
+const UserMusicMemory = require("../models/UserMusicMemoryModel.js");
+const {
+  detectMusicIntent,
+  extractGenrePreferenceUpdate,
+  recommendMusicForMessage,
+} = require("../helper/musicRecommendationService.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -243,6 +249,140 @@ USE RULE:
 `.trim();
 }
 
+function pushRecentUnique(existing = [], items = [], max = 10) {
+  const next = Array.isArray(existing) ? [...existing] : [];
+
+  for (const item of items) {
+    if (!item) continue;
+    const index = next.indexOf(item);
+    if (index !== -1) next.splice(index, 1);
+    next.push(item);
+  }
+
+  return next.slice(-max);
+}
+
+function formatRecentConversationContext(chats = [], limit = 4) {
+  const items = Array.isArray(chats) ? chats.slice(-limit) : [];
+  if (items.length === 0) return "";
+
+  return items
+    .map((chat, index) => {
+      const turn = index + 1;
+      return `Turn ${turn} User: ${chat.userMessage}\nTurn ${turn} Assistant: ${chat.aiResponse}`;
+    })
+    .join("\n\n");
+}
+
+async function upsertUserMusicMemory({ userId, recommendation }) {
+  if (!userId || !recommendation?.shouldRecommend) return null;
+
+  const memory =
+    (await UserMusicMemory.findOne({ userId })) ||
+    new UserMusicMemory({
+      userId,
+    });
+
+  if (
+    recommendation.languageBucket &&
+    recommendation.languageBucket !== "mixed" &&
+    recommendation.languageBucket !== "unknown"
+  ) {
+    memory.preferredLanguage = recommendation.languageBucket;
+  } else if (!memory.preferredLanguage) {
+    memory.preferredLanguage = "unknown";
+  }
+
+  memory.recentMoods = pushRecentUnique(memory.recentMoods, [
+    recommendation.mood,
+  ]);
+  memory.recentContexts = pushRecentUnique(memory.recentContexts, [
+    recommendation.context,
+  ]);
+  memory.recentVibes = pushRecentUnique(memory.recentVibes, [
+    recommendation.vibe,
+  ]);
+
+  const nextRecommendations = Array.isArray(memory.recentRecommendations)
+    ? [...memory.recentRecommendations]
+    : [];
+  const recommendationBatchId = `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
+  for (const genre of recommendation.genres || []) {
+    nextRecommendations.push({
+      recommendationBatchId,
+      mood: recommendation.mood || "",
+      context: recommendation.context || "",
+      vibe: recommendation.vibe || "",
+      genre,
+      languageBucket: recommendation.languageBucket || "unknown",
+      recommendedAt: new Date(),
+    });
+  }
+
+  memory.recentRecommendations = nextRecommendations.slice(-15);
+  memory.lastRecommendationAt = new Date();
+
+  await memory.save();
+  return memory;
+}
+
+async function saveUserMusicGenrePreferences({
+  userId,
+  userMessage,
+  translatedMessage,
+  existingMemory = null,
+}) {
+  if (!userId) return null;
+
+  const preferenceUpdate = extractGenrePreferenceUpdate(
+    `${userMessage} ${translatedMessage}`.trim(),
+    existingMemory,
+  );
+
+  const hasFavoriteGenres = preferenceUpdate.favoriteGenres.length > 0;
+  const hasDislikedGenres = preferenceUpdate.dislikedGenres.length > 0;
+
+  if (!hasFavoriteGenres && !hasDislikedGenres) {
+    return null;
+  }
+
+  const memory = await UserMusicMemory.findOne({ userId });
+
+  const writableMemory =
+    memory ||
+    new UserMusicMemory({
+      userId,
+    });
+
+  if (hasFavoriteGenres) {
+    writableMemory.favoriteGenres = pushRecentUnique(
+      writableMemory.favoriteGenres,
+      preferenceUpdate.favoriteGenres,
+      20,
+    );
+    writableMemory.dislikedGenres = (writableMemory.dislikedGenres || []).filter(
+      (genre) => !preferenceUpdate.favoriteGenres.includes(genre),
+    );
+  }
+
+  if (hasDislikedGenres) {
+    writableMemory.dislikedGenres = pushRecentUnique(
+      writableMemory.dislikedGenres,
+      preferenceUpdate.dislikedGenres,
+      20,
+    );
+    writableMemory.favoriteGenres = (writableMemory.favoriteGenres || []).filter(
+      (genre) => !preferenceUpdate.dislikedGenres.includes(genre),
+    );
+  }
+
+  await writableMemory.save();
+  return writableMemory;
+}
+
 const chatController = {
   createChat: async (req, res) => {
     try {
@@ -261,6 +401,7 @@ const chatController = {
       let userName;
       let subscriptionId;
       let subscriptionStatus;
+      let userMusicMemory = null;
 
       if (userId) {
         const user = await User.findById(userId).select(
@@ -272,6 +413,8 @@ const chatController = {
           subscriptionId = user.subscriptionId;
           subscriptionStatus = user.subscriptionStatus;
         }
+
+        userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
 
       const target = detectLangFromMessage(userMessage);
@@ -290,6 +433,37 @@ const chatController = {
       const allSentences = getSentencesForEmotion(emotionType);
       const sentences = pickRandomUnique(allSentences, 10);
       console.log("Sentences (random 10):", sentences);
+      const shouldRunMusicRecommendation = detectMusicIntent(
+        `${userMessage} ${translatedMessage}`.trim(),
+      );
+      const updatedMusicMemory = await saveUserMusicGenrePreferences({
+        userId,
+        userMessage,
+        translatedMessage,
+        existingMemory: userMusicMemory,
+      });
+      if (updatedMusicMemory) {
+        userMusicMemory = updatedMusicMemory.toObject
+          ? updatedMusicMemory.toObject()
+          : updatedMusicMemory;
+      }
+      const musicRecommendation = shouldRunMusicRecommendation
+        ? recommendMusicForMessage({
+            userMessage,
+            translatedMessage,
+            emotionType,
+            userMemory: userMusicMemory,
+          })
+        : { shouldRecommend: false };
+      const musicRecommendationPayload = musicRecommendation?.shouldRecommend
+        ? {
+            mood: musicRecommendation.mood,
+            context: musicRecommendation.context,
+            vibe: musicRecommendation.vibe,
+            languageBucket: musicRecommendation.languageBucket,
+            genres: musicRecommendation.genres,
+          }
+        : null;
 
       // console.log("subscriptionId:", subscriptionId);
       // console.log("subscriptionStatus:", subscriptionStatus);
@@ -505,6 +679,10 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
         }
       }
 
+      if (musicRecommendation?.shouldRecommend) {
+        systemPrompt = `${musicRecommendation.promptBlock}`;
+      }
+
       /** 🔁 LOAD CHAT IF EXISTING */
       if (!isNewChat) {
         chat = await ChatHistory.findById(chatId);
@@ -520,6 +698,30 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
       const chatLang = isNewChat
         ? detectLangFromMessage(userMessage)
         : chat?.chatLang || "en";
+      const shouldIncludeHistory =
+        !isNewChat &&
+        chat.categoryId?.toString() === categoryId?.toString() &&
+        chat.subCategoryId?.toString() === subCategoryId?.toString();
+      const recentConversationContext = shouldIncludeHistory
+        ? formatRecentConversationContext(chat.chats, 4)
+        : "";
+
+      if (recentConversationContext) {
+        systemPrompt = `
+${systemPrompt}
+
+CONVERSATION CONTINUITY RULES:
+- Use the recent conversation context to understand what the user has already shared.
+- Reply as a continuation of the same conversation, not like a brand-new chat.
+- If the user's new message clearly refers to something earlier, connect to it naturally.
+- Do not repeat the assistant's earlier wording unless needed.
+- Prioritize the newest user message if it conflicts with older context.
+- Keep references to previous turns brief and natural.
+
+RECENT CONVERSATION CONTEXT:
+${recentConversationContext}
+`.trim();
+      }
 
       /** ✅ CASE SELECTION (NEW CHAT ONLY) */
       let selectedCaseId = null;
@@ -629,17 +831,11 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
       ];
 
       // include last 4 history pairs if same cat/subcat
-      if (!isNewChat) {
-        const shouldIncludeHistory =
-          chat.categoryId?.toString() === categoryId?.toString() &&
-          chat.subCategoryId?.toString() === subCategoryId?.toString();
-
-        if (shouldIncludeHistory) {
-          chat.chats.slice(-4).forEach((c) => {
-            messages.push({ role: "user", content: c.userMessage });
-            messages.push({ role: "assistant", content: c.aiResponse });
-          });
-        }
+      if (shouldIncludeHistory) {
+        chat.chats.slice(-4).forEach((c) => {
+          messages.push({ role: "user", content: c.userMessage });
+          messages.push({ role: "assistant", content: c.aiResponse });
+        });
       }
 
       // Provide SUPPORT_LINE (TEXT) to AI (this is what we want it to print)
@@ -756,6 +952,11 @@ REPLY RULE:
             });
           }
 
+          await upsertUserMusicMemory({
+            userId,
+            recommendation: musicRecommendation,
+          });
+
           if (!clientClosed) {
             res.write(
               `data: ${JSON.stringify({
@@ -763,6 +964,7 @@ REPLY RULE:
                 chatId: chat._id,
                 promptSource,
                 selectedCaseId: selectedCaseId || null,
+                musicRecommendation: musicRecommendationPayload,
               })}\n\n`,
             );
             res.end();
@@ -814,12 +1016,18 @@ REPLY RULE:
         });
       }
 
+      await upsertUserMusicMemory({
+        userId,
+        recommendation: musicRecommendation,
+      });
+
       return res.status(201).json({
         success: true,
         chatId: chat._id,
         data: chat,
         promptSource,
         selectedCaseId: selectedCaseId || null, // ✅ return to frontend
+        musicRecommendation: musicRecommendationPayload,
       });
     } catch (error) {
       logger.error("Chat Error:", error);
