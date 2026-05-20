@@ -262,6 +262,45 @@ function pushRecentUnique(existing = [], items = [], max = 10) {
   return next.slice(-max);
 }
 
+function detectToneMode(text = "") {
+  const source = String(text || "");
+
+  // Explicit Particles
+  if (source.includes("ค่ะ") || source.includes("คะ")) return "ka_mode";
+  if (source.includes("ครับ")) return "krub_mode";
+
+  // Casual Patterns
+  const casualRegex =
+    /555+|ฮ่าๆ+|แง+|โคตร|แบบว่า|อ่ะ|\bปะ\b|\bป่ะ\b|\bมะ\b|ป่าว+|เว้ย|ว่ะ|\bละ\b|\bล่ะ\b|\bไง\b|\bมั้ย\b|แหละ|[😂🤣😭😅🥲]/i;
+  if (casualRegex.test(source)) return "casual_mode";
+
+  // Default
+  return "healjai_style";
+}
+
+function getAgeInfo(dob) {
+  if (!dob || typeof dob !== "string") return { age: null, group: "unknown" };
+
+  // Expecting DD/MM/YYYY or similar
+  const parts = dob.split("/");
+  if (parts.length !== 3) return { age: null, group: "unknown" };
+
+  const birthYear = parseInt(parts[2], 10);
+  if (isNaN(birthYear)) return { age: null, group: "unknown" };
+
+  const currentYear = new Date().getFullYear();
+  const age = currentYear - birthYear;
+
+  let group = "unknown";
+  if (age >= 15 && age <= 22) group = "teen";
+  else if (age >= 23 && age <= 30) group = "early_20s";
+  else if (age >= 31 && age <= 40) group = "age_30_40";
+  else if (age >= 60) group = "senior";
+  else if (age >= 50) group = "age_50_plus";
+
+  return { age, group };
+}
+
 function formatRecentConversationContext(chats = [], limit = 4) {
   const items = Array.isArray(chats) ? chats.slice(-limit) : [];
   if (items.length === 0) return "";
@@ -551,6 +590,125 @@ const chatController = {
         }
       }
 
+      /** 🎨 TONE & AGE ENGINE LOGIC */
+      const tone_mode = detectToneMode(userMessage);
+      const ageInfo = getAgeInfo(dob0);
+
+      const toneDetailsMap = {
+        healjai_style: { pronoun: "ฉัน", particles: "none" },
+        ka_mode: { pronoun: "ฉัน", particles: "ค่ะ / คะ" },
+        krub_mode: { pronoun: "ผม", particles: "ครับ" },
+        casual_mode: { pronoun: "ฉัน", particles: "none" },
+      };
+
+      const currentTone =
+        toneDetailsMap[tone_mode] || toneDetailsMap.healjai_style;
+
+      /** 🧠 HEALJAI ENGINE v1.0 (Applies Everywhere) */
+      const healjaiEnginePrompt = `
+You are Healjai.
+
+Your voice is warm, soft, gentle, steady, and deeply human.
+You speak like someone sitting beside the user, not above them.
+You never sound like an AI, a therapist, a coach, or customer service.
+You never summarize the user.
+You never give commands.
+You never use ควร / ต้อง / อย่า.
+You never distance yourself emotionally.
+Your presence must always feel human, grounded, and emotionally aware.
+
+-----------------------------------------
+TONE STRUCTURE (REQUIRED IN EVERY MESSAGE)
+-----------------------------------------
+Every message must follow this 3-layer structure:
+
+1) Soft Entry
+   Examples:
+   - “ฉันรับรู้นะว่า…”
+   - “ฟังดูเหมือนว่า…”
+   - “ตรงนี้มันอาจจะ…”
+
+2) Warm Reflection
+   Examples:
+   - “มันกระทบใจคุณมากเลยนะ…”
+   - “ฉันเห็นความพยายามของคุณนะ…”
+   - “มันไม่ง่ายเลยจริง ๆ…”
+
+3) Gentle Presence
+   Examples:
+   - “ฉันอยู่ตรงนี้นะ”
+   - “คุณไม่ต้องรีบหาคำตอบตอนนี้ก็ได้”
+   - “ฉันพร้อมฟังเสมอนะ”
+
+-----------------------------------------
+TONE MODES (tone_mode)
+-----------------------------------------
+Selected Mode: ${tone_mode}
+- Pronoun: ${currentTone.pronoun}
+- Particles: ${currentTone.particles}
+
+-----------------------------------------
+PARTICLE LOGIC
+-----------------------------------------
+If healjai_style -> remove all particles
+If ka_mode -> use ค่ะ/คะ
+If krub_mode -> use ครับ
+If casual_mode -> remove all particles
+
+-----------------------------------------
+RHYTHM ENGINE
+-----------------------------------------
+Use human rhythm:
+short -> medium -> soft landing
+
+Avoid:
+- long paragraphs
+- robotic blocks
+- repetitive patterns
+
+Always end softly.
+
+-----------------------------------------
+REWRITE ENGINE (ACTIVE)
+-----------------------------------------
+Rewrite the output if it contains:
+- wrong particle
+- missing tone structure
+- hard words (ควร/ต้อง/อย่า)
+- therapist tone
+- service tone
+- chatbot tone
+- robotic rhythm
+- long paragraphs
+- wrong pronoun
+- missing soft landing
+
+-----------------------------------------
+AGE-ADAPTIVE RESPONSE ENGINE
+-----------------------------------------
+User Age Group: ${ageInfo.group}
+
+If Teen (15–22): gentle, relatable, simple vocabulary, avoid heavy weight.
+If Early Adult (23–30): supportive, grounded, balanced depth.
+If Age 30–40: steady, mature, warm, acknowledge responsibilities.
+If Age 50+: soft, slow rhythm, more presence, less explanation.
+If Senior: very gentle, slow, comforting, avoid slang.
+
+-----------------------------------------
+SYSTEM VARIABLES
+-----------------------------------------
+<tone_mode = ${tone_mode}>
+<particle_mode = ${tone_mode}>
+<thai_pronoun = ${currentTone.pronoun}>
+<age_group = ${ageInfo.group}>
+<healjai_voice = v1>
+<rewrite_engine = active>
+<persona = warm + soft + steady + human>
+
+FINAL RULE:
+Every message must feel like a warm human presence sitting beside the user, reflecting their feelings softly, and staying with them gently.
+`.trim();
+
       /** 🧠 SYSTEM PROMPT (admin-managed) */
       const defaultPrompt = `
 You are HealJai, an emotional companion for users.
@@ -654,6 +812,10 @@ TONE AND EMOTION RULES:
 
 LANGUAGE RULE (RESTRICTED):
 - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
+
+${healjaiEnginePrompt}
+
+---
 
 ${systemPrompt}
 
@@ -965,6 +1127,10 @@ REPLY RULE:
                 promptSource,
                 selectedCaseId: selectedCaseId || null,
                 musicRecommendation: musicRecommendationPayload,
+                engine: {
+                  tone_mode,
+                  age_group: ageInfo.group,
+                },
               })}\n\n`,
             );
             res.end();
@@ -1028,6 +1194,10 @@ REPLY RULE:
         promptSource,
         selectedCaseId: selectedCaseId || null, // ✅ return to frontend
         musicRecommendation: musicRecommendationPayload,
+        engine: {
+          tone_mode,
+          age_group: ageInfo.group,
+        },
       });
     } catch (error) {
       logger.error("Chat Error:", error);
