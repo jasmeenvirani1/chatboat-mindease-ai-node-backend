@@ -128,6 +128,7 @@ async function createGeminiClient() {
 }
 
 function messagesToPrompt(messages) {
+  // Try to use a structured string if that's what the old sdk was expecting
   return (messages || [])
     .map((m) => `${String(m.role || "").toUpperCase()}: ${m.content}`)
     .join("\n");
@@ -181,7 +182,7 @@ const generateGeminiResponseStream = async (messages) => {
         try {
           for await (const chunk of stream) {
             yieldedAny = true;
-            yield chunk;
+            yield { text: chunk.text };
           }
           return;
         } catch (err) {
@@ -204,9 +205,10 @@ const generateGeminiResponseStream = async (messages) => {
           );
           await sleep(delayMs);
           try {
-            stream = await withRetry("generateContentStream", createStream, {
+            const nextStream = await withRetry("generateContentStream", createStream, {
               maxAttempts: 1,
             });
+            stream = nextStream;
           } catch (createErr) {
             stream = throwingAsyncIterable(createErr);
           }
