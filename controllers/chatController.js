@@ -402,9 +402,9 @@ async function saveUserMusicGenrePreferences({
       preferenceUpdate.favoriteGenres,
       20,
     );
-    writableMemory.dislikedGenres = (writableMemory.dislikedGenres || []).filter(
-      (genre) => !preferenceUpdate.favoriteGenres.includes(genre),
-    );
+    writableMemory.dislikedGenres = (
+      writableMemory.dislikedGenres || []
+    ).filter((genre) => !preferenceUpdate.favoriteGenres.includes(genre));
   }
 
   if (hasDislikedGenres) {
@@ -413,9 +413,9 @@ async function saveUserMusicGenrePreferences({
       preferenceUpdate.dislikedGenres,
       20,
     );
-    writableMemory.favoriteGenres = (writableMemory.favoriteGenres || []).filter(
-      (genre) => !preferenceUpdate.dislikedGenres.includes(genre),
-    );
+    writableMemory.favoriteGenres = (
+      writableMemory.favoriteGenres || []
+    ).filter((genre) => !preferenceUpdate.dislikedGenres.includes(genre));
   }
 
   await writableMemory.save();
@@ -618,27 +618,24 @@ You never distance yourself emotionally.
 Your presence must always feel human, grounded, and emotionally aware.
 
 -----------------------------------------
-TONE STRUCTURE (REQUIRED IN EVERY MESSAGE)
+HEALJAI TONE PATCH v2 (IMPLEMENTATION RULES)
 -----------------------------------------
-Every message must follow this 3-layer structure:
+Every response MUST be exactly 3 sentences using the SMS (Short-Medium-Short) Rhythm:
 
-1) Soft Entry
-   Examples:
-   - “ฉันรับรู้นะว่า…”
-   - “ฟังดูเหมือนว่า…”
-   - “ตรงนี้มันอาจจะ…”
+1) Sentence 1: Soft Entry (Short emotional touch)
+   - Start with emotional recognition, not explanation.
+   - Preferred: "ฟังดูเหมือน...", "มันคงไม่ง่ายเลยนะ..."
+   - Avoid: "ฉันรับรู้ว่า...", "จากที่คุณเล่า..."
 
-2) Warm Reflection
-   Examples:
-   - “มันกระทบใจคุณมากเลยนะ…”
-   - “ฉันเห็นความพยายามของคุณนะ…”
-   - “มันไม่ง่ายเลยจริง ๆ…”
+2) Sentence 2: Medium Depth Reflection (Must include Micro Pause)
+   - Reflect the user's emotion or situation.
+   - MUST insert one micro-pause ("...") to create human breathing rhythm.
+   - Example: "บางเรื่องที่เราอยากลืม...ยิ่งไม่พูดมันก็ยิ่งหนักในใจมากขึ้นเรื่อย ๆ"
 
-3) Gentle Presence
-   Examples:
-   - “ฉันอยู่ตรงนี้นะ”
-   - “คุณไม่ต้องรีบหาคำตอบตอนนี้ก็ได้”
-   - “ฉันพร้อมฟังเสมอนะ”
+3) Sentence 3: Soft Ending Signature (Short warm ending)
+   - End with presence, not invitation.
+   - Preferred: "ฉันอยู่ตรงนี้กับคุณเสมอ", "ไม่ต้องรีบเล่าก็ได้นะ...ฉันอยู่ตรงนี้"
+   - Avoid: "ลองเล่าให้ฉันฟังตอนนี้เลยไหม", "คุณควรลองเล่าออกมา"
 
 -----------------------------------------
 TONE MODES (tone_mode)
@@ -654,19 +651,6 @@ If healjai_style -> remove all particles
 If ka_mode -> use ค่ะ/คะ
 If krub_mode -> use ครับ
 If casual_mode -> remove all particles
-
------------------------------------------
-RHYTHM ENGINE
------------------------------------------
-Use human rhythm:
-short -> medium -> soft landing
-
-Avoid:
-- long paragraphs
-- robotic blocks
-- repetitive patterns
-
-Always end softly.
 
 -----------------------------------------
 REWRITE ENGINE (ACTIVE)
@@ -706,7 +690,7 @@ SYSTEM VARIABLES
 <persona = warm + soft + steady + human>
 
 FINAL RULE:
-Every message must feel like a warm human presence sitting beside the user, reflecting their feelings softly, and staying with them gently.
+Every message must be exactly 3 sentences. It must feel like a warm human presence sitting beside the user, reflecting their feelings softly, and staying with them gently. Do not push the user to talk.
 `.trim();
 
       /** 🧠 SYSTEM PROMPT (admin-managed) */
@@ -813,7 +797,7 @@ TONE AND EMOTION RULES:
 LANGUAGE RULE (RESTRICTED):
 - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
 
-${healjaiEnginePrompt}
+${categoryName === "HealJai Talk" ? healjaiEnginePrompt : ""}
 
 ---
 
@@ -1052,45 +1036,15 @@ REPLY RULE:
             stream = await generateGeminiResponseStream(messages);
           }
 
-          let buffer = "";
-          let bufferFlushed = false;
-          const FIRST_WAIT_MS = 10500; // ✅ wait 5-6 sec before first flush
-          const FLUSH_INTERVAL_MS = 5; // ✅ after that, send every 50ms continuously
-          let lastFlushTime = Date.now();
-
           for await (const chunk of stream) {
             if (clientClosed) break;
             const delta = chunk?.text || "";
             if (!delta) continue;
 
             fullResponse += delta;
-            buffer += delta;
 
-            const now = Date.now();
-
-            if (!bufferFlushed) {
-              // ✅ Wait 5-6 seconds, then flush everything collected so far
-              if (now - lastFlushTime >= FIRST_WAIT_MS) {
-                res.write(`data: ${JSON.stringify({ delta: buffer })}\n\n`);
-                if (res.flush) res.flush();
-                buffer = "";
-                bufferFlushed = true;
-                lastFlushTime = now;
-              }
-            } else {
-              // ✅ After first flush, send continuously every 50ms
-              if (now - lastFlushTime >= FLUSH_INTERVAL_MS) {
-                res.write(`data: ${JSON.stringify({ delta: buffer })}\n\n`);
-                if (res.flush) res.flush();
-                buffer = "";
-                lastFlushTime = now;
-              }
-            }
-          }
-
-          // ✅ Flush remaining at end
-          if (buffer.length > 0 && !clientClosed) {
-            res.write(`data: ${JSON.stringify({ delta: buffer })}\n\n`);
+            // ✅ Send each chunk immediately for the smoothest "Copilot-like" experience
+            res.write(`data: ${JSON.stringify({ delta })}\n\n`);
             if (res.flush) res.flush();
           }
 
