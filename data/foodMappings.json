@@ -1,0 +1,77 @@
+{
+  "moodRules": {
+    "comfort": {
+      "foodTypes": ["comfort food", "soup", "rice", "home food"],
+      "vibes": ["warm simple", "soft home", "gentle eating"]
+    },
+
+    "energy_restore": {
+      "foodTypes": ["protein meal", "noodles", "rice", "energy food"],
+      "vibes": ["fresh boost", "light energy", "simple fuel"]
+    },
+
+    "light_meal": {
+      "foodTypes": ["salad", "soup", "healthy food", "light meal"],
+      "vibes": ["clean light", "soft balance", "easy digestion"]
+    },
+
+    "stress_relief": {
+      "foodTypes": ["soup", "tea", "snack", "light meal"],
+      "vibes": ["calm eating", "slow moment", "soft relief"]
+    },
+
+    "treat": {
+      "foodTypes": ["dessert", "sweet food", "fried food", "snack"],
+      "vibes": ["reward moment", "small joy", "happy bite"]
+    },
+
+    "balanced": {
+      "foodTypes": ["rice", "home food", "healthy food", "balanced meal"],
+      "vibes": ["normal day", "steady meal", "simple routine"]
+    }
+  },
+
+  "contextRules": {
+    "busy_day": {
+      "foodTypes": ["quick meal", "rice", "noodles", "snack"],
+      "vibes": ["fast simple", "no effort", "grab and go"]
+    },
+
+    "tired_day": {
+      "foodTypes": ["soup", "rice", "comfort food"],
+      "vibes": ["low effort", "soft energy", "easy eating"]
+    },
+
+    "late_night": {
+      "foodTypes": ["snack", "tea", "light meal"],
+      "vibes": ["quiet night", "soft bite", "calm eating"]
+    },
+
+    "social": {
+      "foodTypes": ["street food", "fried food", "shared meal"],
+      "vibes": ["fun sharing", "group eating", "casual vibe"]
+    }
+  },
+
+  "vibeRules": {
+    "soft warm": {
+      "foodTypes": ["soup", "rice", "home food"],
+      "vibes": ["warm calm", "soft comfort"]
+    },
+
+    "fresh light": {
+      "foodTypes": ["salad", "healthy food", "tea"],
+      "vibes": ["clean fresh", "light feeling"]
+    },
+
+    "quick bite": {
+      "foodTypes": ["snack", "fast food", "noodles"],
+      "vibes": ["fast easy", "no thinking"]
+    },
+
+    "sweet mood": {
+      "foodTypes": ["dessert", "sweet food"],
+      "vibes": ["small joy", "soft happiness"]
+    }
+  }
+}

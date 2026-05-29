@@ -7,8 +7,6 @@ const Case = require("../models/CasesModel.js");
 const {
   generateGeminiResponse,
   generateGeminiResponseStream,
-  // generateGeminiResponseStreamForFreeUsers,
-  // generateGeminiResponseStreamForFreeUsersThaiAstro,
 } = require("../helper/geminiService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const TrendingTopicModel = require("../models/TrendingTopicModel.js");
@@ -29,6 +27,10 @@ const {
   extractGenrePreferenceUpdate,
   recommendMusicForMessage,
 } = require("../helper/musicRecommendationService.js");
+const {
+  detectFoodIntent,
+  recommendFoodForMessage,
+} = require("../helper/foodRecommendationService.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -49,48 +51,23 @@ function getKolkataMidnightDate() {
 
 function detectLangFromMessage(text = "") {
   if (/[\u0E00-\u0E7F]/.test(text)) return "th"; // Thai
-
   if (/[ñáéíóúü¿¡]/i.test(text)) return "es"; // Spanish-ish
-
-  // Japanese: Hiragana, Katakana, Kanji ranges
   if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text)) return "ja";
-
-  // Korean: Hangul syllables
   if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
-
-  // Chinese: Simplified (CJK Unified Ideographs common block)
   if (
     /[\u4E00-\u9FFF]/.test(text) &&
     !/[\u3040-\u309F\u30A0-\u30FF]/.test(text)
   )
     return "zh";
-
-  // Russian / Cyrillic
   if (/[\u0400-\u04FF]/.test(text)) return "ru";
-
-  // Arabic
   if (/[\u0600-\u06FF]/.test(text)) return "ar";
-
-  // Hindi / Devanagari
   if (/[\u0900-\u097F]/.test(text)) return "hi";
-
-  // Vietnamese (common diacritics)
   if (/[ăâđêôơưĂÂĐÊÔƠƯ]/i.test(text)) return "vi";
-
-  // French (common accents - more specific than general Spanish)
   if (/[àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ]/i.test(text) && !/[ñ¿¡]/i.test(text))
     return "fr";
-
-  // German (unique umlauts and ß)
   if (/[äöüßÄÖÜ]/i.test(text)) return "de";
-
-  // Italian (common accents distinct from French/Spanish)
   if (/[àèéìíîòóùú]/i.test(text) && !/[ñ¿¡àâæçêëïœ]/i.test(text)) return "it";
-
-  // Portuguese (specific characters not common in Spanish)
   if (/[ãõÃÕ]/i.test(text)) return "pt";
-
-  // Default to English
   return "en";
 }
 
@@ -141,7 +118,7 @@ function extractThaiDateTime(text = "") {
   if (!month) return null;
 
   let year = Number(dateMatch[3]);
-  if (year >= 2400) year -= 543; // Convert Buddhist Era to AD
+  if (year >= 2400) year -= 543;
 
   const hourRaw = timeMatch?.[1];
   const minuteRaw = timeMatch?.[2];
@@ -166,13 +143,7 @@ function extractThaiDateTime(text = "") {
     "0",
   )}/${year}`;
 
-  // console.log("test:", dateOfBirth);
-
-  return {
-    dateOfBirth,
-    timeOfBirth,
-    usedDefaultTime,
-  };
+  return { dateOfBirth, timeOfBirth, usedDefaultTime };
 }
 
 function containsDate(text = "") {
@@ -197,7 +168,6 @@ function containsDate(text = "") {
   );
 }
 
-// selection output must be ONLY: <<CASE_ID:24hex>>
 function parseCaseIdOnly(aiText = "") {
   const text = String(aiText || "").trim();
   const match = text.match(/<<CASE_ID:([a-fA-F0-9]{24})>>/);
@@ -212,7 +182,6 @@ function pickSupportLineByLang(caseDoc, lang) {
 function pickRandomUnique(items, count) {
   const arr = Array.isArray(items) ? [...items] : [];
   const n = Math.max(0, Math.min(Number(count) || 0, arr.length));
-  // Fisher–Yates shuffle (in-place), then take first n
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -251,43 +220,33 @@ USE RULE:
 
 function pushRecentUnique(existing = [], items = [], max = 10) {
   const next = Array.isArray(existing) ? [...existing] : [];
-
   for (const item of items) {
     if (!item) continue;
     const index = next.indexOf(item);
     if (index !== -1) next.splice(index, 1);
     next.push(item);
   }
-
   return next.slice(-max);
 }
 
 function detectToneMode(text = "") {
   const source = String(text || "");
-
-  // Explicit Particles
   if (source.includes("ค่ะ") || source.includes("คะ")) return "ka_mode";
   if (source.includes("ครับ")) return "krub_mode";
 
-  // Casual Patterns
   const casualRegex =
     /555+|ฮ่าๆ+|แง+|โคตร|แบบว่า|อ่ะ|\bปะ\b|\bป่ะ\b|\bมะ\b|ป่าว+|เว้ย|ว่ะ|\bละ\b|\bล่ะ\b|\bไง\b|\bมั้ย\b|แหละ|[😂🤣😭😅🥲]/i;
   if (casualRegex.test(source)) return "casual_mode";
 
-  // Default
   return "healjai_style";
 }
 
 function getAgeInfo(dob) {
   if (!dob || typeof dob !== "string") return { age: null, group: "unknown" };
-
-  // Expecting DD/MM/YYYY or similar
   const parts = dob.split("/");
   if (parts.length !== 3) return { age: null, group: "unknown" };
-
   const birthYear = parseInt(parts[2], 10);
   if (isNaN(birthYear)) return { age: null, group: "unknown" };
-
   const currentYear = new Date().getFullYear();
   const age = currentYear - birthYear;
 
@@ -318,9 +277,7 @@ async function upsertUserMusicMemory({ userId, recommendation }) {
 
   const memory =
     (await UserMusicMemory.findOne({ userId })) ||
-    new UserMusicMemory({
-      userId,
-    });
+    new UserMusicMemory({ userId });
 
   if (
     recommendation.languageBucket &&
@@ -389,12 +346,7 @@ async function saveUserMusicGenrePreferences({
   }
 
   const memory = await UserMusicMemory.findOne({ userId });
-
-  const writableMemory =
-    memory ||
-    new UserMusicMemory({
-      userId,
-    });
+  const writableMemory = memory || new UserMusicMemory({ userId });
 
   if (hasFavoriteGenres) {
     writableMemory.favoriteGenres = pushRecentUnique(
@@ -425,7 +377,6 @@ async function saveUserMusicGenrePreferences({
 const chatController = {
   createChat: async (req, res) => {
     try {
-      // IMPORTANT: let (categoryId can be corrected from subCategory)
       let {
         userId,
         categoryId,
@@ -457,24 +408,31 @@ const chatController = {
       }
 
       const target = detectLangFromMessage(userMessage);
-      console.log("Detected language:", target);
+      // console.log("Detected language:", target);
       let translatedMessage;
 
       if (target === "th") {
         translatedMessage = await translateText(userMessage, target);
-        console.log("translatedMessage:", translatedMessage);
+        // console.log("translatedMessage:", translatedMessage);
       } else {
         translatedMessage = userMessage;
       }
 
       const emotionType = await detectEmotion(translatedMessage);
-      console.log("Emotion:", emotionType);
+      // console.log("Emotion:", emotionType);
       const allSentences = getSentencesForEmotion(emotionType);
       const sentences = pickRandomUnique(allSentences, 10);
-      console.log("Sentences (random 10):", sentences);
+      // console.log("Sentences (random 10):", sentences);
+
       const shouldRunMusicRecommendation = detectMusicIntent(
         `${userMessage} ${translatedMessage}`.trim(),
       );
+      const shouldRunFoodRecommendation = detectFoodIntent(
+        `${userMessage} ${translatedMessage}`.trim(),
+      );
+
+      // console.log("shouldRunFoodRecommendation:", shouldRunFoodRecommendation);
+
       const updatedMusicMemory = await saveUserMusicGenrePreferences({
         userId,
         userMessage,
@@ -486,6 +444,7 @@ const chatController = {
           ? updatedMusicMemory.toObject()
           : updatedMusicMemory;
       }
+
       const musicRecommendation = shouldRunMusicRecommendation
         ? recommendMusicForMessage({
             userMessage,
@@ -494,6 +453,7 @@ const chatController = {
             userMemory: userMusicMemory,
           })
         : { shouldRecommend: false };
+
       const musicRecommendationPayload = musicRecommendation?.shouldRecommend
         ? {
             mood: musicRecommendation.mood,
@@ -504,10 +464,29 @@ const chatController = {
           }
         : null;
 
-      // console.log("subscriptionId:", subscriptionId);
-      // console.log("subscriptionStatus:", subscriptionStatus);
+      const foodRecommendation = shouldRunFoodRecommendation
+        ? recommendFoodForMessage({
+            userMessage,
+            translatedMessage,
+            emotionType,
+          })
+        : { shouldRecommend: false };
 
-      // console.log("dob:", dob0);
+      // console.log("foodRecommendation:", foodRecommendation);
+
+      const foodRecommendationPayload = foodRecommendation?.shouldRecommend
+        ? {
+            mood: foodRecommendation.mood,
+            context: foodRecommendation.context,
+            vibe: foodRecommendation.vibe,
+            activeVibe: foodRecommendation.activeVibe,
+            foods: foodRecommendation.foods || [],
+            response: foodRecommendation.response || null,
+          }
+        : null;
+
+      // console.log("musicRecommendation:", musicRecommendationPayload);
+      // console.log("foodRecommendationPayload:", foodRecommendationPayload);
 
       if (!userMessage) {
         return res.status(400).json({
@@ -532,7 +511,6 @@ const chatController = {
 
       if (effectiveDateTime) {
         try {
-          // console.log("V1:", effectiveDateTime.dateOfBirth);
           userProvidedPlanets = await calculateUranianPlanets({
             dateOfBirth: effectiveDateTime.dateOfBirth || fallbackDob,
             timeOfBirth: effectiveDateTime.timeOfBirth,
@@ -550,7 +528,7 @@ const chatController = {
       let subCategoryName = null;
       let subCategoryPrompt = null;
 
-      /** 📌 LOAD CATEGORY & SUBCATEGORY DATA */
+      /** LOAD CATEGORY & SUBCATEGORY DATA */
       if (categoryId) {
         const category = await Category.findById(categoryId).select(
           "name prompt freeUserPrompt",
@@ -569,28 +547,21 @@ const chatController = {
         const subCategory = await SubCategory.findById(subCategoryId).select(
           "name prompt categoryId freeUserPrompt",
         );
-        // console.log("Loaded subcategory:", subCategory);
         if (subCategory) {
           if (subscriptionId && subscriptionStatus === "active") {
             subCategoryPrompt = subCategory.prompt?.trim() || null;
-            // console.log("Using subcategory prompt: ", subCategoryPrompt);
           } else {
             subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
-            // console.log(
-            //   "Using subcategory free_user_prompt: ",
-            //   subCategoryPrompt,
-            // );
           }
           subCategoryName = subCategory.name;
 
-          // Fix wrong categoryId from client
           if (!categoryId && subCategory.categoryId) {
             categoryId = subCategory.categoryId;
           }
         }
       }
 
-      /** 🎨 TONE & AGE ENGINE LOGIC */
+      /** TONE & AGE ENGINE LOGIC */
       const tone_mode = detectToneMode(userMessage);
       const ageInfo = getAgeInfo(dob0);
 
@@ -604,7 +575,7 @@ const chatController = {
       const currentTone =
         toneDetailsMap[tone_mode] || toneDetailsMap.healjai_style;
 
-      /** 🧠 HEALJAI ENGINE v1.0 (Applies Everywhere) */
+      /** HEALJAI ENGINE PROMPT */
       const healjaiEnginePrompt = `
 You are Healjai.
 
@@ -712,7 +683,7 @@ FINAL RULE:
 Every message must be exactly 3 sentences using the SMS rhythm. It must feel like a warm human presence sitting beside the user, reflecting their feelings softly, and staying with them gently. Do not push the user to talk. Do not explain their problem.
 `.trim();
 
-      /** 🧠 SYSTEM PROMPT (admin-managed) */
+      /** SYSTEM PROMPT (admin-managed) */
       const defaultPrompt = `
 You are HealJai, an emotional companion for users.
 
@@ -782,13 +753,6 @@ Your job is simple:
         `;
       }
 
-      // console.log("Data:", userData);
-
-      /** 🧠 USER MEMORY CONTEXT */
-      // console.log("date:", effectiveDateTime?.dateOfBirth || dob0);
-      // console.log("time:", effectiveDateTime?.timeOfBirth || "6:00 AM");
-      // console.log("planets:", JSON.stringify(userProvidedPlanets));
-      // console.log("user birth of date:", effectiveDateTime?.dateOfBirth);
       systemPrompt = `
 MOST IMPORTANT RULE:
 - If Date of Birth change then don't ask for confirmation. Start processing with new date.
@@ -796,10 +760,9 @@ MOST IMPORTANT RULE:
 INPUT:
 - ${isNewChat ? `Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}` : ""}
 - ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
-- ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
-- ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData.lucky_color}`}
-- ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData.energy_level}`}
-- ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData.golden_hour}`}
+- ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData?.lucky_color}`}
+- ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData?.energy_level}`}
+- ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData?.golden_hour}`}
 - ${categoryName === "HealJai Talk" ? buildTrendingTopicContext(trendingTopicData, categoryName) : ""}
 - User planets position: ${JSON.stringify(userProvidedPlanets)}
 - User Message: ${userMessage}
@@ -816,8 +779,6 @@ TONE AND EMOTION RULES:
 LANGUAGE RULE (RESTRICTED):
 - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
 
-${categoryName === "HealJai Talk" ? healjaiEnginePrompt : ""}
-
 ---
 
 ${systemPrompt}
@@ -825,9 +786,7 @@ ${systemPrompt}
 ${categoryName === "HealJai Talk" ? "" : questionPrompt}
 `.trim();
 
-      // console.log("Final system prompt:", systemPrompt);
-
-      /** 🎯 ADD CONTEXT (only when using default/category prompts) */
+      /** ADD CONTEXT */
       if (promptSource === "default" || promptSource === "category") {
         let contextString = "";
 
@@ -844,11 +803,18 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
         }
       }
 
-      if (musicRecommendation?.shouldRecommend) {
-        systemPrompt = `${musicRecommendation.promptBlock}`;
+      // ============================================
+      // CRITICAL FIX: Only add healjaiEnginePrompt if NOT in food or music mode
+      // ============================================
+      if (
+        categoryName === "HealJai Talk" &&
+        !foodRecommendation?.shouldRecommend &&
+        !musicRecommendation?.shouldRecommend
+      ) {
+        systemPrompt = `${healjaiEnginePrompt}\n\n${systemPrompt}`;
       }
 
-      /** 🔁 LOAD CHAT IF EXISTING */
+      /** LOAD CHAT IF EXISTING */
       if (!isNewChat) {
         chat = await ChatHistory.findById(chatId);
         if (!chat) {
@@ -859,7 +825,7 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
         }
       }
 
-      /** 🌍 language */
+      /** language */
       const chatLang = isNewChat
         ? detectLangFromMessage(userMessage)
         : chat?.chatLang || "en";
@@ -888,104 +854,28 @@ ${recentConversationContext}
 `.trim();
       }
 
-      /** ✅ CASE SELECTION (NEW CHAT ONLY) */
+      /** CASE SELECTION */
       let selectedCaseId = null;
       let supportLine = null;
 
-      //       if (isNewChat) {
-      //         const caseDocs = await Case.find({})
-      //           .sort({ createdAt: -1 })
-      //           .limit(60) // tune 30-80
-      //           .select("th en es")
-      //           .lean();
+      // ============================================
+      // FINAL OVERRIDE - Food and Music take ABSOLUTE PRIORITY
+      // Must be at the VERY END of system prompt building
+      // ============================================
+      if (musicRecommendation?.shouldRecommend) {
+        systemPrompt = musicRecommendation.promptBlock;
+        // console.log("[PRIORITY] Music mode active, overriding system prompt");
+      }
 
-      //         const candidateCases = caseDocs.map((c) => ({
-      //           id: String(c._id),
-      //           th: c.th,
-      //           en: c.en,
-      //           es: c.es,
-      //         }));
+      if (foodRecommendation?.shouldRecommend) {
+        systemPrompt = foodRecommendation.promptBlock;
+        // console.log(
+        //   `[PRIORITY] Food mode active with vibe: ${foodRecommendation.activeVibe}`,
+        // );
+      }
 
-      //         // Selection step: override HealJai so it outputs ONLY the marker line
-      //         const selectionMessages = [
-      //           {
-      //             role: "system",
-      //             content: `
-      // ${systemPrompt}
-
-      // IMPORTANT OVERRIDE:
-      // You are now in CASE_SELECTION_MODE.
-      // Ignore all emotional, supportive, or conversational rules from HealJai.
-      // Do NOT comfort the user in this step.
-
-      // TASK:
-      // Select the ONE best matching case for the user's message.
-
-      // OUTPUT RULES (STRICT):
-      // - Output ONLY ONE LINE, nothing else.
-      // - The line must be exactly:
-      // <<CASE_ID:the_selected_case_id>>
-      // - the_selected_case_id MUST be one of the IDs in CANDIDATE_CASES.
-
-      // CANDIDATE_CASES:
-      // ${JSON.stringify(candidateCases)}
-      // `.trim(),
-      //           },
-      //           { role: "user", content: userMessage },
-      //         ];
-
-      //         // const sel = await openai.chat.completions.create({
-      //         //   model: "gpt-5-nano",
-      //         //   messages: selectionMessages,
-      //         //   temperature: 1,
-      //         // });
-
-      //         // const selRaw = sel.choices[0]?.message?.content || "";
-      //         const selRaw = await generateGeminiResponse(selectionMessages);
-
-      //         selectedCaseId = parseCaseIdOnly(selRaw);
-
-      //         // If selection failed OR returned invalid id, fallback randomly (so not always same)
-      //         if (
-      //           !selectedCaseId ||
-      //           !candidateCases.some((c) => c.id === selectedCaseId)
-      //         ) {
-      //           logger.error("CASE SELECTION FAILED. selRaw=", selRaw);
-      //           const r = Math.floor(Math.random() * candidateCases.length);
-      //           selectedCaseId = candidateCases[r]?.id || null;
-      //         }
-
-      //         // load selected doc and pick a single support line
-      //         const selectedDoc = selectedCaseId
-      //           ? await Case.findById(selectedCaseId).select("th en es").lean()
-      //           : null;
-
-      //         supportLine = pickSupportLineByLang(selectedDoc, chatLang);
-
-      //         // final fallback
-      //         if (!supportLine) {
-      //           const fallbackCase =
-      //             candidateCases.find((c) => c.id === selectedCaseId) ||
-      //             candidateCases[0];
-      //           supportLine = fallbackCase?.[chatLang] || fallbackCase?.en || "";
-      //         }
-
-      //         // console.log("✅ Selected Case ID:", selectedCaseId);
-      //         // console.log("📝 Support Line:", supportLine);
-      //       } else {
-      //         // Existing chat: reuse stored selectedCaseId
-      //         selectedCaseId = chat?.selectedCaseId || null;
-
-      //         if (selectedCaseId) {
-      //           const selectedDoc = await Case.findById(selectedCaseId)
-      //             .select("th en es")
-      //             .lean();
-      //           supportLine = pickSupportLineByLang(selectedDoc, chatLang);
-      //         }
-      //       }
-
-      /** ✅ FINAL REPLY */
-      console.log("Matches2:", matches2);
+      /** FINAL REPLY */
+      // console.log("Matches2:", matches2);
       const messages = [
         {
           role: "system",
@@ -995,7 +885,6 @@ ${recentConversationContext}
         },
       ];
 
-      // include last 4 history pairs if same cat/subcat
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -1003,7 +892,6 @@ ${recentConversationContext}
         });
       }
 
-      // Provide SUPPORT_LINE (TEXT) to AI (this is what we want it to print)
       if (supportLine) {
         messages[0].content = `
 ${messages[0].content}
@@ -1040,18 +928,16 @@ REPLY RULE:
 
         try {
           let stream;
-          if (subCategoryName === "Urani") {
-            // stream = await generateGeminiResponseStreamForFreeUsers(messages);
-          } else if (
+          if (
             subCategoryName === "ThaiAstro V3" ||
             subCategoryName === "รหัส Healjai V3" ||
             subCategoryName === "Uranian V3" ||
             categoryName === "HealJai Talk V2"
           ) {
-            console.log("Using Claude for streaming response...");
+            // console.log("Using Claude for streaming response...");
             stream = await generateClaudeResponseStream(messages);
           } else {
-            console.log("Using Gemini for streaming response...");
+            // console.log("Using Gemini for streaming response...");
             stream = await generateGeminiResponseStream(messages);
           }
 
@@ -1062,7 +948,6 @@ REPLY RULE:
 
             fullResponse += delta;
 
-            // ✅ Send each chunk immediately for the smoothest "Copilot-like" experience
             res.write(`data: ${JSON.stringify({ delta })}\n\n`);
             if (res.flush) res.flush();
           }
@@ -1070,7 +955,7 @@ REPLY RULE:
           const aiResponse = fullResponse.trim() || "No response";
           const chatMessage = { userMessage, aiResponse };
 
-          /** 💾 SAVE */
+          /** SAVE */
           if (!isNewChat) {
             chat.chats.push(chatMessage);
             await chat.save();
@@ -1100,6 +985,7 @@ REPLY RULE:
                 promptSource,
                 selectedCaseId: selectedCaseId || null,
                 musicRecommendation: musicRecommendationPayload,
+                foodRecommendation: foodRecommendationPayload,
                 engine: {
                   tone_mode,
                   age_group: ageInfo.group,
@@ -1109,7 +995,7 @@ REPLY RULE:
             res.end();
           }
         } catch (streamError) {
-          logger.error("Gemini stream error:", streamError);
+          logger.error("Stream error:", streamError);
           if (!clientClosed) {
             res.write(
               `event: error\ndata: ${JSON.stringify({
@@ -1123,22 +1009,11 @@ REPLY RULE:
         return;
       }
 
-      // const completion = await openai.chat.completions.create({
-      //   model: "gpt-5-nano",
-      //   messages,
-      //   temperature: 1,
-      // });
-
       const completion = await generateGeminiResponse(messages);
-
-      // const aiResponse =
-      //   completion.choices[0]?.message?.content?.trim() || "No response";
-
       const aiResponse = completion?.trim() || "No response";
-
       const chatMessage = { userMessage, aiResponse };
 
-      /** 💾 SAVE */
+      /** SAVE */
       if (!isNewChat) {
         chat.chats.push(chatMessage);
         await chat.save();
@@ -1165,8 +1040,9 @@ REPLY RULE:
         chatId: chat._id,
         data: chat,
         promptSource,
-        selectedCaseId: selectedCaseId || null, // ✅ return to frontend
+        selectedCaseId: selectedCaseId || null,
         musicRecommendation: musicRecommendationPayload,
+        foodRecommendation: foodRecommendationPayload,
         engine: {
           tone_mode,
           age_group: ageInfo.group,
