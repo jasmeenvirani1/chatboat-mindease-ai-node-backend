@@ -440,10 +440,10 @@ const chatController = {
       const shouldRunFoodRecommendation = detectFoodIntent(
         `${userMessage} ${translatedMessage}`.trim(),
       );
-      console.log("Intent Detection:", {
-        shouldRunMusicRecommendation,
-        shouldRunFoodRecommendation,
-      });
+      // console.log("Intent Detection:", {
+      //   shouldRunMusicRecommendation,
+      //   shouldRunFoodRecommendation,
+      // });
 
       const updatedMusicMemory = await saveUserMusicGenrePreferences({
         userId,
@@ -491,14 +491,14 @@ const chatController = {
       for (const feature of specializedFeatures) {
         if (feature.shouldRun) {
           const result = feature.execute();
-          console.log(`Specialized feature '${feature.id}' result:`, result);
+          // console.log(`Specialized feature '${feature.id}' result:`, result);
           if (result?.shouldRecommend) {
             activeSpecialized = { id: feature.id, result };
             break; // Stop Processing: first successful match wins
           }
         }
       }
-      console.log("Active Specialized Feature:", activeSpecialized);
+      // console.log("Active Specialized Feature:", activeSpecialized);
 
       const musicRecommendation =
         activeSpecialized?.id === "music"
@@ -539,13 +539,13 @@ const chatController = {
           translatedMessage,
           emotionType,
         );
-        console.log("v4Classification result:", v4Classification);
+        // console.log("v4Classification result:", v4Classification);
         if (v4Classification.domain && v4Classification.label) {
           v4ActiveTemplate = getTemplate(
             v4Classification.domain,
             v4Classification.label,
           );
-          console.log("v4ActiveTemplate:", v4ActiveTemplate);
+          // console.log("v4ActiveTemplate:", v4ActiveTemplate);
         }
       } else {
         console.log(
@@ -1190,10 +1190,10 @@ REPLY RULE:
             finalAiResponse,
             v4ActiveTemplate,
           );
-          console.log(
-            "Final AI Response after V4 Output Gate:",
-            finalAiResponse,
-          );
+          // console.log(
+          //   "Final AI Response after V4 Output Gate:",
+          //   finalAiResponse,
+          // );
         }
       }
 
