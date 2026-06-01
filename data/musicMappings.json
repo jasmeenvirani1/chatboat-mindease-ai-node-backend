@@ -7,13 +7,27 @@
       "vibes": ["nostalgic indie", "sad soft"]
     },
     "nostalgic": {
-      "aliases": ["nostalgic", "miss", "missing", "คิดถึง", "นึกถึง", "ย้อนความทรงจำ"],
+      "aliases": [
+        "nostalgic",
+        "miss",
+        "missing",
+        "คิดถึง",
+        "นึกถึง",
+        "ย้อนความทรงจำ"
+      ],
       "thaiGenres": ["Thai Indie", "Thai Acoustic", "Thai Emotional Pop"],
       "internationalGenres": ["Indie Folk", "Warm Indie"],
       "vibes": ["nostalgic indie", "deep emotional"]
     },
     "tired": {
-      "aliases": ["tired", "exhausted", "เหนื่อย", "ล้า", "หมดแรง", "after work"],
+      "aliases": [
+        "tired",
+        "exhausted",
+        "เหนื่อย",
+        "ล้า",
+        "หมดแรง",
+        "after work"
+      ],
       "thaiGenres": ["Thai Acoustic", "Thai Chill Pop", "Thai Healing Pop"],
       "internationalGenres": ["Lofi Beats", "Chillhop"],
       "vibes": ["soft warm", "calm chill"]
@@ -55,7 +69,14 @@
       "vibes": ["calm chill", "soft warm"]
     },
     "healing": {
-      "aliases": ["healing", "comfort", "heal", "ฮีลใจ", "ปลอบใจ", "comforting"],
+      "aliases": [
+        "healing",
+        "comfort",
+        "heal",
+        "ฮีลใจ",
+        "ปลอบใจ",
+        "comforting"
+      ],
       "thaiGenres": ["Thai Healing Pop", "Thai Folk Pop"],
       "internationalGenres": ["Warm Indie", "Soft Soul"],
       "vibes": ["soft warm", "warm acoustic"]
@@ -75,12 +96,23 @@
   },
   "contextRules": {
     "morning drive": {
-      "aliases": ["morning drive", "เช้าขับรถ", "drive to work", "ขับรถตอนเช้า"],
+      "aliases": [
+        "morning drive",
+        "เช้าขับรถ",
+        "drive to work",
+        "ขับรถตอนเช้า"
+      ],
       "genres": ["Thai Acoustic", "Acoustic Morning", "Indie Folk"],
       "vibes": ["morning fresh", "warm acoustic"]
     },
     "late night work": {
-      "aliases": ["late night work", "work late", "ทำงานดึก", "ปั่นงาน", "study late"],
+      "aliases": [
+        "late night work",
+        "work late",
+        "ทำงานดึก",
+        "ปั่นงาน",
+        "study late"
+      ],
       "genres": ["Lofi Beats", "Focus Beats", "Thai Lofi"],
       "vibes": ["focus clean", "night cozy"]
     },
@@ -100,12 +132,22 @@
       "vibes": ["sad soft", "nostalgic indie"]
     },
     "walking alone": {
-      "aliases": ["walking alone", "เดินคนเดียว", "walk alone", "alone outside"],
+      "aliases": [
+        "walking alone",
+        "เดินคนเดียว",
+        "walk alone",
+        "alone outside"
+      ],
       "genres": ["Bedroom Pop", "Thai Indie", "Thai Bedroom Pop"],
       "vibes": ["nostalgic indie", "night cozy"]
     },
     "cleaning room": {
-      "aliases": ["cleaning room", "clean my room", "ทำความสะอาดห้อง", "tidying up"],
+      "aliases": [
+        "cleaning room",
+        "clean my room",
+        "ทำความสะอาดห้อง",
+        "tidying up"
+      ],
       "genres": ["Bright Indie", "Thai Pop", "Thai City Pop"],
       "vibes": ["bright indie", "morning fresh"]
     },

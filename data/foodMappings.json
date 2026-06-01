@@ -4,27 +4,22 @@
       "foodTypes": ["comfort food", "soup", "rice", "home food"],
       "vibes": ["warm simple", "soft home", "gentle eating"]
     },
-
     "energy_restore": {
       "foodTypes": ["protein meal", "noodles", "rice", "energy food"],
       "vibes": ["fresh boost", "light energy", "simple fuel"]
     },
-
     "light_meal": {
       "foodTypes": ["salad", "soup", "healthy food", "light meal"],
       "vibes": ["clean light", "soft balance", "easy digestion"]
     },
-
     "stress_relief": {
       "foodTypes": ["soup", "tea", "snack", "light meal"],
       "vibes": ["calm eating", "slow moment", "soft relief"]
     },
-
     "treat": {
       "foodTypes": ["dessert", "sweet food", "fried food", "snack"],
       "vibes": ["reward moment", "small joy", "happy bite"]
     },
-
     "balanced": {
       "foodTypes": ["rice", "home food", "healthy food", "balanced meal"],
       "vibes": ["normal day", "steady meal", "simple routine"]
@@ -36,17 +31,14 @@
       "foodTypes": ["quick meal", "rice", "noodles", "snack"],
       "vibes": ["fast simple", "no effort", "grab and go"]
     },
-
     "tired_day": {
       "foodTypes": ["soup", "rice", "comfort food"],
       "vibes": ["low effort", "soft energy", "easy eating"]
     },
-
     "late_night": {
       "foodTypes": ["snack", "tea", "light meal"],
       "vibes": ["quiet night", "soft bite", "calm eating"]
     },
-
     "social": {
       "foodTypes": ["street food", "fried food", "shared meal"],
       "vibes": ["fun sharing", "group eating", "casual vibe"]
@@ -58,20 +50,144 @@
       "foodTypes": ["soup", "rice", "home food"],
       "vibes": ["warm calm", "soft comfort"]
     },
-
     "fresh light": {
       "foodTypes": ["salad", "healthy food", "tea"],
       "vibes": ["clean fresh", "light feeling"]
     },
-
     "quick bite": {
       "foodTypes": ["snack", "fast food", "noodles"],
       "vibes": ["fast easy", "no thinking"]
     },
-
     "sweet mood": {
       "foodTypes": ["dessert", "sweet food"],
       "vibes": ["small joy", "soft happiness"]
     }
-  }
+  },
+
+  "teasing_mode": {
+    "triggers": [
+      "แห้ง",
+      "น้ำ",
+      "dry",
+      "soup",
+      "แบบไหนดี",
+      "เลือกอะไรดี",
+      "เลือกอะไร",
+      "ดี"
+    ],
+    "patterns": {
+      "dry_or_soup": [
+        "คราวก่อนคุณเหมือนจะเอนฝั่ง {last_choice} อยู่นะ…วันนี้ยังทีมเดิมอยู่รึเปล่า",
+        "หรือวันนี้ลองสลับฟีลไปอีกแบบก็ดูน่าสนใจดีนะ",
+        "ดูทรงแล้วคุณน่าจะลังเลเพราะมันน่ากินทั้งคู่เลยล่ะ"
+      ],
+      "fallback": [
+        "แห้งหรือน้ำ...สองแบบนี้มันฟีลต่างกันน้า",
+        "วันนี้คุณฟีลแบบไหนมากกว่ากันนะ",
+        "เลือกไม่ผิดหรอก...แค่อยากกินแบบไหนก็จัดไป"
+      ]
+    },
+    "rules": {
+      "no_healing": true,
+      "no_mirror": true,
+      "no_reflective": true,
+      "no_ending_pool": true,
+      "playful_only": true
+    }
+  },
+
+  "flavor_understanding_mode": {
+    "triggers": {
+      "spicy": [
+        "เผ็ด",
+        "ซี้ด",
+        "จัดจ้าน",
+        "พริก",
+        "เผ็ดๆ",
+        "เผ็ดมาก",
+        "hot",
+        "spicy"
+      ],
+      "zesty": [
+        "แซ่บ",
+        "นัว",
+        "ปลาร้า",
+        "เปรี้ยว",
+        "มะนาว",
+        "ข้าวคั่ว",
+        "zesty",
+        "tangy"
+      ],
+      "umami": ["กลมกล่อม", "เข้มข้น", "นัวๆ", "umami", "savory"],
+      "herbal": ["สมุนไพร", "ตะไคร้", "ใบมะกรูด", "herbal"]
+    },
+    "heat_levels": [
+      "เผ็ดน้อย",
+      "เผ็ดกลาง",
+      "เผ็ดมาก",
+      "เผ็ดปลายลิ้น",
+      "เผ็ดร้อนลึก",
+      "เผ็ดไฟลุก",
+      "เผ็ดชาๆ",
+      "เผ็ดพริกสด",
+      "เผ็ดพริกป่น",
+      "เผ็ดพริกแห้ง",
+      "เผ็ดพริกคั่ว",
+      "เผ็ดพริกขี้หนูสวน",
+      "เผ็ดพริกจินดา",
+      "เผ็ดพริกกะเหรี่ยง"
+    ],
+    "zesty_profiles": [
+      "แซ่บเปรี้ยว",
+      "แซ่บเค็ม",
+      "แซ่บหวานปลาย",
+      "แซ่บสมุนไพร",
+      "แซ่บอีสาน",
+      "แซ่บลาว",
+      "แซ่บต้มยำ",
+      "แซ่บยำไทย",
+      "แซ่บน้ำปลาร้า",
+      "แซ่บนัว",
+      "แซ่บซี้ด",
+      "แซ่บสดชื่น",
+      "แซ่บเข้ม",
+      "แซ่บเบาๆ",
+      "แซ่บหอมคั่ว"
+    ],
+    "flavor_notes": [
+      "เปรี้ยวสด",
+      "เปรี้ยวหมัก",
+      "เค็มกลมกล่อม",
+      "เค็มนำ",
+      "หวานปลาย",
+      "หอมคั่ว",
+      "หอมสมุนไพร",
+      "หอมข้าวคั่ว",
+      "หอมใบมะกรูด",
+      "หอมตะไคร้",
+      "นัวปลาร้า",
+      "นัวน้ำปลา"
+    ],
+    "responses": {
+      "spicy": {
+        "mirror": "ฟีลที่คุณอยากได้มันเหมือนความเผ็ดที่พุ่งขึ้นปลายลิ้นเลยนะ",
+        "reflective": "ความเผ็ดแบบนี้...มันปลุกพลังให้ตื่นขึ้นมาทีละนิดจริง ๆ นะ"
+      },
+      "zesty": {
+        "mirror": "ฟังดูเหมือนคุณอยากได้ความแซ่บแบบสดชื่นที่กัดคำแรกก็รู้เลยนะ",
+        "reflective": "ความแซ่บที่มีทั้งเปรี้ยวสดและนัวแบบพอดี...มันทำให้ใจตื่นดีมากเลยนะ"
+      },
+      "umami": {
+        "mirror": "ฟังดูเหมือนคุณกำลังโหยหารสที่นัวแบบกลมกล่อมอยู่เลยนะ",
+        "reflective": "ความนัวที่ค่อย ๆ ไล่ขึ้นมาทีละชั้น...มันเป็นฟีลที่ปลอบใจได้ดีมากจริง ๆ นะ"
+      }
+    },
+    "ending_pool": [
+      "ฉันอยู่ตรงนี้กับคุณนะ",
+      "ฉันอยู่ข้างคุณเสมอ",
+      "ฉันอยู่ตรงนี้ไม่ไปไหน"
+    ]
+  },
+
+  "priority_order": ["teasing_mode", "flavor_understanding_mode", "vibeRules"]
 }

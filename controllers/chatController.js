@@ -30,7 +30,17 @@ const {
 const {
   detectFoodIntent,
   recommendFoodForMessage,
+  enforceFoodV4Rules,
+  validateFoodV4Response,
+  detectTeasingMode,
+  detectFlavorMode,
 } = require("../helper/foodRecommendationService.js");
+const {
+  resolveRouting,
+  getTemplate,
+  validateV4Response,
+  processOutput,
+} = require("../helper/v4MasterService");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -430,8 +440,10 @@ const chatController = {
       const shouldRunFoodRecommendation = detectFoodIntent(
         `${userMessage} ${translatedMessage}`.trim(),
       );
-
-      // console.log("shouldRunFoodRecommendation:", shouldRunFoodRecommendation);
+      console.log("Intent Detection:", {
+        shouldRunMusicRecommendation,
+        shouldRunFoodRecommendation,
+      });
 
       const updatedMusicMemory = await saveUserMusicGenrePreferences({
         userId,
@@ -445,14 +457,57 @@ const chatController = {
           : updatedMusicMemory;
       }
 
-      const musicRecommendation = shouldRunMusicRecommendation
-        ? recommendMusicForMessage({
-            userMessage,
-            translatedMessage,
-            emotionType,
-            userMemory: userMusicMemory,
-          })
-        : { shouldRecommend: false };
+      /**
+       * ============================================
+       * SPECIALIZED FEATURE PRIORITY SYSTEM
+       * ============================================
+       * Specialized intents take precedence over the V4 pipeline.
+       */
+      const specializedFeatures = [
+        {
+          id: "music",
+          shouldRun: shouldRunMusicRecommendation,
+          execute: () =>
+            recommendMusicForMessage({
+              userMessage,
+              translatedMessage,
+              emotionType,
+              userMemory: userMusicMemory,
+            }),
+        },
+        {
+          id: "food",
+          shouldRun: shouldRunFoodRecommendation,
+          execute: () =>
+            recommendFoodForMessage({
+              userMessage,
+              translatedMessage,
+              emotionType,
+            }),
+        },
+      ];
+
+      let activeSpecialized = null;
+      for (const feature of specializedFeatures) {
+        if (feature.shouldRun) {
+          const result = feature.execute();
+          console.log(`Specialized feature '${feature.id}' result:`, result);
+          if (result?.shouldRecommend) {
+            activeSpecialized = { id: feature.id, result };
+            break; // Stop Processing: first successful match wins
+          }
+        }
+      }
+      console.log("Active Specialized Feature:", activeSpecialized);
+
+      const musicRecommendation =
+        activeSpecialized?.id === "music"
+          ? activeSpecialized.result
+          : { shouldRecommend: false };
+      const foodRecommendation =
+        activeSpecialized?.id === "food"
+          ? activeSpecialized.result
+          : { shouldRecommend: false };
 
       const musicRecommendationPayload = musicRecommendation?.shouldRecommend
         ? {
@@ -464,26 +519,39 @@ const chatController = {
           }
         : null;
 
-      const foodRecommendation = shouldRunFoodRecommendation
-        ? recommendFoodForMessage({
-            userMessage,
-            translatedMessage,
-            emotionType,
-          })
-        : { shouldRecommend: false };
-
-      // console.log("foodRecommendation:", foodRecommendation);
-
       const foodRecommendationPayload = foodRecommendation?.shouldRecommend
         ? {
             mood: foodRecommendation.mood,
             context: foodRecommendation.context,
             vibe: foodRecommendation.vibe,
             activeVibe: foodRecommendation.activeVibe,
-            foods: foodRecommendation.foods || [],
             response: foodRecommendation.response || null,
           }
         : null;
+
+      /** V4 DOMAIN ROUTING (Fallback) */
+      let v4Classification = { domain: null, label: null };
+      let v4ActiveTemplate = null;
+
+      if (!activeSpecialized) {
+        v4Classification = await resolveRouting(
+          userMessage,
+          translatedMessage,
+          emotionType,
+        );
+        console.log("v4Classification result:", v4Classification);
+        if (v4Classification.domain && v4Classification.label) {
+          v4ActiveTemplate = getTemplate(
+            v4Classification.domain,
+            v4Classification.label,
+          );
+          console.log("v4ActiveTemplate:", v4ActiveTemplate);
+        }
+      } else {
+        console.log(
+          `[PRIORITY] Specialized feature "${activeSpecialized.id}" matched, bypassing V4 routing.`,
+        );
+      }
 
       // console.log("musicRecommendation:", musicRecommendationPayload);
       // console.log("foodRecommendationPayload:", foodRecommendationPayload);
@@ -804,11 +872,10 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
       }
 
       // ============================================
-      // CRITICAL FIX: Only add healjaiEnginePrompt if NOT in food or music mode
+      // CRITICAL FIX: Always include healjaiEnginePrompt for HealJai Talk
       // ============================================
       if (
         categoryName === "HealJai Talk" &&
-        !foodRecommendation?.shouldRecommend &&
         !musicRecommendation?.shouldRecommend
       ) {
         systemPrompt = `${healjaiEnginePrompt}\n\n${systemPrompt}`;
@@ -859,19 +926,68 @@ ${recentConversationContext}
       let supportLine = null;
 
       // ============================================
-      // FINAL OVERRIDE - Food and Music take ABSOLUTE PRIORITY
-      // Must be at the VERY END of system prompt building
+      // FINAL OVERRIDE - Specialized Features Priority
       // ============================================
       if (musicRecommendation?.shouldRecommend) {
         systemPrompt = musicRecommendation.promptBlock;
-        // console.log("[PRIORITY] Music mode active, overriding system prompt");
-      }
+      } else if (foodRecommendation?.shouldRecommend) {
+        const foodVibeContext = `
+      -----------------------------------------
+      FOOD PACK V4 — EMOTIONAL VIBE CONTEXT
+      -----------------------------------------
 
-      if (foodRecommendation?.shouldRecommend) {
-        systemPrompt = foodRecommendation.promptBlock;
-        // console.log(
-        //   `[PRIORITY] Food mode active with vibe: ${foodRecommendation.activeVibe}`,
-        // );
+      Active Food Vibe: ${foodRecommendation.activeVibe}
+      Food Mode: ${foodRecommendation.mode || "vibe"}
+
+      PURPOSE:
+      Food Pack is an emotional vibe layer, not a recommendation engine.
+
+      RULES:
+      - Follow HealJai v4 personality.
+      - Generate a fresh and unique response every time.
+      - Use the active food vibe only as emotional context.
+      - Mirror the user's feeling naturally.
+      - Exactly 3 lines.
+      - Line 2 must contain exactly one "..." pause.
+      - Line 3 must be a gentle presence statement.
+      - No questions.
+      - No advice.
+      - No instructions.
+      - No restaurant recommendations.
+      - No food lists.
+      - No forced wording.
+      - Do not always start with the same sentence.
+      - Do not force the words "หิว" or "อยากหาอะไรกิน".
+      - Keep the response natural and human.
+
+      ENDINGS MAY INCLUDE:
+      - ฉันอยู่ตรงนี้กับคุณนะ
+      - ฉันอยู่ข้างคุณเสมอ
+      - ฉันอยู่ตรงนี้ไม่ไปไหน
+      `.trim();
+
+        systemPrompt = `${systemPrompt}\n\n${foodVibeContext}`;
+      } else if (v4Classification.domain && v4Classification.label) {
+        const v4ClassificationContext = `
+      -----------------------------------------
+      V4 DOMAIN ROUTING — CONTEXT
+      -----------------------------------------
+      Domain: ${v4Classification.domain}
+      Label: ${v4Classification.label}
+      
+      VIBE REFERENCE:
+      - Mirroring: ${v4ActiveTemplate?.mirror}
+      - Reflective: ${v4ActiveTemplate?.reflective}
+      
+      MANDATORY V4 RULES:
+      1. Provide EXACTLY 3 sentences/lines.
+      2. Line 1: Naturally mirror the user's emotional state.
+      3. Line 2: Reflect on their situation and contain EXACTLY ONE "..." pause.
+      4. Line 3: Use a gentle presence statement like "${v4ActiveTemplate?.ending_pool?.[0]}".
+      5. NO questions, NO advice, NO recommendations.
+      6. Stay deeply personalized to the user's message while following this structure.
+      `.trim();
+        systemPrompt = `${systemPrompt}\n\n${v4ClassificationContext}`;
       }
 
       /** FINAL REPLY */
@@ -927,33 +1043,79 @@ REPLY RULE:
         });
 
         try {
-          let stream;
-          if (
-            subCategoryName === "ThaiAstro V3" ||
-            subCategoryName === "รหัส Healjai V3" ||
-            subCategoryName === "Uranian V3" ||
-            categoryName === "HealJai Talk V2"
-          ) {
-            // console.log("Using Claude for streaming response...");
-            stream = await generateClaudeResponseStream(messages);
-          } else {
-            // console.log("Using Gemini for streaming response...");
-            stream = await generateGeminiResponseStream(messages);
+          let finalAiResponse = "";
+
+          // SPECIAL PATH: Food Pack with Regeneration Loop
+          if (foodRecommendation?.shouldRecommend) {
+            finalAiResponse = foodRecommendation.response || "";
+
+            const words = finalAiResponse.split(" ");
+
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(
+                `data: ${JSON.stringify({
+                  text: word + " ",
+                })}\n\n`,
+              );
+
+              if (res.flush) res.flush();
+
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (v4Classification.domain && v4Classification.label) {
+            // V4 DOMAIN ROUTING PATH: Generate, Validate, then Stream
+            const completion = await generateGeminiResponse(messages);
+            let text = completion?.trim() || "No response";
+
+            // Apply Output Gate
+            text = await processOutput(text, v4ActiveTemplate);
+            finalAiResponse = text;
+
+            // Fake Stream the validated response
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(
+                `data: ${JSON.stringify({
+                  text: word + " ",
+                })}\n\n`,
+              );
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          }
+          // NORMAL PATH: Original Streaming Behavior (Non-Food, Non-V4Routing)
+          else {
+            let stream;
+            if (
+              subCategoryName === "ThaiAstro V3" ||
+              subCategoryName === "รหัส Healjai V3" ||
+              subCategoryName === "Uranian V3" ||
+              categoryName === "HealJai Talk V2"
+            ) {
+              stream = await generateClaudeResponseStream(messages);
+            } else {
+              stream = await generateGeminiResponseStream(messages);
+            }
+
+            for await (const chunk of stream) {
+              if (clientClosed) break;
+              const text = chunk?.text || "";
+              if (!text) continue;
+
+              finalAiResponse += text;
+              res.write(`data: ${JSON.stringify({ text })}\n\n`);
+              if (res.flush) res.flush();
+            }
           }
 
-          for await (const chunk of stream) {
-            if (clientClosed) break;
-            const delta = chunk?.text || "";
-            if (!delta) continue;
+          if (clientClosed) return;
 
-            fullResponse += delta;
-
-            res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-            if (res.flush) res.flush();
-          }
-
-          const aiResponse = fullResponse.trim() || "No response";
-          const chatMessage = { userMessage, aiResponse };
+          const chatMessage = {
+            userMessage,
+            aiResponse: finalAiResponse.trim() || "No response",
+          };
 
           /** SAVE */
           if (!isNewChat) {
@@ -978,6 +1140,11 @@ REPLY RULE:
           });
 
           if (!clientClosed) {
+            // Update the payload response for consistency
+            if (foodRecommendationPayload) {
+              foodRecommendationPayload.response = finalAiResponse;
+            }
+
             res.write(
               `data: ${JSON.stringify({
                 done: true,
@@ -1009,9 +1176,28 @@ REPLY RULE:
         return;
       }
 
-      const completion = await generateGeminiResponse(messages);
-      const aiResponse = completion?.trim() || "No response";
-      const chatMessage = { userMessage, aiResponse };
+      let finalAiResponse = "";
+
+      if (foodRecommendation?.shouldRecommend) {
+        finalAiResponse = foodRecommendation.response || "";
+      } else {
+        const completion = await generateGeminiResponse(messages);
+        finalAiResponse = completion?.trim() || "No response";
+
+        // Apply V4 Output Gate if v4Classification was active
+        if (v4Classification.domain && v4Classification.label) {
+          finalAiResponse = await processOutput(
+            finalAiResponse,
+            v4ActiveTemplate,
+          );
+          console.log(
+            "Final AI Response after V4 Output Gate:",
+            finalAiResponse,
+          );
+        }
+      }
+
+      const chatMessage = { userMessage, aiResponse: finalAiResponse };
 
       /** SAVE */
       if (!isNewChat) {
