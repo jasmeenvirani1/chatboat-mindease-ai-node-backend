@@ -161,10 +161,18 @@ const generateGeminiResponseStream = async (messages) => {
     const { genAI, gemini_model } = await createGeminiClient();
     const prompt = messagesToPrompt(messages);
 
+    // Optimized for ultra-low latency with Gemini 3 Flash
+    const config = {
+      thinkingConfig: {
+        thinkingLevel: "LOW", // Forces ultra-fast, low-latency generation
+      },
+    };
+
     const createStream = () =>
       genAI.models.generateContentStream({
-        model: gemini_model,
+        model: gemini_model || "gemini-3-flash", // Use Gemini 3 Flash for maximum speed
         contents: prompt,
+        config: config,
       });
 
     const initialStream = await withRetry(
@@ -205,9 +213,13 @@ const generateGeminiResponseStream = async (messages) => {
           );
           await sleep(delayMs);
           try {
-            const nextStream = await withRetry("generateContentStream", createStream, {
-              maxAttempts: 1,
-            });
+            const nextStream = await withRetry(
+              "generateContentStream",
+              createStream,
+              {
+                maxAttempts: 1,
+              },
+            );
             stream = nextStream;
           } catch (createErr) {
             stream = throwingAsyncIterable(createErr);

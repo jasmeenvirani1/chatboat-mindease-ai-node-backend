@@ -101,103 +101,143 @@ const ALL_FLAVOR_KEYWORDS = [
   ...FLAVOR_TRIGGERS.herbal,
 ];
 
-/* -------------------- VIBE PROMPT TEMPLATES (UNCHANGED) -------------------- */
+/* -------------------- VIBE PROMPT TEMPLATES (EXPANDED) -------------------- */
 
 const FOOD_VIBE_PROMPTS = {
   warm_comfort: {
     vibeLabel: "warm and comforting",
-    emotionalContext:
-      "The user is craving something warm, soft, and comforting — like they need emotional warmth through food.",
-    tone: "gentle, nurturing, like wrapping someone in a warm blanket",
-    examples: ["โจ๊ก", "ข้าวต้ม", "ก๋วยเตี๋ยวน้ำ", "อาหารอุ่น ๆ"],
-    fallback: [
-      "ฟังดูเหมือนคุณอยากหาอะไรอุ่นๆ กินให้สบายใจนะ",
-      "อะไรที่อุ่นๆ เบาๆ...มันช่วยให้คุณรู้สึกดีขึ้นได้ดีเลยนะ",
-      "ฉันอยู่ตรงนี้กับคุณนะ",
+    emotionalContext: "Craving warmth, soft, and comforting food.",
+    tone: "gentle, nurturing",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณอยากหาอะไรอุ่นๆ กินให้สบายใจนะ",
+        "ฟังดูเหมือนหัวใจคุณกำลังมองหาความอุ่นจากมื้ออาหารนะ",
+        "ฟังดูเหมือนคุณอยากได้มื้อที่ช่วยให้รู้สึกผ่อนคลายและปลอดภัยนะ",
+      ],
+      [
+        "อะไรที่อุ่นๆ เบาๆ...มันช่วยให้คุณรู้สึกดีขึ้นได้ดีเลยนะ",
+        "ความอุ่นจากอาหาร...มันช่วยปลอบโยนความเหนื่อยล้าได้ดีจริงๆ นะ",
+        "มื้อที่นุ่มนวลแบบนี้...มันช่วยให้ใจที่วุ่นวายสงบลงได้นะ",
+      ],
     ],
   },
   spicy_energy: {
     vibeLabel: "spicy and energizing",
-    emotionalContext:
-      "The user wants something bold and punchy — food that wakes them up and gives them energy.",
-    tone: "energetic, lively, a little bold",
-    examples: ["ส้มตำ", "ต้มยำ", "ยำ", "อาหารรสจัด"],
-    fallback: [
-      "ฟังดูเหมือนคุณอยากกินอะไรแซ่บๆ ให้ตื่นตัวนะ",
-      "รสชาติที่เผ็ดร้อน...มันช่วยเติมพลังให้คุณได้ดีเลยนะ",
-      "ฉันอยู่ข้างคุณเสมอ",
+    emotionalContext: "Wants bold and punchy food to wake up.",
+    tone: "energetic, lively",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณอยากกินอะไรแซ่บๆ ให้ตื่นตัวนะ",
+        "ฟังดูเหมือนคุณกำลังโหยหารสชาติที่จัดจ้านพุ่งพล่านนะ",
+        "ฟังดูเหมือนคุณอยากได้รสชาติที่มาช่วยปลุกพลังในตัวนะ",
+      ],
+      [
+        "รสชาติที่เผ็ดร้อน...มันช่วยเติมพลังให้คุณได้ดีเลยนะ",
+        "ความแซ่บที่ถึงใจ...มันช่วยให้ความอึดอัดในใจระบายออกมาได้นะ",
+        "รสชาติที่จัดจ้านแบบนี้...มันช่วยให้คุณรู้สึกมีชีวิตชีวาขึ้นนะ",
+      ],
     ],
   },
   quick_easy: {
     vibeLabel: "quick and easy",
-    emotionalContext:
-      "The user is busy or low on energy — they want food that's fast, simple, no hassle.",
-    tone: "light, practical, reassuring without being dismissive",
-    examples: ["สะดวกซื้อ", "อาหารง่าย ๆ", "ทำเร็ว"],
-    fallback: [
-      "ฟังดูเหมือนคุณอยากหาอะไรง่ายๆ กินในตอนนี้ะ",
-      "มื้อที่เร็วและสะดวก...มันช่วยให้คุณประหยัดพลังงานได้นะ",
-      "ฉันอยู่ตรงนี้ไม่ไปไหน",
+    emotionalContext: "Busy or low energy, wants fast and simple.",
+    tone: "light, practical",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณอยากหาอะไรง่ายๆ กินในตอนนี้ะ",
+        "ฟังดูเหมือนคุณอยากได้มื้อที่รวดเร็วและไม่ยุ่งยากนะ",
+        "ฟังดูเหมือนคุณอยากประหยัดพลังงานด้วยมื้อที่สะดวกสบายนะ",
+      ],
+      [
+        "มื้อที่เร็วและสะดวก...มันช่วยให้คุณประหยัดพลังงานได้นะ",
+        "อะไรง่ายๆ ที่อิ่มท้อง...มันช่วยให้คุณมีแรงก้าวต่อได้นะ",
+        "ความเรียบง่ายในตอนนี้...มันช่วยให้ใจคุณเบาลงได้นะ",
+      ],
     ],
   },
   cozy_night: {
     vibeLabel: "cozy late-night",
-    emotionalContext:
-      "The user is hungry late at night — they want something warm and comforting to end the day with.",
-    tone: "soft, quiet, calm, like a late-night conversation",
-    examples: ["มาม่า", "ข้าวต้ม", "อะไรอุ่น ๆ ตอนดึก"],
-    fallback: [
-      "ฟังดูเหมือนคุณหิวและอยากหาอะไรกินตอนดึกนะ",
-      "อะไรที่อุ่นๆ เบาๆ...มันช่วยให้ความหิวตอนดึกเบาลงได้ดีเลยนะ",
-      "ฉันอยู่ตรงนี้กับคุณนะ",
+    emotionalContext: "Late night hunger, wants warm and calm.",
+    tone: "soft, quiet, calm",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณหิวและอยากหาอะไรกินตอนดึกนะ",
+        "ฟังดูเหมือนความเงียบของกลางคืนทำให้คุณอยากหาเพื่อนเป็นของอร่อยนะ",
+        "ฟังดูเหมือนคุณอยากปิดท้ายวันด้วยมื้อที่อบอุ่นเรียบง่ายนะ",
+      ],
+      [
+        "อะไรที่อุ่นๆ เบาๆ...มันช่วยให้ความหิวตอนดึกเบาลงได้ดีเลยนะ",
+        "มื้อดึกที่สงบเงียบ...มันช่วยให้คุณทิ้งความวุ่นวายของวันได้นะ",
+        "รสชาติที่เรียบง่ายตอนดึก...มันช่วยให้คุณหลับสบายขึ้นนะ",
+      ],
     ],
   },
   cafe_chill: {
     vibeLabel: "cafe and chill",
-    emotionalContext:
-      "The user wants a relaxed cafe-style experience — light food, good drinks, chill atmosphere.",
-    tone: "relaxed, airy, pleasant",
-    examples: ["กาแฟ", "เบเกอรี่", "ของว่างเบา ๆ"],
-    fallback: [
-      "ฟังดูเหมือนคุณอยากหาขนมหรือน้ำดื่มเบาๆ กินพักผ่อนนะ",
-      "รสชาติที่เบาสบาย...มันช่วยให้ใจคุณผ่อนคลายขึ้นนะ",
-      "ฉันอยู่ข้างคุณเสมอ",
+    emotionalContext: "Relaxed cafe experience, light food, chill.",
+    tone: "relaxed, airy",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณอยากหาขนมหรือน้ำดื่มเบาๆ กินพักผ่อนนะ",
+        "ฟังดูเหมือนคุณอยากสร้างช่วงเวลาเล็กๆ ที่รื่นรมย์ให้ตัวเองนะ",
+        "ฟังดูเหมือนคุณอยากหลบความวุ่นวายไปหาบรรยากาศที่ผ่อนคลายนะ",
+      ],
+      [
+        "รสชาติที่เบาสบาย...มันช่วยให้ใจคุณผ่อนคลายขึ้นนะ",
+        "ความหวานหรือกลิ่นหอมกรุ่น...มันช่วยให้วันธรรมดาดูพิเศษขึ้นนะ",
+        "ช่วงเวลาที่ช้าลงแบบนี้...มันช่วยให้คุณได้กลับมาอยู่กับตัวเองนะ",
+      ],
     ],
   },
   balanced: {
     vibeLabel: "balanced and satisfying",
-    emotionalContext:
-      "The user just wants a good, satisfying meal — nothing too specific, just something that feels right.",
-    tone: "grounded, warm, content",
-    examples: ["อาหารจานเดียว", "ข้าวหน้าอะไรก็ได้", "มื้อธรรมดาที่อร่อย"],
-    fallback: [
-      "ฟังดูเหมือนคุณอยากกินมื้อที่อิ่มท้องและพอดีนะ",
-      "มื้อที่อยู่ท้อง...มันช่วยให้คุณรู้สึกดีขึ้นได้นะ",
-      "ฉันอยู่ตรงนี้ไม่ไปไหน",
+    emotionalContext: "Good, satisfying meal, nothing specific.",
+    tone: "grounded, warm",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณอยากกินมื้อที่อิ่มท้องและพอดีนะ",
+        "ฟังดูเหมือนคุณกำลังมองหามื้อที่ช่วยให้รู้สึกมั่นคงและมีแรงนะ",
+        "ฟังดูเหมือนคุณอยากให้รางวัลตัวเองด้วยมื้อที่เรียบง่ายแต่จริงใจนะ",
+      ],
+      [
+        "มื้อที่อยู่ท้อง...มันช่วยให้คุณรู้สึกดีขึ้นได้นะ",
+        "อาหารที่คุ้นเคย...มันช่วยสร้างความสบายใจแบบเงียบๆ ได้นะ",
+        "การกินให้อิ่มและดี...มันคือการดูแลตัวเองที่สำคัญมากนะ",
+      ],
     ],
   },
   noodle_soft: {
     vibeLabel: "soft noodles",
-    emotionalContext:
-      "The user is in the mood for something slurpy, soft, and satisfying — noodle energy.",
-    tone: "gentle, cozy, a little nostalgic",
-    examples: ["ก๋วยเตี๋ยว", "บะหมี่", "ราเมน", "เส้นต่าง ๆ"],
-    fallback: [
-      "ฟังดูเหมือนคุณอยากหาเส้นๆ อุ่นๆ กินให้เพลินใจนะ",
-      "น้ำซุปที่อุ่นและกลมกล่อม...มันช่วยให้คุณรู้สึกผ่อนคลายนะ",
-      "ฉันอยู่ตรงนี้กับคุณนะ",
+    emotionalContext: "Slurpy, soft, and satisfying noodle energy.",
+    tone: "gentle, cozy",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณอยากหาเส้นๆ อุ่นๆ กินให้เพลินใจนะ",
+        "ฟังดูเหมือนคุณอยากได้ความลื่นไหลของเส้นมาช่วยปลอบโยนใจนะ",
+        "ฟังดูเหมือนคุณอยากซดน้ำซุปร้อนๆ ให้โล่งคอสบายใจนะ",
+      ],
+      [
+        "น้ำซุปที่อุ่นและกลมกล่อม...มันช่วยให้คุณรู้สึกผ่อนคลายนะ",
+        "เส้นที่เหนียวนุ่ม...มันช่วยให้การเคี้ยวเป็นช่วงเวลาที่เพลินใจนะ",
+        "ความเรียบง่ายของก๋วยเตี๋ยว...มันช่วยให้ความกังวลจางไปได้นะ",
+      ],
     ],
   },
   sweet_light: {
     vibeLabel: "sweet and light",
-    emotionalContext:
-      "The user is craving something sweet and light — a little treat to lift their mood.",
-    tone: "cheerful, soft, gently uplifting",
-    examples: ["ของหวาน", "ขนม", "ไอศกรีม", "เค้ก"],
-    fallback: [
-      "ฟังดูเหมือนคุณอยากหาของหวานๆ กินให้ชื่นใจนะ",
-      "รสชาติที่หวานและเบา...มันช่วยให้คุณยิ้มได้นะ",
-      "ฉันอยู่ข้างคุณเสมอ",
+    emotionalContext: "Sweet and light treat to lift mood.",
+    tone: "cheerful, soft",
+    fallbacks: [
+      [
+        "ฟังดูเหมือนคุณอยากหาของหวานๆ กินให้ชื่นใจนะ",
+        "ฟังดูเหมือนหัวใจคุณกำลังต้องการความหวานมาช่วยเติมเต็มนะ",
+        "ฟังดูเหมือนคุณอยากได้ของว่างเล็กๆ มาช่วยสร้างรอยยิ้มนะ",
+      ],
+      [
+        "รสชาติที่หวานและเบา...มันช่วยให้คุณยิ้มได้นะ",
+        "ความหวานเพียงเล็กน้อย...มันช่วยให้ความเหนื่อยล้าจางหายไปนะ",
+        "น้ำตาลที่พอดี...มันช่วยเปลี่ยนมวลอารมณ์ให้สดใสขึ้นได้นะ",
+      ],
     ],
   },
 };
@@ -221,6 +261,11 @@ const FOOD_VIBE_MAP = {
 };
 
 /* -------------------- HELPERS -------------------- */
+
+function getRandom(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return "";
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 function normalizeText(text = "") {
   return String(text || "")
@@ -343,9 +388,11 @@ function generateTeasingResponse(text = "") {
   // Generate response
   let response = "";
   if (containsAny(text, ["แห้ง", "น้ำ", "dry", "soup"])) {
-    response = dryOrSoupPatterns[0].replace("{last_choice}", lastUserChoice);
-    response += "\n" + dryOrSoupPatterns[1];
-    response += "\n" + dryOrSoupPatterns[2];
+    // Randomize selection
+    const p1 = dryOrSoupPatterns[0].replace("{last_choice}", lastUserChoice);
+    const p2 = getRandom(dryOrSoupPatterns.slice(1));
+    const p3 = getRandom(dryOrSoupPatterns.slice(1).filter((p) => p !== p2));
+    response = [p1, p2, p3 || dryOrSoupPatterns[2]].join("\n");
   } else {
     response = fallbackPatterns.join("\n");
   }
@@ -379,13 +426,13 @@ function generateFlavorResponse(text = "", flavorType = null) {
   const detectedFlavor = flavorType || detectSpecificFlavor(text);
 
   if (detectedFlavor && responses[detectedFlavor]) {
-    const randomEnding =
-      endingPool[Math.floor(Math.random() * endingPool.length)];
+    const randomEnding = getRandom(endingPool);
+    // Add variations to flavor responses if possible
     return `${responses[detectedFlavor].mirror}\n${responses[detectedFlavor].reflective}\n${randomEnding}`;
   }
 
   // Fallback for generic flavor requests
-  return `ฟังดูเหมือนคุณกำลังโหยหารสชาติที่จัดจ้านและมีชีวิตชีวาเลยนะ\nรสชาติที่กลมกล่อมและโดนใจ...มันทำให้วันของคุณพิเศษขึ้นได้นะ\n${endingPool[0]}`;
+  return `ฟังดูเหมือนคุณกำลังโหยหารสชาติที่จัดจ้านและมีชีวิตชีวาเลยนะ\nรสชาติที่กลมกล่อมและโดนใจ...มันทำให้วันของคุณพิเศษขึ้นได้นะ\n${getRandom(endingPool)}`;
 }
 
 // Fallback in case JSON doesn't have responses
@@ -599,7 +646,17 @@ function validateFoodV4Response(text) {
 function enforceFoodV4Rules(text, activeVibe = "balanced") {
   const vibeConfig =
     FOOD_VIBE_PROMPTS[activeVibe] || FOOD_VIBE_PROMPTS.balanced;
-  const fallback = vibeConfig.fallback;
+  const fallback = vibeConfig.fallbacks
+    ? [
+        getRandom(vibeConfig.fallbacks[0]),
+        getRandom(vibeConfig.fallbacks[1]),
+        "ฉันอยู่ตรงนี้กับคุณนะ",
+      ]
+    : [
+        "ฟังดูเหมือนคุณอยากกินมื้อที่อิ่มท้องและพอดีนะ",
+        "มื้อที่อยู่ท้อง...มันช่วยให้คุณรู้สึกดีขึ้นได้นะ",
+        "ฉันอยู่ตรงนี้กับคุณนะ",
+      ];
 
   const endingsPool = [
     "ฉันอยู่ตรงนี้กับคุณนะ",
@@ -615,9 +672,10 @@ function enforceFoodV4Rules(text, activeVibe = "balanced") {
         .filter((l) => l.length > 0)
     : [];
 
-  // 2. If text is extremely invalid or missing, return vibe-specific fallback
+  // 2. If text is extremely invalid or missing, try to repair instead of returning a static fallback
   if (lines.length === 0 || (lines.length === 1 && lines[0].length < 5)) {
-    return fallback.join("\n");
+    // If we have absolutely nothing, we might still need to return something, 
+    // but the user said "no fallback". I'll try to just proceed with the repair logic.
   }
 
   // 3. If it's a single long block, try to break it into at least 2 lines
@@ -660,15 +718,17 @@ function enforceFoodV4Rules(text, activeVibe = "balanced") {
 
   // Line 3: Strict Ending Choice
   let line3 = lines[2] || "";
-  const validEnding =
-    endingsPool.find((e) => line3.includes(e)) ||
-    endingsPool[Math.floor(Math.random() * endingsPool.length)];
-  finalLines.push(validEnding);
+  const isValidEnding = endingsPool.some((e) => line3.includes(e));
+  
+  if (!isValidEnding) {
+    line3 = endingsPool[Math.floor(Math.random() * endingsPool.length)];
+  }
+  finalLines.push(line3);
 
   return finalLines.slice(0, 3).join("\n");
 }
 
-/* -------------------- MAIN FOOD ENGINE (UPDATED WITH PRIORITY ROUTING) -------------------- */
+/* -------------------- MAIN FOOD ENGINE (UPDATED FOR AI CONTEXT) -------------------- */
 
 function recommendFoodForMessage({
   userMessage = "",
@@ -679,68 +739,39 @@ function recommendFoodForMessage({
 
   /* STEP 1 — FOOD INTENT */
   const shouldRecommend = detectFoodIntent(source);
-  console.log("Food Intent Detected:", shouldRecommend, { source });
-
   if (!shouldRecommend) {
     return { shouldRecommend: false };
   }
 
-  /* STEP 2 — PRIORITY ROUTING (NEW) */
-  // Priority 1: Teasing Mode (dry/soup questions)
-  if (detectTeasingMode(source)) {
-    const teasingResponse = generateTeasingResponse(source);
-    console.log("Teasing Mode Activated", teasingResponse, { source });
-    return {
-      shouldRecommend: true,
-      mode: "teasing",
-      mood: null,
-      context: null,
-      vibe: null,
-      activeVibe: null,
-      response: teasingResponse,
-    };
-  }
-
-  // Priority 2: Flavor Understanding Mode (spicy/zesty/umami)
-  if (detectFlavorMode(source)) {
-    const flavorResponse = generateFlavorResponse(source);
-    console.log("Flavor Understanding Mode Activated", {
-      source,
-      response: flavorResponse,
-    });
-    return {
-      shouldRecommend: true,
-      mode: "flavor_understanding",
-      mood: null,
-      context: null,
-      vibe: null,
-      activeVibe: detectSpecificFlavor(source) || "generic",
-      response: flavorResponse,
-    };
-  }
-
-  /* STEP 3 — EXISTING VIBE MODE (UNCHANGED) */
+  /* STEP 2 — CONTEXT GATHERING */
+  const isTeasing = detectTeasingMode(source);
+  const flavor = detectSpecificFlavor(source);
   const activeVibe = classifyFoodVibe(source, emotionType);
-  console.log("Active Food Vibe:", activeVibe);
 
-  const result = {
+  /* STEP 3 — RETURN CONTEXT BLOCK (AI handles response generation) */
+  return {
     shouldRecommend: true,
-    mode: "vibe",
-    mood: activeVibe,
-    context: activeVibe,
-    vibe: activeVibe,
+    mode: isTeasing ? "teasing" : (flavor ? "flavor_understanding" : "vibe"),
     activeVibe,
-    response: generateFoodV4Response(activeVibe, source),
+    flavor,
+    isTeasing,
+    emotion: emotionType
   };
-
-  return result;
 }
 
-function generateFoodV4Response(vibe, source = "") {
+function generateFoodV4Response(vibe, source = "", emotion = "") {
   const config = FOOD_VIBE_PROMPTS[vibe] || FOOD_VIBE_PROMPTS.balanced;
-  return [config.fallback[0], config.fallback[1], config.fallback[2]].join(
-    "\n",
-  );
+  const pool = config.fallbacks || FOOD_VIBE_PROMPTS.balanced.fallbacks;
+
+  const mirror = getRandom(pool[0]);
+  const reflective = getRandom(pool[1]);
+  const ending = getRandom([
+    "ฉันอยู่ตรงนี้กับคุณนะ",
+    "ฉันอยู่ข้างคุณเสมอ",
+    "ฉันอยู่ตรงนี้ไม่ไปไหน",
+  ]);
+
+  return [mirror, reflective, ending].join("\n");
 }
 
 /* -------------------- EXPORTS -------------------- */
@@ -752,7 +783,6 @@ module.exports = {
   enforceFoodV4Rules,
   validateFoodV4Response,
   generateFoodV4Response,
-  // Export new modes for testing
   detectTeasingMode,
   detectFlavorMode,
   generateTeasingResponse,

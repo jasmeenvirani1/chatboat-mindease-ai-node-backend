@@ -828,6 +828,7 @@ MOST IMPORTANT RULE:
 INPUT:
 - ${isNewChat ? `Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}` : ""}
 - ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
+- ${categoryName === "HealJai Talk" ? "" : `Today's Context: ${userData?.dailyMessage || ""}`}
 - ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData?.lucky_color}`}
 - ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData?.energy_level}`}
 - ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData?.golden_hour}`}
@@ -840,9 +841,10 @@ OUTPUT RULES:
 - Don't show direct input in response, INPUT is only for you.
 
 TONE AND EMOTION RULES:
-- Sentences to reflect user's emotion: ${sentences.join(" | ")}
-- Answer in based on above sentences and user's emotion
-- userMessage is date then don't show above sentences.
+- Emotional Guidance: ${sentences.join(" | ")}
+- IMPORTANT: Use the above sentences ONLY as inspiration for the tone and vibe. 
+- DO NOT copy them literally. ALWAYS prioritize and align your response with the user's specific message: "${userMessage}".
+- If userMessage is a date, ignore the emotional sentences and focus on the birth details.
 
 LANGUAGE RULE (RESTRICTED):
 - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
@@ -931,61 +933,72 @@ ${recentConversationContext}
       if (musicRecommendation?.shouldRecommend) {
         systemPrompt = musicRecommendation.promptBlock;
       } else if (foodRecommendation?.shouldRecommend) {
-        const foodVibeContext = `
-      -----------------------------------------
-      FOOD PACK V4 — EMOTIONAL VIBE CONTEXT
-      -----------------------------------------
+        const isTeasing = foodRecommendation.isTeasing;
+        const flavor = foodRecommendation.flavor;
+        const emotion = foodRecommendation.emotion;
 
-      Active Food Vibe: ${foodRecommendation.activeVibe}
-      Food Mode: ${foodRecommendation.mode || "vibe"}
+        systemPrompt = `
+${systemPrompt}
 
-      PURPOSE:
-      Food Pack is an emotional vibe layer, not a recommendation engine.
+-----------------------------------------
+FOOD PACK V4 — DYNAMIC EMOTIONAL CONTEXT
+-----------------------------------------
+USER MESSAGE: "${userMessage}"
+Active Food Vibe: ${foodRecommendation.activeVibe}
+Detected Emotion: ${emotion || "neutral"}
+Food Mode: ${foodRecommendation.mode || "vibe"}
+Flavor Context: ${flavor || "none"}
+Teasing Mode: ${isTeasing ? "ACTIVE" : "OFF"}
 
-      RULES:
-      - Follow HealJai v4 personality.
-      - Generate a fresh and unique response every time.
-      - Use the active food vibe only as emotional context.
-      - Mirror the user's feeling naturally.
-      - Exactly 3 lines.
-      - Line 2 must contain exactly one "..." pause.
-      - Line 3 must be a gentle presence statement.
-      - No questions.
-      - No advice.
-      - No instructions.
-      - No restaurant recommendations.
-      - No food lists.
-      - No forced wording.
-      - Do not always start with the same sentence.
-      - Do not force the words "หิว" or "อยากหาอะไรกิน".
-      - Keep the response natural and human.
+TONE & PERSONALITY:
+- Reply as HealJai, a warm and empathetic companion.
+${isTeasing ? "- TEASING MODE IS ACTIVE: Use a playful, lighthearted, and slightly teasing tone. Do not be overly serious." : "- Stay gentle, nurturing, and empathetic."}
 
-      ENDINGS MAY INCLUDE:
-      - ฉันอยู่ตรงนี้กับคุณนะ
-      - ฉันอยู่ข้างคุณเสมอ
-      - ฉันอยู่ตรงนี้ไม่ไปไหน
-      `.trim();
+MANDATORY RESPONSE STRUCTURE:
+- EXACTLY 3 lines.
+- Line 1: Mirror the user's emotion and the specific food-related details they mentioned.
+- Line 2: Reflect on the vibe and include EXACTLY ONE "..." pause.
+- Line 3: A gentle presence statement.
 
-        systemPrompt = `${systemPrompt}\n\n${foodVibeContext}`;
+STRICT RULES:
+- ALIGNMENT: Your response MUST directly address the user's specific message: "${userMessage}". If they mentioned a specific dish, flavor, or craving, acknowledge it.
+- UNIQUE GENERATION: Do not use fixed templates or repetitive phrases. Vary your openings and vocabulary (avoid starting with "ฟังดูเหมือน" every time).
+- NO REPETITION: Ensure the response is different from any previous turns.
+- If the user mentioned a specific flavor (like ${flavor}), acknowledge it playfully.
+- If Teasing Mode is active, refer back to their previous choices if they appear in the chat history.
+- NO restaurant names, NO food lists, NO advice, NO questions.
+`.trim();
       } else if (v4Classification.domain && v4Classification.label) {
+        const endings = v4ActiveTemplate?.ending_pool || [
+          "ฉันอยู่ตรงนี้กับคุณนะ",
+          "ฉันอยู่ข้างคุณเสมอ",
+          "ฉันอยู่ตรงนี้ไม่ไปไหน",
+        ];
+        const randomEnding = pickRandomUnique(endings, 1)[0];
+
         const v4ClassificationContext = `
       -----------------------------------------
       V4 DOMAIN ROUTING — CONTEXT
       -----------------------------------------
+      USER MESSAGE: "${userMessage}"
       Domain: ${v4Classification.domain}
       Label: ${v4Classification.label}
+      Emotion: ${emotionType}
       
-      VIBE REFERENCE:
+      VIBE REFERENCE (USE ONLY AS INSPIRATION FOR EMOTIONAL DEPTH):
       - Mirroring: ${v4ActiveTemplate?.mirror}
       - Reflective: ${v4ActiveTemplate?.reflective}
       
       MANDATORY V4 RULES:
-      1. Provide EXACTLY 3 sentences/lines.
-      2. Line 1: Naturally mirror the user's emotional state.
-      3. Line 2: Reflect on their situation and contain EXACTLY ONE "..." pause.
-      4. Line 3: Use a gentle presence statement like "${v4ActiveTemplate?.ending_pool?.[0]}".
-      5. NO questions, NO advice, NO recommendations.
-      6. Stay deeply personalized to the user's message while following this structure.
+      1. ALIGNMENT: Your response MUST be directly aligned with the user's message: "${userMessage}". Incorporate specific details, events, or persons mentioned.
+      2. COMPLETELY UNIQUE: Do NOT copy the VIBE REFERENCE phrases. Use your own creative and empathetic wording.
+      3. NO REPETITION: Do not use the same wording as previous turns in the history. Avoid starting with "ฟังดูเหมือน" if possible; use variety in your openings.
+      4. STRUCTURE: Provide EXACTLY 3 sentences/lines.
+      5. Line 1: Naturally mirror the user's emotional state related to their specific message.
+      6. Line 2: Reflect on their specific situation and contain EXACTLY ONE "..." pause.
+      7. Line 3: Use a gentle presence statement like "${randomEnding}".
+      8. NO questions, NO advice, NO recommendations.
+      9. Stay deeply human, grounded, and emotionally aware.
       `.trim();
         systemPrompt = `${systemPrompt}\n\n${v4ClassificationContext}`;
       }
@@ -1045,12 +1058,20 @@ REPLY RULE:
         try {
           let finalAiResponse = "";
 
-          // SPECIAL PATH: Food Pack with Regeneration Loop
+          // SPECIAL PATH: Food Pack (Dynamic via Gemini)
           if (foodRecommendation?.shouldRecommend) {
-            finalAiResponse = foodRecommendation.response || "";
+            const completion = await generateGeminiResponse(messages);
+            let text = completion?.trim() || "No response";
 
+            // Apply Output Gate
+            text = await enforceFoodV4Rules(
+              text,
+              foodRecommendation.activeVibe,
+            );
+            finalAiResponse = text;
+
+            // Fake Stream the validated response
             const words = finalAiResponse.split(" ");
-
             for (const word of words) {
               if (clientClosed) break;
               res.write(
@@ -1058,9 +1079,7 @@ REPLY RULE:
                   text: word + " ",
                 })}\n\n`,
               );
-
               if (res.flush) res.flush();
-
               await new Promise((r) => setTimeout(r, 30));
             }
           } else if (v4Classification.domain && v4Classification.label) {
@@ -1069,7 +1088,13 @@ REPLY RULE:
             let text = completion?.trim() || "No response";
 
             // Apply Output Gate
-            text = await processOutput(text, v4ActiveTemplate);
+            text = await processOutput(
+              text,
+              v4ActiveTemplate,
+              userMessage,
+              emotionType,
+              chat?.chats || [],
+            );
             finalAiResponse = text;
 
             // Fake Stream the validated response
@@ -1162,7 +1187,11 @@ REPLY RULE:
             res.end();
           }
         } catch (streamError) {
-          logger.error("Stream error:", streamError);
+          await logger.error(
+            "Stream error in createChat:",
+            streamError,
+            userId,
+          );
           if (!clientClosed) {
             res.write(
               `event: error\ndata: ${JSON.stringify({
@@ -1189,6 +1218,9 @@ REPLY RULE:
           finalAiResponse = await processOutput(
             finalAiResponse,
             v4ActiveTemplate,
+            userMessage,
+            emotionType,
+            chat?.chats || [],
           );
           // console.log(
           //   "Final AI Response after V4 Output Gate:",

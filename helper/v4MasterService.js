@@ -176,8 +176,32 @@ function validateV4Response(text) {
  * ==========================================
  */
 
-async function processOutput(response, template = null) {
+function isRepeat(response, history = []) {
+  if (!response || !history.length) return false;
+  const normalized = response.trim().toLowerCase();
+  // Check if this exact response has been used in the last 10 turns
+  return history.some(
+    (chat) => chat.aiResponse && chat.aiResponse.trim().toLowerCase() === normalized
+  );
+}
+
+async function processOutput(
+  response,
+  template = null,
+  userMessage = "",
+  emotion = "",
+  history = []
+) {
   let currentResponse = response;
+
+  // 1. Check for repetition
+  if (isRepeat(currentResponse, history)) {
+    // If it's a repeat, we ideally want to signal a need for regeneration, 
+    // but for now, we'll let the repair logic try to vary it slightly 
+    // or just proceed if we can't regenerate here.
+    // The chatController will handle the actual "do not repeat" by re-prompting if needed.
+  }
+
   const validation = validateV4Response(currentResponse);
 
   if (validation.valid) {
@@ -206,7 +230,7 @@ async function processOutput(response, template = null) {
   // Clean all ellipses first
   lines = lines.map((l) => l.replace(/\.\.\.+/g, " ").trim());
 
-  // Add exactly one ellipsis to line 2 (or line 1 if only 1 line, though we fixed length above)
+  // Add exactly one ellipsis to line 2
   if (lines[1]) {
     const words = lines[1].split(" ");
     if (words.length >= 2) {
@@ -223,18 +247,16 @@ async function processOutput(response, template = null) {
   const isValidEnding = allowedEndings.some((e) => currentEnding.includes(e));
 
   if (!isValidEnding) {
-    const fallbackEnding =
-      template?.ending_pool?.[0] || allowedEndings[0];
+    const fallbackPool = template?.ending_pool && template.ending_pool.length > 0
+      ? template.ending_pool
+      : allowedEndings;
+    const fallbackEnding = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
     lines[2] = fallbackEnding;
   }
 
   const repairedResponse = lines.join("\n");
-  
-  // Final check: if even repair is empty or weird, fallback to template completely
-  if (repairedResponse.length < 10 && template) {
-    return `${template.mirror}\n${template.reflective}...\n${template.ending_pool[0]}`;
-  }
 
+  // Removed static template fallback as per user request ("do not want fallBack response")
   return repairedResponse;
 }
 
@@ -267,4 +289,5 @@ module.exports = {
   getTemplate,
   validateV4Response,
   processOutput,
+  isRepeat,
 };
