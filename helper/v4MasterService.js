@@ -223,7 +223,7 @@ async function processOutput(
     const endings =
       template?.ending_pool ||
       v4RegressionSuite.global_constraints.allowed_endings;
-    lines.push(endings[0]);
+    lines.push(endings[Math.floor(Math.random() * endings.length)]);
   }
 
   // 2. Ellipsis adjustment (ensure exactly 1 ellipsis in line 2)
@@ -279,7 +279,7 @@ function enforceBasicRules(text) {
   }
 
   const endings = v4RegressionSuite.global_constraints.allowed_endings;
-  lines[2] = endings[0];
+  lines[2] = endings[Math.floor(Math.random() * endings.length)];
 
   return lines.slice(0, 3).join("\n");
 }
