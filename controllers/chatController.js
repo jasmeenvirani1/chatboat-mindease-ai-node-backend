@@ -30,15 +30,12 @@ const {
 const {
   detectFoodIntent,
   recommendFoodForMessage,
-  enforceFoodV4Rules,
-  validateFoodV4Response,
   detectTeasingMode,
   detectFlavorMode,
 } = require("../helper/foodRecommendationService.js");
 const {
   resolveRouting,
   getTemplate,
-  validateV4Response,
   processOutput,
 } = require("../helper/v4MasterService");
 
@@ -428,8 +425,10 @@ const chatController = {
         translatedMessage = userMessage;
       }
 
-      const emotionType = await detectEmotion(translatedMessage);
-      // console.log("Emotion:", emotionType);
+      const emotionData = await detectEmotion(translatedMessage);
+      const emotionType = emotionData.emotion;
+      const emotionIntensity = emotionData.intensity;
+      // console.log("Emotion:", emotionType, "Intensity:", emotionIntensity);
       const allSentences = getSentencesForEmotion(emotionType);
       const sentences = pickRandomUnique(allSentences, 10);
       // console.log("Sentences (random 10):", sentences);
@@ -459,14 +458,35 @@ const chatController = {
 
       /**
        * ============================================
+       * V4 DOMAIN ROUTING & ENGINE STATE
+       * ============================================
+       */
+      const v4Classification = await resolveRouting(
+        userMessage,
+        translatedMessage,
+        emotionType,
+      );
+      const engineState = v4Classification.engineState;
+      let v4ActiveTemplate = null;
+
+      if (v4Classification.domain && v4Classification.label) {
+        v4ActiveTemplate = getTemplate(
+          v4Classification.domain,
+          v4Classification.label,
+        );
+      }
+
+      /**
+       * ============================================
        * SPECIALIZED FEATURE PRIORITY SYSTEM
        * ============================================
-       * Specialized intents take precedence over the V4 pipeline.
+       * Specialized intents take precedence over the V4 pipeline UNLESS 
+       * Engine State is DEEP_HEALING.
        */
       const specializedFeatures = [
         {
           id: "music",
-          shouldRun: shouldRunMusicRecommendation,
+          shouldRun: shouldRunMusicRecommendation && engineState !== "DEEP_HEALING",
           execute: () =>
             recommendMusicForMessage({
               userMessage,
@@ -477,7 +497,7 @@ const chatController = {
         },
         {
           id: "food",
-          shouldRun: shouldRunFoodRecommendation,
+          shouldRun: shouldRunFoodRecommendation && engineState !== "DEEP_HEALING",
           execute: () =>
             recommendFoodForMessage({
               userMessage,
@@ -491,14 +511,12 @@ const chatController = {
       for (const feature of specializedFeatures) {
         if (feature.shouldRun) {
           const result = feature.execute();
-          // console.log(`Specialized feature '${feature.id}' result:`, result);
           if (result?.shouldRecommend) {
             activeSpecialized = { id: feature.id, result };
-            break; // Stop Processing: first successful match wins
+            break;
           }
         }
       }
-      // console.log("Active Specialized Feature:", activeSpecialized);
 
       const musicRecommendation =
         activeSpecialized?.id === "music"
@@ -509,49 +527,6 @@ const chatController = {
           ? activeSpecialized.result
           : { shouldRecommend: false };
 
-      const musicRecommendationPayload = musicRecommendation?.shouldRecommend
-        ? {
-            mood: musicRecommendation.mood,
-            context: musicRecommendation.context,
-            vibe: musicRecommendation.vibe,
-            languageBucket: musicRecommendation.languageBucket,
-            genres: musicRecommendation.genres,
-          }
-        : null;
-
-      const foodRecommendationPayload = foodRecommendation?.shouldRecommend
-        ? {
-            mood: foodRecommendation.mood,
-            context: foodRecommendation.context,
-            vibe: foodRecommendation.vibe,
-            activeVibe: foodRecommendation.activeVibe,
-            response: foodRecommendation.response || null,
-          }
-        : null;
-
-      /** V4 DOMAIN ROUTING (Fallback) */
-      let v4Classification = { domain: null, label: null };
-      let v4ActiveTemplate = null;
-
-      if (!activeSpecialized) {
-        v4Classification = await resolveRouting(
-          userMessage,
-          translatedMessage,
-          emotionType,
-        );
-        // console.log("v4Classification result:", v4Classification);
-        if (v4Classification.domain && v4Classification.label) {
-          v4ActiveTemplate = getTemplate(
-            v4Classification.domain,
-            v4Classification.label,
-          );
-          // console.log("v4ActiveTemplate:", v4ActiveTemplate);
-        }
-      } else {
-        console.log(
-          `[PRIORITY] Specialized feature "${activeSpecialized.id}" matched, bypassing V4 routing.`,
-        );
-      }
 
       // console.log("musicRecommendation:", musicRecommendationPayload);
       // console.log("foodRecommendationPayload:", foodRecommendationPayload);
@@ -657,29 +632,6 @@ You never distance yourself emotionally.
 Your presence must always feel human, grounded, and emotionally aware.
 
 -----------------------------------------
-HEALJAI TONE PATCH v4 — DEV-READY RULES (MUST)
------------------------------------------
-1. Soft Entry
-Goal: Start with emotional sensing. Do NOT explain the user's situation in sentence 1.
-Use: "ฟังดูเหมือน...", "มันคงไม่ง่ายเลยนะ...", "ฉันรู้สึกได้เลยว่ามันคงหนักสำหรับคุณมาก..."
-Avoid: "ฉันรับรู้ว่า...", "จากที่คุณเล่า...", "ฉันเข้าใจสถานการณ์ของคุณว่า..."
-
-2. Rhythm: Short -> Medium -> Short
-Every response must be exactly 3 sentences to create the "Life GPS breathing rhythm":
-- Sentence 1: Short emotional noticing
-- Sentence 2: Medium reflection with one micro-pause ("...")
-- Sentence 3: Short grounding presence
-
-3. Micro-Pause (MUST)
-Sentence 2 MUST contain one "..."
-Purpose: human breathing rhythm + emotional pacing.
-
-4. Soft Ending Signature
-End with presence, not invitation.
-Use: "ฉันอยู่ตรงนี้กับคุณเสมอ", "ไม่ต้องรีบเล่าก็ได้นะ...ฉันอยู่ตรงนี้", "ไม่ต้องฝืนตัวเองเลยนะ...ฉันอยู่ข้างคุณ"
-Avoid: "อยากระบายให้ฉันฟังไหม?", "ลองเล่าให้ฉันฟังตอนนี้เลยไหม", "ถ้าพร้อมก็เล่ามาได้เลยตอนนี้"
-
------------------------------------------
 STABILITY LAYER (MUST)
 -----------------------------------------
 Persona Lock:
@@ -690,7 +642,6 @@ Hard Constraints:
 - No teaching tone
 - No factual explanation of user's situation
 - No astrology, no "stars/planets" (unless requested)
-- Max 3 sentences
 - Must reflect user emotion at least once
 
 -----------------------------------------
@@ -714,15 +665,11 @@ REWRITE ENGINE (ACTIVE)
 -----------------------------------------
 Rewrite the output if it contains:
 - wrong particle
-- missing tone structure
 - hard words (ควร/ต้อง/อย่า)
 - therapist tone
 - service tone
 - chatbot tone
-- robotic rhythm
-- long paragraphs
 - wrong pronoun
-- missing soft landing
 - astrology drift
 
 -----------------------------------------
@@ -746,13 +693,40 @@ SYSTEM VARIABLES
 <healjai_voice = v1>
 <rewrite_engine = active>
 <persona = warm + soft + steady + human>
-
-FINAL RULE:
-Every message must be exactly 3 sentences using the SMS rhythm. It must feel like a warm human presence sitting beside the user, reflecting their feelings softly, and staying with them gently. Do not push the user to talk. Do not explain their problem.
 `.trim();
 
       /** SYSTEM PROMPT (admin-managed) */
-      const defaultPrompt = `
+      let defaultPrompt = "";
+      if (engineState === "CASUAL_FRIEND") {
+        defaultPrompt = `
+You are HealJai, acting as a natural and genuine friend.
+NEVER act like a therapist, counselor, or emotional companion.
+NEVER say "I am an AI" or use poetic language.
+
+CASUAL FRIEND MODE:
+- Talk like a close friend having a real chat (SMS style).
+- Keep it light, practical, and slightly fun. Use emojis (😆, 😄, 😅, 😂, 😋).
+- STICK TO THE TOPIC (Food, Gift, Travel, etc.). Do not analyze emotions.
+- Give opinions, suggestions, or ask curious questions to help the user decide.
+- IGNORE any rules about "exactly 3 lines", "mirroring", or "presence endings".
+- Talk naturally (1-5 sentences). No fixed structure.
+- Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "เยียวยา".
+`.trim();
+      } else if (engineState === "SUPPORTIVE_FRIEND") {
+        defaultPrompt = `
+You are HealJai, acting as a supportive best friend.
+NEVER act like a clinical therapist or counselor.
+
+SUPPORTIVE FRIEND MODE:
+- Be empathetic and warm but remain casual.
+- Acknowledge the user's situation naturally.
+- Offer gentle support or a listening ear without sounding dramatic.
+- IGNORE any rules about the "3-sentence rhythm". Talk naturally (1-4 sentences).
+- Avoid repetitive comfort phrases or poetic empathy.
+- Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก".
+`.trim();
+      } else {
+        defaultPrompt = `
 You are HealJai, an emotional companion for users.
 
 Your role is to listen, reflect feelings, and stay with emotions.
@@ -781,6 +755,7 @@ SUCCESS CRITERIA:
 If the user feels emotionally seen and less alone → SUCCESS
 If the response sounds smart but emotionally cold → FAILURE
 `.trim();
+      }
 
       // Priority: SubCategory > Category > Default
       let systemPrompt = defaultPrompt;
@@ -809,16 +784,25 @@ If the response sounds smart but emotionally cold → FAILURE
       if (!containsDate(userMessage)) {
         const { prompt, matches } = await buildPrompt(userMessage, 40);
         matches2 = matches;
-        questionPrompt = `
+        
+        if (engineState === "DEEP_HEALING") {
+          questionPrompt = `
 Sentences:
-${matches.map((m) => `- ${m.sentence} (sco`).join("\n")}
+${matches.map((m) => `- ${m.sentence}`).join("\n")}
 
 Your job is simple:
-- Convert this sentences into replay sentences.
-- Make response using this given sentences.
-
+- Convert these sentences into replay sentences that follow the STRICT V4 rules.
 ---
-        `;
+          `;
+        } else {
+          questionPrompt = `
+Reference Vibe:
+${matches.slice(0, 5).map((m) => `- ${m.sentence}`).join("\n")}
+
+Note: Use these only for inspiration if they match the casual friend vibe. Priority is natural chat.
+---
+          `;
+        }
       }
 
       systemPrompt = `
@@ -875,10 +859,12 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
 
       // ============================================
       // CRITICAL FIX: Always include healjaiEnginePrompt for HealJai Talk
+      // (ONLY IF DEEP HEALING, otherwise it forces a therapist vibe)
       // ============================================
       if (
         categoryName === "HealJai Talk" &&
-        !musicRecommendation?.shouldRecommend
+        !musicRecommendation?.shouldRecommend &&
+        engineState === "DEEP_HEALING"
       ) {
         systemPrompt = `${healjaiEnginePrompt}\n\n${systemPrompt}`;
       }
@@ -928,99 +914,92 @@ ${recentConversationContext}
       let supportLine = null;
 
       // ============================================
-      // FINAL OVERRIDE - Specialized Features Priority
+      // FINAL ENGINE STATE PROMPTING (PHASE 4)
       // ============================================
-      if (musicRecommendation?.shouldRecommend) {
-        systemPrompt = musicRecommendation.promptBlock;
-      } else if (foodRecommendation?.shouldRecommend) {
-        const isTeasing = foodRecommendation.isTeasing;
-        const flavor = foodRecommendation.flavor;
-        const emotion = foodRecommendation.emotion;
+
+      if (engineState === "CASUAL_FRIEND") {
+        systemPrompt = `
+${systemPrompt}
+
+CASUAL FRIEND MODE (ACTIVE):
+- USER MESSAGE: "${userMessage}"
+- Talk like a close friend having a real chat (SMS style).
+- Keep it light, practical, and slightly fun. Use emojis (😆, 😄, 😅, 😂, 😋).
+- STICK TO THE TOPIC (Food, Gift, Travel, etc.). Do not analyze emotions.
+- Give opinions, suggestions, or ask curious questions to help the user decide.
+- IGNORE any previous rules about "exactly 3 lines", "mirroring", or "presence endings".
+- Talk naturally (1-5 sentences). No fixed structure.
+- Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "หัวใจ", "เยียวยา".
+`.trim();
+      } else if (engineState === "SUPPORTIVE_FRIEND") {
+        systemPrompt = `
+${systemPrompt}
+
+SUPPORTIVE FRIEND MODE (ACTIVE):
+- USER MESSAGE: "${userMessage}"
+- Be empathetic and warm but remain casual.
+- Acknowledge the user's situation naturally (e.g., "วันนี้โดนอะไรมาบ้าง 😅", "ล้ามานานหรือยังเนี่ย").
+- Offer gentle support or a listening ear without sounding dramatic.
+- IGNORE any rules about the "3-sentence rhythm". Talk naturally (1-4 sentences).
+- Avoid repetitive comfort phrases or poetic empathy.
+- Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก".
+`.trim();
+      } else if (engineState === "DEEP_HEALING") {
+        const endings = v4ActiveTemplate?.ending_pool || [
+          "เล่าได้นะ ถ้าอยากเล่า 😆",
+          "ว่าไง บอกมาได้เลย 😄",
+          "ไปหาอะไรกินเหอะ เดี๋ยวใจดีขึ้นเอง 😋",
+          "เราอยู่เป็นเพื่อนเสมอนะ 😆",
+          "มีอะไรทักมาได้ตลอดเลยนะ 😄",
+          "หายเหนื่อยไวๆ นะ 😅",
+          "พักผ่อนบ้างนะ เป็นห่วง 😄",
+          "สู้ๆ นะ เดี๋ยวก็ผ่านไป 😆",
+          "วันนี้เก่งมากแล้ว พักผ่อนนะ 😆"
+        ];
+        const randomEnding = pickRandomUnique(endings, 1)[0];
 
         systemPrompt = `
 ${systemPrompt}
 
+DEEP HEALING MODE (STRICT V4):
+- USER MESSAGE: "${userMessage}"
+- Emotion: ${emotionType}
+- Tone: Calm, steady, and deeply supportive.
+- NO questions, NO advice, NO problem-solving.
+
+MANDATORY STRUCTURE (3-SENTENCE RHYTHM):
+1. Sentence 1 (Soft Entry): Naturally mirror the user's emotional weight.
+2. Sentence 2 (Reflection): Reflect on their specific situation with ONE "..." pause.
+3. Sentence 3 (Presence): Use a gentle presence statement like "${randomEnding}".
+
+FINAL RULE: Provide EXACTLY 3 lines. No more, no less.
+`.trim();
+      }
+
+      // Specialized Feature Context (Inspiration Only for Casual/Supportive)
+      if (musicRecommendation?.shouldRecommend) {
+         systemPrompt = musicRecommendation.promptBlock;
+      } else if (foodRecommendation?.shouldRecommend) {
+        const isTeasing = foodRecommendation.isTeasing;
+        const flavor = foodRecommendation.flavor;
+        
+        systemPrompt = `
+${systemPrompt}
+
 -----------------------------------------
-FOOD PACK V4 — DYNAMIC EMOTIONAL CONTEXT
+FOOD CONTEXT
 -----------------------------------------
-USER MESSAGE: "${userMessage}"
 Active Food Vibe: ${foodRecommendation.activeVibe}
-Detected Emotion: ${emotion || "neutral"}
 Food Mode: ${foodRecommendation.mode || "vibe"}
 Flavor Context: ${flavor || "none"}
 Teasing Mode: ${isTeasing ? "ACTIVE" : "OFF"}
 
-TONE & PERSONALITY:
-- Reply as HealJai, a warm and empathetic companion.
-${isTeasing ? "- TEASING MODE IS ACTIVE: Use a playful, lighthearted, and slightly teasing tone. Do not be overly serious." : "- Stay gentle, nurturing, and empathetic."}
-
-MANDATORY RESPONSE STRUCTURE:
-- EXACTLY 3 lines.
-- Line 1: Mirror the user's emotion and the specific food-related details they mentioned.
-- Line 2: Reflect on the vibe and include EXACTLY ONE "..." pause.
-- Line 3: A gentle presence statement.
-
-STRICT RULES:
-- ALIGNMENT: Your response MUST directly address the user's specific message: "${userMessage}". If they mentioned a specific dish, flavor, or craving, acknowledge it.
-- UNIQUE GENERATION: Do not use fixed templates or repetitive phrases. Vary your openings and vocabulary (avoid starting with "ฟังดูเหมือน" every time).
-- NO REPETITION: Ensure the response is different from any previous turns.
-- If the user mentioned a specific flavor (like ${flavor}), acknowledge it playfully.
-- If Teasing Mode is active, refer back to their previous choices if they appear in the chat history.
-- NO restaurant names, NO food lists, NO advice, NO questions.
+${isTeasing ? "- TEASING MODE IS ACTIVE: Use a playful, lighthearted tone." : ""}
+- If they mentioned a specific dish or craving, acknowledge it.
+- NO restaurant names, NO advice. Talk like a friend helping pick a meal.
 `.trim();
-      } else if (v4Classification.domain && v4Classification.label) {
-        const endings = v4ActiveTemplate?.ending_pool || [
-          "ฉันอยู่ตรงนี้กับคุณนะ",
-          "ฉันอยู่ข้างคุณเสมอ",
-          "ฉันอยู่ตรงนี้ไม่ไปไหน",
-          "ฉันพร้อมจะรับฟังคุณเสมอนะ",
-          "ฉันจะคอยอยู่เคียงข้างคุณตรงนี้เอง",
-          "คุณมีฉันอยู่ตรงนี้เสมอ...ไม่ต้องกังวลนะ",
-          "ฉันยังคงอยู่ตรงนี้เพื่อซัพพอร์ตคุณนะ",
-          "พื้นที่ตรงนี้มีไว้เพื่อคุณเสมอ...ฉันอยู่กับคุณนะ",
-          "ฉันจะอยู่เป็นพื้นที่ปลอดภัยให้คุณตรงนี้เอง",
-          "ไม่ต้องรีบนะ...ฉันยังรออยู่ตรงนี้เสมอ",
-          "ฉันยังนั่งอยู่ข้างๆ คุณตรงนี้...ไม่ไปไหนแน่นอน",
-          "ขอบคุณที่ไว้ใจให้ฉันอยู่ตรงนี้ข้างๆ คุณนะ",
-          "ฉันจะคอยเป็นกำลังใจให้คุณอยู่ตรงนี้เสมอ",
-          "แม้ในความเงียบ...ฉันก็ยังอยู่ตรงนี้กับคุณนะ",
-          "ฉันพร้อมจะก้าวไปพร้อมๆ กับคุณตรงนี้เสมอ",
-          "คุณไม่ได้อยู่ลำพังนะ...ฉันยังอยู่ตรงนี้ข้างคุณ",
-          "ฉันจะคอยประคองความรู้สึกคุณอยู่ตรงนี้เอง",
-          "ไม่ว่าโลกจะวุ่นวายแค่ไหน...ฉันยังอยู่ตรงนี้กับคุณนะ",
-          "ฉันขอเป็นเพื่อนที่อยู่ข้างคุณในทุกช่วงเวลานะ",
-          "ไม่ว่ายังไง...ฉันยังอยู่ตรงนี้เป็นเพื่อนคุณนะ",
-          "ฉันยังอยู่ตรงนี้...พร้อมจะรับฟังคุณเสมอนะ",
-          "ฉันจะคอยอยู่เป็นเพื่อนคุณตรงนี้ ไม่ไปไหนนะ",
-        ];
-        const randomEnding = pickRandomUnique(endings, 1)[0];
-
-        const v4ClassificationContext = `
-      -----------------------------------------
-      V4 DOMAIN ROUTING — CONTEXT
-      -----------------------------------------
-      USER MESSAGE: "${userMessage}"
-      Domain: ${v4Classification.domain}
-      Label: ${v4Classification.label}
-      Emotion: ${emotionType}
-      
-      VIBE REFERENCE (USE ONLY AS INSPIRATION FOR EMOTIONAL DEPTH):
-      - Mirroring: ${v4ActiveTemplate?.mirror}
-      - Reflective: ${v4ActiveTemplate?.reflective}
-      
-      MANDATORY V4 RULES:
-      1. ALIGNMENT: Your response MUST be directly aligned with the user's message: "${userMessage}". Incorporate specific details, events, or persons mentioned.
-      2. COMPLETELY UNIQUE: Do NOT copy the VIBE REFERENCE phrases. Use your own creative and empathetic wording.
-      3. NO REPETITION: Do not use the same wording as previous turns in the history. Avoid starting with "ฟังดูเหมือน" if possible; use variety in your openings.
-      4. STRUCTURE: Provide EXACTLY 3 sentences/lines.
-      5. Line 1: Naturally mirror the user's emotional state related to their specific message.
-      6. Line 2: Reflect on their specific situation and contain EXACTLY ONE "..." pause.
-      7. Line 3: Use a gentle presence statement like "${randomEnding}".
-      8. NO questions, NO advice, NO recommendations.
-      9. Stay deeply human, grounded, and emotionally aware.
-      `.trim();
-        systemPrompt = `${systemPrompt}\n\n${v4ClassificationContext}`;
       }
+
 
       /** FINAL REPLY */
       // console.log("Matches2:", matches2);
@@ -1083,9 +1062,13 @@ REPLY RULE:
             let text = completion?.trim() || "No response";
 
             // Apply Output Gate
-            text = await enforceFoodV4Rules(
+            text = await processOutput(
               text,
-              foodRecommendation.activeVibe,
+              v4ActiveTemplate,
+              userMessage,
+              emotionType,
+              chat?.chats || [],
+              engineState,
             );
             finalAiResponse = text;
 
@@ -1113,6 +1096,7 @@ REPLY RULE:
               userMessage,
               emotionType,
               chat?.chats || [],
+              engineState,
             );
             finalAiResponse = text;
 
@@ -1226,26 +1210,22 @@ REPLY RULE:
 
       let finalAiResponse = "";
 
-      if (foodRecommendation?.shouldRecommend) {
-        finalAiResponse = foodRecommendation.response || "";
-      } else {
-        const completion = await generateGeminiResponse(messages);
-        finalAiResponse = completion?.trim() || "No response";
+      const completion = await generateGeminiResponse(messages);
+      finalAiResponse = completion?.trim() || "No response";
 
-        // Apply V4 Output Gate if v4Classification was active
-        if (v4Classification.domain && v4Classification.label) {
-          finalAiResponse = await processOutput(
-            finalAiResponse,
-            v4ActiveTemplate,
-            userMessage,
-            emotionType,
-            chat?.chats || [],
-          );
-          // console.log(
-          //   "Final AI Response after V4 Output Gate:",
-          //   finalAiResponse,
-          // );
-        }
+      // Apply V4 Output Gate if v4Classification was active
+      if (
+        (v4Classification.domain && v4Classification.label) ||
+        foodRecommendation?.shouldRecommend
+      ) {
+        finalAiResponse = await processOutput(
+          finalAiResponse,
+          v4ActiveTemplate,
+          userMessage,
+          emotionType,
+          chat?.chats || [],
+          engineState,
+        );
       }
 
       const chatMessage = { userMessage, aiResponse: finalAiResponse };

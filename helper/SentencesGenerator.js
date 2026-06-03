@@ -402,11 +402,29 @@ async function detectEmotion(text) {
       }
     }
 
-    if (maxScore <= 0) return "neutral";
-    return detected;
+    if (maxScore <= 0) return { emotion: "neutral", intensity: 0.0 };
+
+    // Intensity Calculation (0.0 to 1.0)
+    // We normalize the score based on typical high-intensity messages (score 10+)
+    // but also weight it by sentiment and keyword density.
+    let intensity = Math.min(maxScore / 12, 1.0);
+    
+    // Boost intensity for specific high-weight keywords or patterns
+    if (msg.includes("worthless") || msg.includes("die") || msg.includes("hopeless") || msg.includes("can't go on")) {
+      intensity = Math.max(intensity, 0.9);
+    }
+    
+    if (msg.includes(" exhausted") || msg.includes(" tired of life")) {
+      intensity = Math.max(intensity, 0.8);
+    }
+
+    // Ensure neutral emotion doesn't accidentally get high intensity if caught here
+    if (detected === "neutral") intensity = 0.0;
+
+    return { emotion: detected, intensity: parseFloat(intensity.toFixed(2)) };
   } catch (err) {
     console.error("Emotion detection error:", err);
-    return "neutral";
+    return { emotion: "neutral", intensity: 0.0 };
   }
 }
 

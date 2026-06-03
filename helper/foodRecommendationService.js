@@ -814,15 +814,12 @@ function generateFoodV4Response(vibe, source = "", emotion = "") {
 
 /* -------------------- EXPORTS -------------------- */
 
+/* -------------------- EXPORTS -------------------- */
+
 module.exports = {
   detectFoodIntent,
   classifyFoodVibe,
   recommendFoodForMessage,
-  enforceFoodV4Rules,
-  validateFoodV4Response,
-  generateFoodV4Response,
   detectTeasingMode,
   detectFlavorMode,
-  generateTeasingResponse,
-  generateFlavorResponse,
 };

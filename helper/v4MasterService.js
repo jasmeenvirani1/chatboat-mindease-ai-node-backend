@@ -39,7 +39,13 @@ async function resolveRouting(userMessage, translatedMessage, existingEmotion) {
     pack: null,
     source: null,
     score: 0,
+    engineState: "CASUAL_FRIEND", // Default
+    emotionIntensity: 0,
   };
+
+  // 0. Emotion & Intensity Detection (PHASE 0)
+  const emotionData = await detectEmotion(source);
+  resolved.emotionIntensity = emotionData.intensity;
 
   // 1. Try to find the BEST domain match by counting keywords
   let bestDomainMatch = { domain: null, score: 0 };
@@ -83,7 +89,7 @@ async function resolveRouting(userMessage, translatedMessage, existingEmotion) {
           bestLabelScore = lScore;
         }
       }
-      return resolved;
+      break;
     }
 
     if (step === "advanced_empathy_classifier" && bestEmpathyMatch.label) {
@@ -92,22 +98,78 @@ async function resolveRouting(userMessage, translatedMessage, existingEmotion) {
       resolved.pack = responsePack.advanced_empathy_pack;
       resolved.source = "advanced_empathy_classifier";
       resolved.score = bestEmpathyMatch.score;
-      return resolved;
+      break;
     }
 
     if (step === "emotion_classifier") {
-      const emotion = existingEmotion || (await detectEmotion(userMessage));
+      const emotion = existingEmotion || emotionData.emotion;
       if (emotion && emotion !== "neutral") {
         resolved.domain = "emotion_pack";
         resolved.label = emotion;
         resolved.pack = responsePack.emotion_pack;
         resolved.source = "emotion_classifier";
-        return resolved;
+        break;
       }
     }
   }
 
+  // 4. Determine Engine State (PHASE 2)
+  resolved.engineState = determineEngineState(resolved, emotionData);
+
   return resolved;
+}
+
+function determineEngineState(resolved, emotionData) {
+  const intensity = emotionData.intensity;
+  const domain = resolved.domain;
+  const stateMapping = classifierMapping.state_mapping || {
+    CASUAL_FRIEND: [],
+    SUPPORTIVE_FRIEND: [],
+    DEEP_HEALING: []
+  };
+
+  // RULE 1: High Intensity Override (> 0.7) -> DEEP_HEALING
+  // Serious distress always gets the comforting structure.
+  if (intensity > 0.7) return "DEEP_HEALING";
+
+  // RULE 2: Casual Domain Priority
+  // If user talks about Food, Travel, Gifts, or Lifestyle, KEEP IT CASUAL
+  // even if they sound a bit tired or annoyed (medium intensity).
+  if (
+    domain === "food_pack" ||
+    domain === "travel_pack" ||
+    domain === "gift_pack" ||
+    domain === "lifestyle_pack"
+  ) {
+    return "CASUAL_FRIEND";
+  }
+
+  // RULE 3: Domain Specific Overrides
+  if (domain === "advanced_empathy_pack" || domain === "persona_stability_pack") {
+    return "DEEP_HEALING";
+  }
+
+  // RULE 4: Basic Emotions (emotion_pack)
+  if (domain === "emotion_pack") {
+    if (intensity > 0.45) return "DEEP_HEALING";
+    return "SUPPORTIVE_FRIEND";
+  }
+
+  if (domain === "relationship_pack") {
+    return intensity > 0.4 ? "DEEP_HEALING" : "SUPPORTIVE_FRIEND";
+  }
+
+  // RULE 5: Medium Intensity or Stress Domains -> SUPPORTIVE_FRIEND
+  if (intensity > 0.4 || stateMapping.SUPPORTIVE_FRIEND.includes(domain)) {
+    return "SUPPORTIVE_FRIEND";
+  }
+
+  // RULE 6: Default to Domain Mapping or CASUAL_FRIEND
+  if (stateMapping.CASUAL_FRIEND.includes(domain)) return "CASUAL_FRIEND";
+  if (stateMapping.SUPPORTIVE_FRIEND.includes(domain)) return "SUPPORTIVE_FRIEND";
+  if (stateMapping.DEEP_HEALING.includes(domain)) return "DEEP_HEALING";
+
+  return "CASUAL_FRIEND";
 }
 
 function getTemplate(domain, label) {
@@ -120,11 +182,44 @@ function getTemplate(domain, label) {
 
 /**
  * ==========================================
- * 2. VALIDATOR LOGIC
+ * 2. VALIDATOR LOGIC (PHASE 3)
  * ==========================================
  */
 
-function validateV4Response(text) {
+function validateCasualResponse(text) {
+  if (!text) return { valid: false, reasons: ["Empty response"] };
+  const forbidden = v4RegressionSuite.global_constraints.forbidden_patterns.filter(p => p !== "?");
+  const reasons = [];
+
+  for (const pattern of forbidden) {
+    if (text.includes(pattern)) {
+      reasons.push(`Contains forbidden pattern: "${pattern}"`);
+    }
+  }
+
+  return { valid: reasons.length === 0, reasons };
+}
+
+function validateSupportiveResponse(text) {
+  if (!text) return { valid: false, reasons: ["Empty response"] };
+  const reasons = [];
+  const lines = text.split("\n").filter(l => l.trim().length > 0);
+
+  if (lines.length > 5) {
+    reasons.push("Response too long for supportive friend vibe");
+  }
+
+  const forbidden = v4RegressionSuite.global_constraints.forbidden_patterns.filter(p => p !== "?");
+  for (const pattern of forbidden) {
+    if (text.includes(pattern)) {
+      reasons.push(`Contains forbidden pattern: "${pattern}"`);
+    }
+  }
+
+  return { valid: reasons.length === 0, reasons };
+}
+
+function validateHealingResponse(text) {
   if (!text) return { valid: false, reasons: ["Empty response"] };
 
   const constraints = v4RegressionSuite.global_constraints;
@@ -172,7 +267,7 @@ function validateV4Response(text) {
 
 /**
  * ==========================================
- * 3. OUTPUT GATE LOGIC (REPAIR NOT REPLACE)
+ * 3. OUTPUT GATE LOGIC (PHASE 3)
  * ==========================================
  */
 
@@ -190,47 +285,65 @@ async function processOutput(
   template = null,
   userMessage = "",
   emotion = "",
-  history = []
+  history = [],
+  engineState = "CASUAL_FRIEND"
 ) {
   let currentResponse = response;
 
-  // 1. Check for repetition
+  // 1. Repeat check
   if (isRepeat(currentResponse, history)) {
-    // If it's a repeat, we ideally want to signal a need for regeneration, 
-    // but for now, we'll let the repair logic try to vary it slightly 
-    // or just proceed if we can't regenerate here.
-    // The chatController will handle the actual "do not repeat" by re-prompting if needed.
+    // Handling repetition is mostly done in chatController via regeneration
   }
 
-  const validation = validateV4Response(currentResponse);
+  // 2. State-Based Validation
+  let validation = { valid: true };
+  if (engineState === "CASUAL_FRIEND") {
+    validation = validateCasualResponse(currentResponse);
+  } else if (engineState === "SUPPORTIVE_FRIEND") {
+    validation = validateSupportiveResponse(currentResponse);
+  } else if (engineState === "DEEP_HEALING") {
+    validation = validateHealingResponse(currentResponse);
+  }
 
   if (validation.valid) {
     return currentResponse;
   }
 
-  // REPAIR ATTEMPT: Try to fix formatting without losing AI's personalized context
+  // 3. REPAIR ATTEMPT (Only for DEEP_HEALING)
+  if (engineState !== "DEEP_HEALING") {
+    // For Casual/Supportive, just return as is if basic validation fails
+    // but ensure we use the state-filtered forbidden patterns.
+    let cleaned = currentResponse;
+    const forbidden = v4RegressionSuite.global_constraints.forbidden_patterns.filter(p => {
+        if (engineState === "CASUAL_FRIEND" || engineState === "SUPPORTIVE_FRIEND") {
+            return p !== "?"; // Allow questions in friend modes
+        }
+        return true;
+    });
+
+    for (const pattern of forbidden) {
+        cleaned = cleaned.split(pattern).join("");
+    }
+    return cleaned;
+  }
+
+  // Strict repair logic for DEEP_HEALING
   let lines = currentResponse
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
-  // 1. Line adjustment (ensure exactly 3 lines)
+  // Line adjustment
   if (lines.length > 3) {
     lines = lines.slice(0, 3);
   } else if (lines.length < 3) {
     while (lines.length < 2) lines.push("...");
-    // Use template ending if we are short on lines
-    const endings =
-      template?.ending_pool ||
-      v4RegressionSuite.global_constraints.allowed_endings;
+    const endings = template?.ending_pool || v4RegressionSuite.global_constraints.allowed_endings;
     lines.push(endings[Math.floor(Math.random() * endings.length)]);
   }
 
-  // 2. Ellipsis adjustment (ensure exactly 1 ellipsis in line 2)
-  // Clean all ellipses first
+  // Ellipsis adjustment
   lines = lines.map((l) => l.replace(/\.\.\.+/g, " ").trim());
-
-  // Add exactly one ellipsis to line 2
   if (lines[1]) {
     const words = lines[1].split(" ");
     if (words.length >= 2) {
@@ -241,7 +354,7 @@ async function processOutput(
     }
   }
 
-  // 3. Ending adjustment (ensure line 3 is valid)
+  // Ending adjustment
   const allowedEndings = v4RegressionSuite.global_constraints.allowed_endings;
   const currentEnding = lines[2];
   const isValidEnding = allowedEndings.some((e) => currentEnding.includes(e));
@@ -254,40 +367,12 @@ async function processOutput(
     lines[2] = fallbackEnding;
   }
 
-  const repairedResponse = lines.join("\n");
-
-  // Removed static template fallback as per user request ("do not want fallBack response")
-  return repairedResponse;
-}
-
-function enforceBasicRules(text) {
-  let lines = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  if (lines.length > 3) lines = lines.slice(0, 3);
-  while (lines.length < 3) lines.push("...");
-
-  let fullText = lines.join("\n").replace(/\.\.\.+/g, " ");
-  lines = fullText.split("\n");
-
-  if (lines[1]) {
-    lines[1] = lines[1] + "...";
-  } else {
-    lines[0] = lines[0] + "...";
-  }
-
-  const endings = v4RegressionSuite.global_constraints.allowed_endings;
-  lines[2] = endings[Math.floor(Math.random() * endings.length)];
-
-  return lines.slice(0, 3).join("\n");
+  return lines.join("\n");
 }
 
 module.exports = {
   resolveRouting,
   getTemplate,
-  validateV4Response,
   processOutput,
   isRepeat,
 };
