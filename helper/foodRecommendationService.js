@@ -1,4 +1,5 @@
 const foodMappings = require("../data/foodMappings.json");
+const { applyPurpleDotBranding } = require("./brandingService");
 
 /* -------------------- FOOD KEYWORDS -------------------- */
 
@@ -582,7 +583,7 @@ function classifyFoodVibe(text = "", emotionType = "") {
 
 /* -------------------- VALIDATION & REWRITE (UNCHANGED) -------------------- */
 
-function validateFoodV4Response(text) {
+function validateFoodV4Response(text, emotion = "") {
   if (!text) return false;
 
   const endingsPool = [
@@ -656,13 +657,20 @@ function validateFoodV4Response(text) {
   ];
   if (forbidden.some((word) => text.includes(word))) return false;
 
-  // 6. Max length check (prevent poetic rambling)
+  // 6. Emoji Control (Blueprint V2)
+  // Handled by branding layer (applyPurpleDotBranding)
+  
+  // 7. Max length check (prevent poetic rambling)
   if (text.length > 200) return false;
 
   return true;
 }
 
-function enforceFoodV4Rules(text, activeVibe = "balanced") {
+function filterFoodEmojis(text, emotion) {
+  return applyPurpleDotBranding(text);
+}
+
+function enforceFoodV4Rules(text, activeVibe = "balanced", emotion = "") {
   const vibeConfig =
     FOOD_VIBE_PROMPTS[activeVibe] || FOOD_VIBE_PROMPTS.balanced;
   const fallback = vibeConfig.fallbacks
@@ -702,37 +710,17 @@ function enforceFoodV4Rules(text, activeVibe = "balanced") {
     "ฉันจะคอยอยู่เป็นเพื่อนคุณตรงนี้ ไม่ไปไหนนะ",
   ];
 
+  // Emoji Filtering
+  let cleanedText = filterFoodEmojis(text, emotion);
+  cleanedText = cleanedText.replace(/สู้ๆ|สู้ๆนะ|พยายามเข้า/g, "");
+
   // 1. Clean up and split by actual newlines first
-  let lines = text
-    ? text
+  let lines = cleanedText
+    ? cleanedText
         .split("\n")
         .map((l) => l.trim())
         .filter((l) => l.length > 0)
     : [];
-
-  // 2. If text is extremely invalid or missing, try to repair instead of returning a static fallback
-  if (lines.length === 0 || (lines.length === 1 && lines[0].length < 5)) {
-    // If we have absolutely nothing, we might still need to return something, 
-    // but the user said "no fallback". I'll try to just proceed with the repair logic.
-  }
-
-  // 3. If it's a single long block, try to break it into at least 2 lines
-  if (lines.length === 1 && lines[0].length > 40) {
-    let parts = lines[0].split(/\s{2,}|(?<=[.!?])\s+|(?<=\.\.\.)\s*/);
-    if (parts.length < 2) {
-      let spaceSplit = lines[0].split(/\s+/);
-      if (spaceSplit.length >= 4) {
-        const mid = Math.floor(spaceSplit.length / 2);
-        parts = [
-          spaceSplit.slice(0, mid).join(" "),
-          spaceSplit.slice(mid).join(" "),
-        ];
-      }
-    }
-    if (parts.length >= 2) {
-      lines = parts.map((p) => p.trim()).filter((p) => p.length > 0);
-    }
-  }
 
   const finalLines = [];
 
@@ -760,10 +748,11 @@ function enforceFoodV4Rules(text, activeVibe = "balanced") {
   
   if (!isValidEnding) {
     line3 = endingsPool[Math.floor(Math.random() * endingsPool.length)];
+    line3 = filterFoodEmojis(line3, emotion);
   }
   finalLines.push(line3);
 
-  return finalLines.slice(0, 3).join("\n");
+  return finalLines.slice(0, 3).join("\n").replace(/สู้ๆ|สู้ๆนะ|พยายามเข้า/g, "");
 }
 
 /* -------------------- MAIN FOOD ENGINE (UPDATED FOR AI CONTEXT) -------------------- */

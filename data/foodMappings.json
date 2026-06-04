@@ -64,6 +64,21 @@
     }
   },
 
+  "age_personalization": {
+    "youth_teen": {
+      "preferences": ["social", "trendy", "high-energy"],
+      "examples": ["Korean BBQ", "Siam street food", "Bubble tea", "Burgers"]
+    },
+    "working_adult": {
+      "preferences": ["satisfying", "balanced", "stress-relief"],
+      "examples": ["Ramen", "Pasta", "Salad bowls", "Steak", "Healthy Thai"]
+    },
+    "senior_elderly": {
+      "preferences": ["light", "soft", "easy-to-digest"],
+      "examples": ["Rice porridge", "Clear soup", "Soft noodles", "Steamed fish"]
+    }
+  },
+
   "teasing_mode": {
     "triggers": [
       "แห้ง",

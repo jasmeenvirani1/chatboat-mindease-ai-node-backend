@@ -128,9 +128,25 @@ async function createGeminiClient() {
 }
 
 function messagesToPrompt(messages) {
-  // Try to use a structured string if that's what the old sdk was expecting
   return (messages || [])
-    .map((m) => `${String(m.role || "").toUpperCase()}: ${m.content}`)
+    .map((m) => {
+      let prefix = `${String(m.role || "").toUpperCase()}: `;
+      let content = m.content;
+
+      if (m.role === "system" && Array.isArray(m.emotion_knowledge_sentences)) {
+        const sentences = m.emotion_knowledge_sentences
+          .map((s) => `- ${s.sentence}`)
+          .join("\n");
+        content = `
+${content}
+
+REFERENCE VIBE (DATASET SYNERGY):
+${sentences}
+`.trim();
+      }
+
+      return `${prefix}${content}`;
+    })
     .join("\n");
 }
 

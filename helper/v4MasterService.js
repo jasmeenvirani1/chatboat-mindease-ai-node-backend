@@ -1,4 +1,5 @@
 const v4MasterPack = require("../data/v4MasterPack.json");
+const AGE_BASED_ENDINGS = require("../data/ageBasedEndings");
 const { detectEmotion } = require("./SentencesGenerator");
 
 const classifierMapping = v4MasterPack.classifier_Mapping;
@@ -122,6 +123,7 @@ async function resolveRouting(userMessage, translatedMessage, existingEmotion) {
 function determineEngineState(resolved, emotionData) {
   const intensity = emotionData.intensity;
   const domain = resolved.domain;
+  const emotion = emotionData.emotion;
   const stateMapping = classifierMapping.state_mapping || {
     CASUAL_FRIEND: [],
     SUPPORTIVE_FRIEND: [],
@@ -132,7 +134,7 @@ function determineEngineState(resolved, emotionData) {
   // Serious distress always gets the comforting structure.
   if (intensity > 0.7) return "DEEP_HEALING";
 
-  // RULE 2: Casual Domain Priority
+  // RULE 2: Smart Friend Logic (Interactive Consultant)
   // If user talks about Food, Travel, Gifts, or Lifestyle, KEEP IT CASUAL
   // even if they sound a bit tired or annoyed (medium intensity).
   if (
@@ -151,6 +153,10 @@ function determineEngineState(resolved, emotionData) {
 
   // RULE 4: Basic Emotions (emotion_pack)
   if (domain === "emotion_pack") {
+    // Blueprint V2: If sad/anxious/angry, prioritize healing structure
+    if (["sad", "anxious", "angry"].includes(emotion)) {
+      if (intensity > 0.35) return "DEEP_HEALING";
+    }
     if (intensity > 0.45) return "DEEP_HEALING";
     return "SUPPORTIVE_FRIEND";
   }
@@ -188,10 +194,11 @@ function getTemplate(domain, label) {
 
 function validateCasualResponse(text) {
   if (!text) return { valid: false, reasons: ["Empty response"] };
-  const forbidden = v4RegressionSuite.global_constraints.forbidden_patterns.filter(p => p !== "?");
+  const forbidden = [...v4RegressionSuite.global_constraints.forbidden_patterns, "สู้ๆ", "สู้ๆนะ", "พยายามเข้า"];
+  const filteredForbidden = forbidden.filter(p => p !== "?");
   const reasons = [];
 
-  for (const pattern of forbidden) {
+  for (const pattern of filteredForbidden) {
     if (text.includes(pattern)) {
       reasons.push(`Contains forbidden pattern: "${pattern}"`);
     }
@@ -205,12 +212,13 @@ function validateSupportiveResponse(text) {
   const reasons = [];
   const lines = text.split("\n").filter(l => l.trim().length > 0);
 
-  if (lines.length > 5) {
+  if (lines.length > 6) {
     reasons.push("Response too long for supportive friend vibe");
   }
 
-  const forbidden = v4RegressionSuite.global_constraints.forbidden_patterns.filter(p => p !== "?");
-  for (const pattern of forbidden) {
+  const forbidden = [...v4RegressionSuite.global_constraints.forbidden_patterns, "สู้ๆ", "สู้ๆนะ", "พยายามเข้า"];
+  const filteredForbidden = forbidden.filter(p => p !== "?");
+  for (const pattern of filteredForbidden) {
     if (text.includes(pattern)) {
       reasons.push(`Contains forbidden pattern: "${pattern}"`);
     }
@@ -253,7 +261,8 @@ function validateHealingResponse(text) {
     }
   }
 
-  for (const pattern of constraints.forbidden_patterns) {
+  const forbidden = [...constraints.forbidden_patterns, "สู้ๆ", "สู้ๆนะ", "พยายามเข้า"];
+  for (const pattern of forbidden) {
     if (text.includes(pattern)) {
       reasons.push(`Contains forbidden pattern: "${pattern}"`);
     }
@@ -271,13 +280,20 @@ function validateHealingResponse(text) {
  * ==========================================
  */
 
+const { applyPurpleDotBranding } = require("./brandingService");
+
 function isRepeat(response, history = []) {
   if (!response || !history.length) return false;
   const normalized = response.trim().toLowerCase();
   // Check if this exact response has been used in the last 10 turns
-  return history.some(
+  return history.slice(-10).some(
     (chat) => chat.aiResponse && chat.aiResponse.trim().toLowerCase() === normalized
   );
+}
+
+function filterEmojis(text, emotion) {
+  // DEPRECATED: Use applyPurpleDotBranding instead for Healjai Purple Dot Branding
+  return applyPurpleDotBranding(text);
 }
 
 async function processOutput(
@@ -286,16 +302,20 @@ async function processOutput(
   userMessage = "",
   emotion = "",
   history = [],
-  engineState = "CASUAL_FRIEND"
+  engineState = "CASUAL_FRIEND",
+  ageGroup = "working_adult"
 ) {
   let currentResponse = response;
 
-  // 1. Repeat check
+  // 1. Blueprint V2: Emoji Control
+  currentResponse = filterEmojis(currentResponse, emotion);
+
+  // 2. Repeat check
   if (isRepeat(currentResponse, history)) {
-    // Handling repetition is mostly done in chatController via regeneration
+    // Repetition check handled in chatController
   }
 
-  // 2. State-Based Validation
+  // 3. State-Based Validation
   let validation = { valid: true };
   if (engineState === "CASUAL_FRIEND") {
     validation = validateCasualResponse(currentResponse);
@@ -309,11 +329,11 @@ async function processOutput(
     return currentResponse;
   }
 
-  // 3. REPAIR ATTEMPT (Only for DEEP_HEALING)
+  // 4. REPAIR ATTEMPT (Only for DEEP_HEALING)
   if (engineState !== "DEEP_HEALING") {
     // For Casual/Supportive, just return as is if basic validation fails
-    // but ensure we use the state-filtered forbidden patterns.
-    let cleaned = currentResponse;
+    // but ensure we remove "สู้ๆ"
+    let cleaned = currentResponse.replace(/สู้ๆ|สู้ๆนะ|พยายามเข้า/g, "");
     const forbidden = v4RegressionSuite.global_constraints.forbidden_patterns.filter(p => {
         if (engineState === "CASUAL_FRIEND" || engineState === "SUPPORTIVE_FRIEND") {
             return p !== "?"; // Allow questions in friend modes
@@ -338,8 +358,10 @@ async function processOutput(
     lines = lines.slice(0, 3);
   } else if (lines.length < 3) {
     while (lines.length < 2) lines.push("...");
-    const endings = template?.ending_pool || v4RegressionSuite.global_constraints.allowed_endings;
-    lines.push(endings[Math.floor(Math.random() * endings.length)]);
+    const endings = template?.ending_pool || (AGE_BASED_ENDINGS[ageGroup] || v4RegressionSuite.global_constraints.allowed_endings);
+    let fallbackEnding = endings[Math.floor(Math.random() * endings.length)];
+    fallbackEnding = filterEmojis(fallbackEnding, emotion);
+    lines.push(fallbackEnding);
   }
 
   // Ellipsis adjustment
@@ -355,7 +377,7 @@ async function processOutput(
   }
 
   // Ending adjustment
-  const allowedEndings = v4RegressionSuite.global_constraints.allowed_endings;
+  const allowedEndings = AGE_BASED_ENDINGS[ageGroup] || v4RegressionSuite.global_constraints.allowed_endings;
   const currentEnding = lines[2];
   const isValidEnding = allowedEndings.some((e) => currentEnding.includes(e));
 
@@ -363,11 +385,13 @@ async function processOutput(
     const fallbackPool = template?.ending_pool && template.ending_pool.length > 0
       ? template.ending_pool
       : allowedEndings;
-    const fallbackEnding = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+    let fallbackEnding = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+    fallbackEnding = filterEmojis(fallbackEnding, emotion);
     lines[2] = fallbackEnding;
   }
 
-  return lines.join("\n");
+  // Final check for "สู้ๆ" in repaired output
+  return lines.join("\n").replace(/สู้ๆ|สู้ๆนะ|พยายามเข้า/g, "");
 }
 
 module.exports = {

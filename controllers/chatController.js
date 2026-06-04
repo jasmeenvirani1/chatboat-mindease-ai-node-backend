@@ -33,6 +33,7 @@ const {
   detectTeasingMode,
   detectFlavorMode,
 } = require("../helper/foodRecommendationService.js");
+const { applyPurpleDotBranding } = require("../helper/brandingService");
 const {
   resolveRouting,
   getTemplate,
@@ -249,20 +250,18 @@ function detectToneMode(text = "") {
 }
 
 function getAgeInfo(dob) {
-  if (!dob || typeof dob !== "string") return { age: null, group: "unknown" };
+  if (!dob || typeof dob !== "string") return { age: null, group: "working_adult" };
   const parts = dob.split("/");
-  if (parts.length !== 3) return { age: null, group: "unknown" };
+  if (parts.length !== 3) return { age: null, group: "working_adult" };
   const birthYear = parseInt(parts[2], 10);
-  if (isNaN(birthYear)) return { age: null, group: "unknown" };
+  if (isNaN(birthYear)) return { age: null, group: "working_adult" };
   const currentYear = new Date().getFullYear();
   const age = currentYear - birthYear;
 
-  let group = "unknown";
-  if (age >= 15 && age <= 22) group = "teen";
-  else if (age >= 23 && age <= 30) group = "early_20s";
-  else if (age >= 31 && age <= 40) group = "age_30_40";
-  else if (age >= 60) group = "senior";
-  else if (age >= 50) group = "age_50_plus";
+  let group = "working_adult";
+  if (age >= 15 && age <= 24) group = "youth_teen";
+  else if (age >= 25 && age <= 45) group = "working_adult";
+  else if (age >= 46) group = "senior_elderly";
 
   return { age, group };
 }
@@ -480,13 +479,14 @@ const chatController = {
        * ============================================
        * SPECIALIZED FEATURE PRIORITY SYSTEM
        * ============================================
-       * Specialized intents take precedence over the V4 pipeline UNLESS 
+       * Specialized intents take precedence over the V4 pipeline UNLESS
        * Engine State is DEEP_HEALING.
        */
       const specializedFeatures = [
         {
           id: "music",
-          shouldRun: shouldRunMusicRecommendation && engineState !== "DEEP_HEALING",
+          shouldRun:
+            shouldRunMusicRecommendation && engineState !== "DEEP_HEALING",
           execute: () =>
             recommendMusicForMessage({
               userMessage,
@@ -497,7 +497,8 @@ const chatController = {
         },
         {
           id: "food",
-          shouldRun: shouldRunFoodRecommendation && engineState !== "DEEP_HEALING",
+          shouldRun:
+            shouldRunFoodRecommendation && engineState !== "DEEP_HEALING",
           execute: () =>
             recommendFoodForMessage({
               userMessage,
@@ -526,7 +527,6 @@ const chatController = {
         activeSpecialized?.id === "food"
           ? activeSpecialized.result
           : { shouldRecommend: false };
-
 
       // console.log("musicRecommendation:", musicRecommendationPayload);
       // console.log("foodRecommendationPayload:", foodRecommendationPayload);
@@ -609,10 +609,19 @@ const chatController = {
       const ageInfo = getAgeInfo(dob0);
 
       const toneDetailsMap = {
-        healjai_style: { pronoun: "ฉัน", particles: "none" },
-        ka_mode: { pronoun: "ฉัน", particles: "ค่ะ / คะ" },
+        healjai_style: {
+          pronoun: ageInfo.group === "youth_teen" ? "เรา" : "ฉัน",
+          particles: "none",
+        },
+        ka_mode: {
+          pronoun: ageInfo.group === "youth_teen" ? "เรา" : "ฉัน",
+          particles: "ค่ะ / คะ",
+        },
         krub_mode: { pronoun: "ผม", particles: "ครับ" },
-        casual_mode: { pronoun: "ฉัน", particles: "none" },
+        casual_mode: {
+          pronoun: ageInfo.group === "youth_teen" ? "เรา" : "ฉัน",
+          particles: "none",
+        },
       };
 
       const currentTone =
@@ -677,11 +686,9 @@ AGE-ADAPTIVE RESPONSE ENGINE
 -----------------------------------------
 User Age Group: ${ageInfo.group}
 
-If Teen (15–22): gentle, relatable, simple vocabulary, avoid heavy weight.
-If Early Adult (23–30): supportive, grounded, balanced depth.
-If Age 30–40: steady, mature, warm, acknowledge responsibilities.
-If Age 50+: soft, slow rhythm, more presence, less explanation.
-If Senior: very gentle, slow, comforting, avoid slang.
+If youth_teen (15–24): gentle, relatable, modern, simple vocabulary, use "เรา" (Rao) if appropriate, avoid heavy weight.
+If working_adult (25–45): supportive, grounded, balanced depth, acknowledge responsibilities and career stress.
+If senior_elderly (46+): very gentle, slow rhythm, more presence, less explanation, comforting, deeply respectful.
 
 -----------------------------------------
 SYSTEM VARIABLES
@@ -705,11 +712,11 @@ NEVER say "I am an AI" or use poetic language.
 
 CASUAL FRIEND MODE:
 - Talk like a close friend having a real chat (SMS style).
-- Keep it light, practical, and slightly fun. Use emojis (😆, 😄, 😅, 😂, 😋).
+- Keep it light, practical, and slightly fun.
 - STICK TO THE TOPIC (Food, Gift, Travel, etc.). Do not analyze emotions.
 - Give opinions, suggestions, or ask curious questions to help the user decide.
 - IGNORE any rules about "exactly 3 lines", "mirroring", or "presence endings".
-- Talk naturally (1-5 sentences). No fixed structure.
+- STRICT RULE: Your response must be exactly 3-4 sentences long.
 - Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "เยียวยา".
 `.trim();
       } else if (engineState === "SUPPORTIVE_FRIEND") {
@@ -721,7 +728,8 @@ SUPPORTIVE FRIEND MODE:
 - Be empathetic and warm but remain casual.
 - Acknowledge the user's situation naturally.
 - Offer gentle support or a listening ear without sounding dramatic.
-- IGNORE any rules about the "3-sentence rhythm". Talk naturally (1-4 sentences).
+- IGNORE any rules about the "3-sentence rhythm".
+- STRICT RULE: Your response must be exactly 3-4 sentences long.
 - Avoid repetitive comfort phrases or poetic empathy.
 - Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก".
 `.trim();
@@ -734,7 +742,7 @@ You do NOT fix problems, teach lessons, judge, or diagnose.
 
 STRICT RULES:
 - Always reflect or name the user's emotion before asking any question
-- Keep responses short (1–3 sentences only)
+- STRICT RULE: Your response must be exactly 3-4 sentences long.
 - Ask at most ONE open-ended question
 - Do NOT give advice unless the user explicitly asks for it
 - Never say "you should", "try to", or similar directive language
@@ -784,7 +792,7 @@ If the response sounds smart but emotionally cold → FAILURE
       if (!containsDate(userMessage)) {
         const { prompt, matches } = await buildPrompt(userMessage, 40);
         matches2 = matches;
-        
+
         if (engineState === "DEEP_HEALING") {
           questionPrompt = `
 Sentences:
@@ -797,7 +805,10 @@ Your job is simple:
         } else {
           questionPrompt = `
 Reference Vibe:
-${matches.slice(0, 5).map((m) => `- ${m.sentence}`).join("\n")}
+${matches
+  .slice(0, 5)
+  .map((m) => `- ${m.sentence}`)
+  .join("\n")}
 
 Note: Use these only for inspiration if they match the casual friend vibe. Priority is natural chat.
 ---
@@ -809,7 +820,12 @@ Note: Use these only for inspiration if they match the casual friend vibe. Prior
 MOST IMPORTANT RULE:
 - If Date of Birth change then don't ask for confirmation. Start processing with new date.
 
+GLOBAL AGE-BASED RESPONSE RULE:
+- Adapt every part of the response (tone, language style, examples, priorities, interests, recommendations, and follow-up questions) to the user's age group: ${ageInfo.group}.
+- NEVER generate generic one-size-fits-all responses. Tailor the entire experience based on the user's age bracket.
+
 INPUT:
+- User Age Group: ${ageInfo.group} (${ageInfo.age || "unknown"} years old)
 - ${isNewChat ? `Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}` : ""}
 - ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
 - ${categoryName === "HealJai Talk" ? "" : `Today's Context: ${userData?.dailyMessage || ""}`}
@@ -870,6 +886,7 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
       }
 
       /** LOAD CHAT IF EXISTING */
+      let previousDomain = null;
       if (!isNewChat) {
         chat = await ChatHistory.findById(chatId);
         if (!chat) {
@@ -878,16 +895,32 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
             message: "Chat session not found",
           });
         }
+        // Topic Isolation: Identify previous domain to detect changes
+        if (chat.chats && chat.chats.length > 0) {
+           // We might not store domain in chat history, but we can infer or just check last message context
+        }
       }
 
       /** language */
       const chatLang = isNewChat
         ? detectLangFromMessage(userMessage)
         : chat?.chatLang || "en";
+      
+      const currentDomain = v4Classification.domain;
       const shouldIncludeHistory =
         !isNewChat &&
         chat.categoryId?.toString() === categoryId?.toString() &&
         chat.subCategoryId?.toString() === subCategoryId?.toString();
+      
+      // Topic Isolation Logic
+      let contextContaminationWarning = "";
+      if (shouldIncludeHistory && chat.chats && chat.chats.length > 0) {
+          const lastAiResponse = chat.chats[chat.chats.length - 1].aiResponse;
+          // Simple check: if current message has different keywords than last few turns
+          // This is a soft isolation.
+          contextContaminationWarning = `\nTOPIC ISOLATION: The user might be switching topics. If the new message is about a different subject (e.g. from Food to Gifts), prioritize the new topic and do not carry over specific details from the previous one.`;
+      }
+
       const recentConversationContext = shouldIncludeHistory
         ? formatRecentConversationContext(chat.chats, 4)
         : "";
@@ -902,7 +935,7 @@ CONVERSATION CONTINUITY RULES:
 - If the user's new message clearly refers to something earlier, connect to it naturally.
 - Do not repeat the assistant's earlier wording unless needed.
 - Prioritize the newest user message if it conflicts with older context.
-- Keep references to previous turns brief and natural.
+- Keep references to previous turns brief and natural.${contextContaminationWarning}
 
 RECENT CONVERSATION CONTEXT:
 ${recentConversationContext}
@@ -917,19 +950,47 @@ ${recentConversationContext}
       // FINAL ENGINE STATE PROMPTING (PHASE 4)
       // ============================================
 
+      const domainNameMap = {
+        food_pack: "Food",
+        gift_pack: "Gifts",
+        travel_pack: "Travel",
+        lifestyle_pack: "Lifestyle",
+        daily_life_pack: "Daily Life",
+        relationship_pack: "Relationship",
+        work_career_pack: "Work/Career",
+        health_body_pack: "Health",
+        money_stress_pack: "Money",
+        social_pack: "Social",
+        identity_pack: "Identity",
+        persona_stability_pack: "Presence",
+        advanced_empathy_pack: "Empathy",
+        emotion_pack: "Emotions"
+      };
+      const activeTopicName = domainNameMap[v4Classification.domain] || "the current topic";
+
       if (engineState === "CASUAL_FRIEND") {
         systemPrompt = `
 ${systemPrompt}
 
 CASUAL FRIEND MODE (ACTIVE):
 - USER MESSAGE: "${userMessage}"
+- ACTIVE TOPIC: ${activeTopicName}
+- AGE-BASED PERSONALIZATION: 
+  * Tailor activities, examples, and recommendations (Food, Travel, Gifts) to the ${ageInfo.group} bracket.
+  * Adjust interests and priorities to match what someone in their ${ageInfo.age || "current"} age group would value.
+- ACT AS AN INTERACTIVE CONSULTANT: 
+  * Ask 1-2 clarifying questions before giving advice. Ensure questions are STRICTLY related to ${activeTopicName}.
+  * Once you have details, provide 3-4 specific ideas (types/categories, NOT brands).
+  * If the user is choosing between options, weigh the pros and cons to help them decide.
+  * NO COMMERCIAL DATA: Do NOT suggest specific restaurant names, shop names, or brands. Focus on ${activeTopicName} types/categories.
 - Talk like a close friend having a real chat (SMS style).
-- Keep it light, practical, and slightly fun. Use emojis (😆, 😄, 😅, 😂, 😋).
-- STICK TO THE TOPIC (Food, Gift, Travel, etc.). Do not analyze emotions.
-- Give opinions, suggestions, or ask curious questions to help the user decide.
+- Keep it light, practical, and slightly fun.
+- STICK TO THE TOPIC: Only talk about ${activeTopicName}. DO NOT mention Travel, Gifts, Food, or any other topics unless they are the active topic.
+- TOPIC ISOLATION: Never end a response with a question or suggestion from a different pack (e.g., if talking about Food, do not ask about Travel).
+- RESPONSE VARIETY: Do NOT repeat the same follow-up questions, or sentence structures from the recent history.
 - IGNORE any previous rules about "exactly 3 lines", "mirroring", or "presence endings".
-- Talk naturally (1-5 sentences). No fixed structure.
-- Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "หัวใจ", "เยียวยา".
+- STRICT RULE: Your response must be exactly 3-4 sentences long.
+- Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "หัวใจ", "เยียวยา", "สู้ๆ".
 `.trim();
       } else if (engineState === "SUPPORTIVE_FRIEND") {
         systemPrompt = `
@@ -937,24 +998,30 @@ ${systemPrompt}
 
 SUPPORTIVE FRIEND MODE (ACTIVE):
 - USER MESSAGE: "${userMessage}"
+- ACTIVE TOPIC: ${activeTopicName}
+- AGE-BASED PERSONALIZATION: 
+  * Ensure emotional support and language style are highly relatable for the ${ageInfo.group} group.
+  * Priorities and follow-up questions should reflect the life stage of a ${ageInfo.age || "typical"} person in this group.
 - Be empathetic and warm but remain casual.
-- Acknowledge the user's situation naturally (e.g., "วันนี้โดนอะไรมาบ้าง 😅", "ล้ามานานหรือยังเนี่ย").
+- Acknowledge the user's situation naturally (e.g., "วันนี้โดนอะไรมาบ้าง", "ล้ามานานหรือยังเนี่ย").
 - Offer gentle support or a listening ear without sounding dramatic.
-- IGNORE any rules about the "3-sentence rhythm". Talk naturally (1-4 sentences).
+- INTERACTIVE SUPPORT: Ask curious, caring questions to help the user open up. Ensure questions are STRICTLY related to ${activeTopicName}.
+- NO COMMERCIAL DATA: Do NOT suggest specific restaurant or shop names.
+- STICK TO THE TOPIC: Only talk about ${activeTopicName}. DO NOT mention unrelated subjects.
+- RESPONSE VARIETY: Ensure your response structure is fresh compared to previous turns.
+- IGNORE any rules about the "3-sentence rhythm".
+- STRICT RULE: Your response must be exactly 3-4 sentences long.
 - Avoid repetitive comfort phrases or poetic empathy.
-- Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก".
+- Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก", "สู้ๆ".
 `.trim();
       } else if (engineState === "DEEP_HEALING") {
         const endings = v4ActiveTemplate?.ending_pool || [
-          "เล่าได้นะ ถ้าอยากเล่า 😆",
-          "ว่าไง บอกมาได้เลย 😄",
-          "ไปหาอะไรกินเหอะ เดี๋ยวใจดีขึ้นเอง 😋",
-          "เราอยู่เป็นเพื่อนเสมอนะ 😆",
-          "มีอะไรทักมาได้ตลอดเลยนะ 😄",
-          "หายเหนื่อยไวๆ นะ 😅",
-          "พักผ่อนบ้างนะ เป็นห่วง 😄",
-          "สู้ๆ นะ เดี๋ยวก็ผ่านไป 😆",
-          "วันนี้เก่งมากแล้ว พักผ่อนนะ 😆"
+          "เราอยู่เป็นเพื่อนเสมอนะ",
+          "มีอะไรทักมาได้ตลอดเลยนะ",
+          "พักผ่อนบ้างนะ เป็นห่วง",
+          "วันนี้เก่งมากแล้ว พักผ่อนนะ",
+          "เล่าได้นะ ถ้าอยากเล่า",
+          "ว่าไง บอกมาได้เลย",
         ];
         const randomEnding = pickRandomUnique(endings, 1)[0];
 
@@ -966,11 +1033,13 @@ DEEP HEALING MODE (STRICT V4):
 - Emotion: ${emotionType}
 - Tone: Calm, steady, and deeply supportive.
 - NO questions, NO advice, NO problem-solving.
+- NO CLICHÉS: Never use "สู้ๆ" or "พยายามเข้า".
+- NO EMOJIS: Do not use any emojis or emoticons in the response.
 
 MANDATORY STRUCTURE (3-SENTENCE RHYTHM):
-1. Sentence 1 (Soft Entry): Naturally mirror the user's emotional weight.
-2. Sentence 2 (Reflection): Reflect on their specific situation with ONE "..." pause.
-3. Sentence 3 (Presence): Use a gentle presence statement like "${randomEnding}".
+1. Sentence 1 (Soft Entry): Naturally mirror the user's emotional weight (Validate).
+2. Sentence 2 (Reflection): Reflect on their specific situation with ONE "..." pause (Reframe).
+3. Sentence 3 (Presence): Use a gentle presence statement like "${randomEnding}" (Presence).
 
 FINAL RULE: Provide EXACTLY 3 lines. No more, no less.
 `.trim();
@@ -978,28 +1047,50 @@ FINAL RULE: Provide EXACTLY 3 lines. No more, no less.
 
       // Specialized Feature Context (Inspiration Only for Casual/Supportive)
       if (musicRecommendation?.shouldRecommend) {
-         systemPrompt = musicRecommendation.promptBlock;
+        systemPrompt = musicRecommendation.promptBlock;
       } else if (foodRecommendation?.shouldRecommend) {
         const isTeasing = foodRecommendation.isTeasing;
         const flavor = foodRecommendation.flavor;
-        
+
         systemPrompt = `
 ${systemPrompt}
 
 -----------------------------------------
-FOOD CONTEXT
+FOOD CONTEXT (Personalized)
 -----------------------------------------
 Active Food Vibe: ${foodRecommendation.activeVibe}
 Food Mode: ${foodRecommendation.mode || "vibe"}
 Flavor Context: ${flavor || "none"}
 Teasing Mode: ${isTeasing ? "ACTIVE" : "OFF"}
 
+PERSONALIZATION ENGINE:
+- User Age Group: ${ageInfo.group}
+- Emotional State: ${emotionType}
+- Current Time: ${new Date().getHours()}:00
+- Language/Locale: ${target}
+
+ADAPTATION RULES:
+1. AGE ADAPTATION:
+   - youth_teen: Focus on social, trendy, and high-energy foods (e.g., BBQ, Korean, street food).
+   - working_adult: Focus on satisfying, balanced, or "soul-healing" comfort meals (e.g., Ramen, Pasta, healthy bowls).
+   - senior_elderly: Focus on light, soft, easy-to-digest, and traditional comforting meals (e.g., Rice porridge, Soup, soft noodles).
+
+2. EMOTIONAL ADAPTATION:
+   - Happy/Social: Suggest celebratory, shared, or fun foods.
+   - Stressed/Burnout/Tired: Suggest "warm hug" comfort foods that are easy and satisfying.
+   - Low Energy: Suggest something light and gentle on the stomach.
+
+3. TIME & CONTEXT ADAPTATION:
+   - Match suggestions to the time of day (${new Date().getHours()}:00).
+   - Keep the tone like a close friend, not an expert.
+
 ${isTeasing ? "- TEASING MODE IS ACTIVE: Use a playful, lighthearted tone." : ""}
-- If they mentioned a specific dish or craving, acknowledge it.
-- NO restaurant names, NO advice. Talk like a friend helping pick a meal.
+- If they mentioned a specific dish or craving, acknowledge it naturally.
+- NO restaurant names, NO brands, NO clinical advice.
+- Use the person's age and mood to make the suggestion feel uniquely for them.
+- STRICT RULE: Your response must be exactly 3-4 sentences long.
 `.trim();
       }
-
 
       /** FINAL REPLY */
       // console.log("Matches2:", matches2);
@@ -1069,6 +1160,7 @@ REPLY RULE:
               emotionType,
               chat?.chats || [],
               engineState,
+              ageInfo.group
             );
             finalAiResponse = text;
 
@@ -1097,6 +1189,7 @@ REPLY RULE:
               emotionType,
               chat?.chats || [],
               engineState,
+              ageInfo.group
             );
             finalAiResponse = text;
 
@@ -1142,7 +1235,7 @@ REPLY RULE:
 
           const chatMessage = {
             userMessage,
-            aiResponse: finalAiResponse.trim() || "No response",
+            aiResponse: applyPurpleDotBranding(finalAiResponse.trim() || "No response"),
           };
 
           /** SAVE */
@@ -1225,10 +1318,14 @@ REPLY RULE:
           emotionType,
           chat?.chats || [],
           engineState,
+          ageInfo.group
         );
       }
 
-      const chatMessage = { userMessage, aiResponse: finalAiResponse };
+      const chatMessage = {
+        userMessage,
+        aiResponse: applyPurpleDotBranding(finalAiResponse),
+      };
 
       /** SAVE */
       if (!isNewChat) {

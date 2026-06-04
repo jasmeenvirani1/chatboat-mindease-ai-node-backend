@@ -131,12 +131,27 @@ function formatClaudeMessages(messages) {
 
 /* -------------------- CACHE -------------------- */
 
-function buildSystemWithCache(systemPrompt) {
-  if (!systemPrompt) return undefined;
+function buildSystemWithCache(message) {
+  if (!message || !message.content) return undefined;
+  
+  let systemText = message.content;
+  if (Array.isArray(message.emotion_knowledge_sentences)) {
+    const sentences = message.emotion_knowledge_sentences
+      .map((s) => `- ${s.sentence}`)
+      .join("\n");
+    
+    systemText = `
+${systemText}
+
+REFERENCE VIBE (DATASET SYNERGY):
+${sentences}
+`.trim();
+  }
+
   return [
     {
       type: "text",
-      text: systemPrompt,
+      text: systemText,
       cache_control: { type: "ephemeral" },
     },
   ];
@@ -152,7 +167,7 @@ const generateClaudeResponse = async (messages) => {
       anthropic.messages.create({
         model: claude_model,
         max_tokens: 1000,
-        system: buildSystemWithCache(messages[0]?.content),
+        system: buildSystemWithCache(messages[0]),
         messages: formatClaudeMessages(messages),
       }),
     );
@@ -174,7 +189,7 @@ const generateClaudeResponseStream = async (messages) => {
       anthropic.messages.stream({
         model: claude_model,
         max_tokens: 7500,
-        system: buildSystemWithCache(messages[0]?.content),
+        system: buildSystemWithCache(messages[0]),
         messages: formatClaudeMessages(messages),
       });
 
