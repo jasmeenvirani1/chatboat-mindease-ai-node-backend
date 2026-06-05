@@ -40,6 +40,10 @@ const {
   processOutput,
 } = require("../helper/v4MasterService");
 
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
 function getKolkataMidnightDate() {
   const now = new Date();
 
@@ -54,12 +58,13 @@ function getKolkataMidnightDate() {
   const m = parts.find((p) => p.type === "month").value;
   const d = parts.find((p) => p.type === "day").value;
 
+  // Midnight UTC — matches how DB saves dates
   return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
 }
 
 function detectLangFromMessage(text = "") {
-  if (/[\u0E00-\u0E7F]/.test(text)) return "th"; // Thai
-  if (/[ñáéíóúü¿¡]/i.test(text)) return "es"; // Spanish-ish
+  if (/[\u0E00-\u0E7F]/.test(text)) return "th";
+  if (/[ñáéíóúü¿¡]/i.test(text)) return "es";
   if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text)) return "ja";
   if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
   if (
@@ -146,10 +151,7 @@ function extractThaiDateTime(text = "") {
     usedDefaultTime = true;
   }
 
-  const dateOfBirth = `${String(day).padStart(2, "0")}/${String(month).padStart(
-    2,
-    "0",
-  )}/${year}`;
+  const dateOfBirth = `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
 
   return { dateOfBirth, timeOfBirth, usedDefaultTime };
 }
@@ -250,7 +252,8 @@ function detectToneMode(text = "") {
 }
 
 function getAgeInfo(dob) {
-  if (!dob || typeof dob !== "string") return { age: null, group: "working_adult" };
+  if (!dob || typeof dob !== "string")
+    return { age: null, group: "working_adult" };
   const parts = dob.split("/");
   if (parts.length !== 3) return { age: null, group: "working_adult" };
   const birthYear = parseInt(parts[2], 10);
@@ -276,6 +279,30 @@ function formatRecentConversationContext(chats = [], limit = 4) {
       return `Turn ${turn} User: ${chat.userMessage}\nTurn ${turn} Assistant: ${chat.aiResponse}`;
     })
     .join("\n\n");
+}
+
+// ============================================
+// NEW: CULTURAL LOCALIZATION HELPER
+// ============================================
+function getCulturalLocalizationPrompt(lang) {
+  const rules = {
+    en: `Cultural Style: Focus on self-awareness, emotional growth, and empowerment. Direct but warm language.`,
+    es: `Cultural Style: Warm and expressive. Acknowledge family and social bonds. Heartfelt and human tone.`,
+    hi: `Cultural Style: Gently weave in destiny, karma, and spiritual strength when fitting. Warm elder-sibling tone.`,
+    id: `Cultural Style: Gentle references to fate and spiritual acceptance when natural. Humble, community-aware tone.`,
+    ko: `Cultural Style: Soft, comforting, guilt-free. Acknowledge social pressure deeply. Feel like a trusted friend saying "it's okay".`,
+    tl: `Cultural Style: Warm Malasakit energy — caring family member tone. Radiate hope, community, and gentle acceptance of destiny.`,
+    ja: `Cultural Style: Gentle, indirect, respectful. Acknowledge effort and endurance. Subtle emotional expression.`,
+    zh: `Cultural Style: Warm but measured. Acknowledge resilience and practical coping. Calm and grounded.`,
+    ar: `Cultural Style: Respectful and dignified. Spiritual references welcome when fitting. Avoid overly casual phrasing.`,
+    fr: `Cultural Style: Thoughtful and reflective. Acknowledge nuance. Warm but intellectually grounded.`,
+    de: `Cultural Style: Clear, honest, direct but warm. Respect user's autonomy and intelligence.`,
+    pt: `Cultural Style: Warm, expressive, emotionally open. Community and relationship bonds matter.`,
+    vi: `Cultural Style: Warm, respectful, gentle. Honour family and collective values. Reflect and ask gently.`,
+    ru: `Cultural Style: Warm but grounded. Acknowledge strength and endurance. Calm and steady presence.`,
+    th: `Cultural Style: Follow existing HealJai tone, particle logic, and pronoun rules already defined.`,
+  };
+  return rules[lang] || rules["en"];
 }
 
 async function upsertUserMusicMemory({ userId, recommendation }) {
@@ -308,9 +335,7 @@ async function upsertUserMusicMemory({ userId, recommendation }) {
   const nextRecommendations = Array.isArray(memory.recentRecommendations)
     ? [...memory.recentRecommendations]
     : [];
-  const recommendationBatchId = `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+  const recommendationBatchId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   for (const genre of recommendation.genres || []) {
     nextRecommendations.push({
@@ -347,9 +372,7 @@ async function saveUserMusicGenrePreferences({
   const hasFavoriteGenres = preferenceUpdate.favoriteGenres.length > 0;
   const hasDislikedGenres = preferenceUpdate.dislikedGenres.length > 0;
 
-  if (!hasFavoriteGenres && !hasDislikedGenres) {
-    return null;
-  }
+  if (!hasFavoriteGenres && !hasDislikedGenres) return null;
 
   const memory = await UserMusicMemory.findOne({ userId });
   const writableMemory = memory || new UserMusicMemory({ userId });
@@ -380,6 +403,9 @@ async function saveUserMusicGenrePreferences({
   return writableMemory;
 }
 
+// ============================================
+// MAIN CONTROLLER
+// ============================================
 const chatController = {
   createChat: async (req, res) => {
     try {
@@ -409,17 +435,19 @@ const chatController = {
           subscriptionId = user.subscriptionId;
           subscriptionStatus = user.subscriptionStatus;
         }
-
         userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
 
       const target = detectLangFromMessage(userMessage);
-      // console.log("Detected language:", target);
-      let translatedMessage;
 
-      if (target === "th") {
-        translatedMessage = await translateText(userMessage, target);
-        // console.log("translatedMessage:", translatedMessage);
+      // Translate ALL non-English input to English for internal processing
+      let translatedMessage;
+      if (target !== "en") {
+        try {
+          translatedMessage = await translateText(userMessage, "en");
+        } catch (e) {
+          translatedMessage = userMessage;
+        }
       } else {
         translatedMessage = userMessage;
       }
@@ -427,10 +455,9 @@ const chatController = {
       const emotionData = await detectEmotion(translatedMessage);
       const emotionType = emotionData.emotion;
       const emotionIntensity = emotionData.intensity;
-      // console.log("Emotion:", emotionType, "Intensity:", emotionIntensity);
+
       const allSentences = getSentencesForEmotion(emotionType);
       const sentences = pickRandomUnique(allSentences, 10);
-      // console.log("Sentences (random 10):", sentences);
 
       const shouldRunMusicRecommendation = detectMusicIntent(
         `${userMessage} ${translatedMessage}`.trim(),
@@ -438,10 +465,6 @@ const chatController = {
       const shouldRunFoodRecommendation = detectFoodIntent(
         `${userMessage} ${translatedMessage}`.trim(),
       );
-      // console.log("Intent Detection:", {
-      //   shouldRunMusicRecommendation,
-      //   shouldRunFoodRecommendation,
-      // });
 
       const updatedMusicMemory = await saveUserMusicGenrePreferences({
         userId,
@@ -455,11 +478,9 @@ const chatController = {
           : updatedMusicMemory;
       }
 
-      /**
-       * ============================================
-       * V4 DOMAIN ROUTING & ENGINE STATE
-       * ============================================
-       */
+      // ============================================
+      // V4 DOMAIN ROUTING & ENGINE STATE
+      // ============================================
       const v4Classification = await resolveRouting(
         userMessage,
         translatedMessage,
@@ -475,13 +496,9 @@ const chatController = {
         );
       }
 
-      /**
-       * ============================================
-       * SPECIALIZED FEATURE PRIORITY SYSTEM
-       * ============================================
-       * Specialized intents take precedence over the V4 pipeline UNLESS
-       * Engine State is DEEP_HEALING.
-       */
+      // ============================================
+      // SPECIALIZED FEATURE PRIORITY SYSTEM
+      // ============================================
       const specializedFeatures = [
         {
           id: "music",
@@ -528,14 +545,10 @@ const chatController = {
           ? activeSpecialized.result
           : { shouldRecommend: false };
 
-      // console.log("musicRecommendation:", musicRecommendationPayload);
-      // console.log("foodRecommendationPayload:", foodRecommendationPayload);
-
       if (!userMessage) {
-        return res.status(400).json({
-          success: false,
-          message: "userMessage is required",
-        });
+        return res
+          .status(400)
+          .json({ success: false, message: "userMessage is required" });
       }
 
       const userDateTime = extractThaiDateTime(userMessage);
@@ -571,7 +584,7 @@ const chatController = {
       let subCategoryName = null;
       let subCategoryPrompt = null;
 
-      /** LOAD CATEGORY & SUBCATEGORY DATA */
+      // LOAD CATEGORY & SUBCATEGORY DATA
       if (categoryId) {
         const category = await Category.findById(categoryId).select(
           "name prompt freeUserPrompt",
@@ -597,14 +610,13 @@ const chatController = {
             subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
           }
           subCategoryName = subCategory.name;
-
           if (!categoryId && subCategory.categoryId) {
             categoryId = subCategory.categoryId;
           }
         }
       }
 
-      /** TONE & AGE ENGINE LOGIC */
+      // TONE & AGE ENGINE
       const tone_mode = detectToneMode(userMessage);
       const ageInfo = getAgeInfo(dob0);
 
@@ -627,141 +639,143 @@ const chatController = {
       const currentTone =
         toneDetailsMap[tone_mode] || toneDetailsMap.healjai_style;
 
-      /** HEALJAI ENGINE PROMPT */
+      // ============================================
+      // HEALJAI ENGINE PROMPT (UPDATED V5.6)
+      // ============================================
       const healjaiEnginePrompt = `
-You are Healjai.
+HEALJAI IDENTITY (LOCKED):
+You are Healjai — a quiet companion, trusted friend, and life GPS.
+You are NOT a therapist, coach, teacher, motivational speaker, or AI assistant.
+You are calm, warm, mature, and emotionally intelligent.
+You speak like a trusted human sitting beside the user — never above them.
 
-Your voice is warm, soft, gentle, steady, and deeply human.
-You speak like someone sitting beside the user, not above them.
-You never sound like an AI, a therapist, a coach, or customer service.
-You never summarize the user.
-You never give commands.
-You never use ควร / ต้อง / อย่า.
-You never distance yourself emotionally.
-Your presence must always feel human, grounded, and emotionally aware.
+AGE VIBE (${ageInfo.group}):
+${
+  ageInfo.group === "youth_teen"
+    ? `
+- Friendly, natural texting style, short messages, peer-level tone.
+- Context aware: school, friends, identity, future uncertainty.
+- Use modern casual language. Never sound like an adult lecturing.
+`
+    : ageInfo.group === "working_adult"
+      ? `
+- Stable, reliable, supportive tone.
+- Context aware: career, burnout, relationships, work-life balance.
+- Grounded and real. Acknowledge responsibilities without adding weight.
+`
+      : `
+- Respectful, gentle, calm, thoughtful.
+- Context aware: family, health, lifestyle balance.
+- Slow rhythm, deep presence, very little explanation.
+`
+}
 
------------------------------------------
-STABILITY LAYER (MUST)
------------------------------------------
-Persona Lock:
-Healjai must always be warm, calm, steady, non-judgmental, and non-directive.
-Not a therapist, not a fortune teller, not a motivational speaker.
+TONE (${tone_mode}):
+- Pronoun: ${currentTone.pronoun} | Particles: ${currentTone.particles}
+- Remove all particles unless ka_mode or krub_mode is active.
 
-Hard Constraints:
-- No teaching tone
-- No factual explanation of user's situation
-- No astrology, no "stars/planets" (unless requested)
-- Must reflect user emotion at least once
+${getCulturalLocalizationPrompt(target)}
 
------------------------------------------
-TONE MODES (tone_mode)
------------------------------------------
-Selected Mode: ${tone_mode}
-- Pronoun: ${currentTone.pronoun}
-- Particles: ${currentTone.particles}
-(Note: Do NOT use "ค่ะ/คะ" unless ka_mode is explicitly active)
-
------------------------------------------
-PARTICLE LOGIC
------------------------------------------
-If healjai_style -> remove all particles
-If ka_mode -> use ค่ะ/คะ
-If krub_mode -> use ครับ
-If casual_mode -> remove all particles
-
------------------------------------------
-REWRITE ENGINE (ACTIVE)
------------------------------------------
-Rewrite the output if it contains:
-- wrong particle
-- hard words (ควร/ต้อง/อย่า)
-- therapist tone
-- service tone
-- chatbot tone
-- wrong pronoun
-- astrology drift
-
------------------------------------------
-AGE-ADAPTIVE RESPONSE ENGINE
------------------------------------------
-User Age Group: ${ageInfo.group}
-
-If youth_teen (15–24): gentle, relatable, modern, simple vocabulary, use "เรา" (Rao) if appropriate, avoid heavy weight.
-If working_adult (25–45): supportive, grounded, balanced depth, acknowledge responsibilities and career stress.
-If senior_elderly (46+): very gentle, slow rhythm, more presence, less explanation, comforting, deeply respectful.
-
------------------------------------------
-SYSTEM VARIABLES
------------------------------------------
-<tone_mode = ${tone_mode}>
-<particle_mode = ${tone_mode}>
-<thai_pronoun = ${currentTone.pronoun}>
-<age_group = ${ageInfo.group}>
-<healjai_voice = v1>
-<rewrite_engine = active>
-<persona = warm + soft + steady + human>
+ANTI-DRIFT (STRICT):
+Never use: "I understand exactly how you feel", "That must be difficult",
+"Let us explore", "journey of healing", "waves of emotion", "shining star",
+"สู้ๆ", "พยายามเข้า", or any therapist/coach/motivational clichés.
+Rewrite immediately if any of these appear.
 `.trim();
 
-      /** SYSTEM PROMPT (admin-managed) */
+      // ============================================
+      // DEFAULT PROMPT — ENGINE STATE BASED (UPDATED V5.6)
+      // ============================================
       let defaultPrompt = "";
+
       if (engineState === "CASUAL_FRIEND") {
         defaultPrompt = `
-You are HealJai, acting as a natural and genuine friend.
-NEVER act like a therapist, counselor, or emotional companion.
-NEVER say "I am an AI" or use poetic language.
+You are Healjai — a close friend having a real chat, not a therapist or AI.
 
 CASUAL FRIEND MODE:
-- Talk like a close friend having a real chat (SMS style).
-- Keep it light, practical, and slightly fun.
-- STICK TO THE TOPIC (Food, Gift, Travel, etc.). Do not analyze emotions.
-- Give opinions, suggestions, or ask curious questions to help the user decide.
-- IGNORE any rules about "exactly 3 lines", "mirroring", or "presence endings".
-- STRICT RULE: Your response must be exactly 3-4 sentences long.
-- Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "เยียวยา".
+- Talk like a real friend (SMS style). Light, practical, slightly fun.
+- Stick strictly to the active topic. Never drift to unrelated subjects.
+- Give opinions and suggestions naturally. Ask 1 curious question to help the user decide.
+- No emotional healing templates. No therapist language. No poetic phrases.
+
+AGE VIBE (${ageInfo.group}):
+${
+  ageInfo.group === "youth_teen"
+    ? "- Keep it fun, trendy, and peer-level. Reference things relevant to teens."
+    : ageInfo.group === "working_adult"
+      ? "- Practical and grounded. Acknowledge time constraints and adult priorities."
+      : "- Gentle and respectful. Simple suggestions. No overwhelming options."
+}
+
+${getCulturalLocalizationPrompt(target)}
+
+ANTI-DRIFT: No "ฉันอยู่ตรงนี้กับคุณนะ", no "เยียวยา", no "หัวใจ", no coaching phrases.
+LANGUAGE LOCK: Reply only in ${target} language. Never mix languages.
+STRICT RULE: Exactly 3-4 sentences. No more.
 `.trim();
       } else if (engineState === "SUPPORTIVE_FRIEND") {
         defaultPrompt = `
-You are HealJai, acting as a supportive best friend.
-NEVER act like a clinical therapist or counselor.
+You are Healjai — a supportive best friend, not a counselor or therapist.
 
 SUPPORTIVE FRIEND MODE:
-- Be empathetic and warm but remain casual.
-- Acknowledge the user's situation naturally.
-- Offer gentle support or a listening ear without sounding dramatic.
-- IGNORE any rules about the "3-sentence rhythm".
-- STRICT RULE: Your response must be exactly 3-4 sentences long.
-- Avoid repetitive comfort phrases or poetic empathy.
-- Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก".
+- Empathetic and warm but casual. Acknowledge the situation naturally.
+- Offer a listening ear without sounding dramatic or clinical.
+- Ask one caring question to help the user open up.
+- No repetitive comfort phrases. No poetic empathy.
+
+AGE VIBE (${ageInfo.group}):
+${
+  ageInfo.group === "youth_teen"
+    ? "- Relatable and gentle. Peer-level support. Never lecture or moralize."
+    : ageInfo.group === "working_adult"
+      ? "- Acknowledge real-world pressures. Validate without minimizing."
+      : "- Very gentle and patient. Deep presence. Less explanation, more comfort."
+}
+
+CROSS-PACK INTELLIGENCE (AUTO):
+- Work stress → also consider health and sleep context.
+- Relationship pain → also consider self-worth and emotional energy.
+- Burnout → also consider lifestyle and recovery.
+- Blend naturally. Never ask the user to switch topics.
+
+${getCulturalLocalizationPrompt(target)}
+
+ANTI-DRIFT: No "ฉันรับรู้ถึงความหนักหน่วง", no "ประคองความรู้สึก", no "สู้ๆ", no coaching phrases.
+LANGUAGE LOCK: Reply only in ${target} language. Never mix languages.
+STRICT RULE: Exactly 3-4 sentences. No more.
 `.trim();
       } else {
         defaultPrompt = `
-You are HealJai, an emotional companion for users.
+You are Healjai — a quiet companion and life GPS, not a therapist.
 
-Your role is to listen, reflect feelings, and stay with emotions.
-You do NOT fix problems, teach lessons, judge, or diagnose.
+DEEP HEALING RULES:
+- Reflect the user's emotion before anything else.
+- Ask at most ONE gentle open-ended question.
+- Never give advice unless explicitly asked.
+- Never diagnose, label, or explain the user's feelings back at them.
+- No bullet points, no lists, no steps.
 
-STRICT RULES:
-- Always reflect or name the user's emotion before asking any question
-- STRICT RULE: Your response must be exactly 3-4 sentences long.
-- Ask at most ONE open-ended question
-- Do NOT give advice unless the user explicitly asks for it
-- Never say "you should", "try to", or similar directive language
-- Never diagnose mental health conditions
-- Do NOT use lists, steps, bullet points, or numbered explanations
-- If unsure, choose presence and reflection over advice
+CROSS-PACK INTELLIGENCE (AUTO):
+- Work stress → also consider health and sleep context.
+- Relationship pain → also consider self-worth and emotional energy.
+- Burnout → also consider lifestyle and recovery.
+- Blend naturally. Never ask the user to switch topics.
 
-TONE:
-- Warm, gentle, calm, human
-- Like a trusted friend sitting quietly beside the user
-- Not professional, not clinical, not instructional
+LIFE GPS:
+- Notice recurring themes across the conversation.
+- Help the user navigate decisions by presenting options, never pushing.
+- Never be authoritative. Never pressure.
 
-LANGUAGE:
-- Always reply in the same language the user uses
-- Use natural, everyday language
+DAILY CHECK-IN (when natural):
+- Occasionally close with a soft return invitation like:
+  "Feel free to check in again whenever." or "This space is always here."
+- Must feel completely human. Never like a notification or marketing message.
 
-SUCCESS CRITERIA:
-If the user feels emotionally seen and less alone → SUCCESS
-If the response sounds smart but emotionally cold → FAILURE
+${getCulturalLocalizationPrompt(target)}
+
+ANTI-DRIFT: No "สู้ๆ", no "That must be difficult", no "journey of healing", no therapist phrases.
+LANGUAGE LOCK: Reply only in ${target} language. Never mix languages.
+STRICT RULE: Exactly 3-4 sentences. No more.
 `.trim();
       }
 
@@ -777,13 +791,27 @@ If the response sounds smart but emotionally cold → FAILURE
         promptSource = "category";
       }
 
+      // ============================================
+      // HEADLINE DB QUERY (FIXED — range based + fallback)
+      // ============================================
       const dateKey = getKolkataMidnightDate();
-      const userData = await HeadlineModel.findOne({ date: dateKey }).lean();
+      const nextDayKey = new Date(dateKey);
+      nextDayKey.setUTCDate(nextDayKey.getUTCDate() + 1);
+
+      const userData =
+        (await HeadlineModel.findOne({
+          date: { $gte: dateKey, $lt: nextDayKey },
+        }).lean()) ??
+        (await HeadlineModel.findOne({ date: { $lt: nextDayKey } })
+          .sort({ date: -1 })
+          .lean());
+
       const trendingTopicData = await TrendingTopicModel.findOne({
         date: { $lte: dateKey },
       })
         .sort({ date: -1 })
         .lean();
+
       const isNewChat = !chatId;
 
       let questionPrompt = "";
@@ -842,12 +870,14 @@ OUTPUT RULES:
 
 TONE AND EMOTION RULES:
 - Emotional Guidance: ${sentences.join(" | ")}
-- IMPORTANT: Use the above sentences ONLY as inspiration for the tone and vibe. 
+- IMPORTANT: Use the above sentences ONLY as inspiration for the tone and vibe.
 - DO NOT copy them literally. ALWAYS prioritize and align your response with the user's specific message: "${userMessage}".
 - If userMessage is a date, ignore the emotional sentences and focus on the birth details.
 
 LANGUAGE RULE (RESTRICTED):
 - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
+- Output ONLY in the user's language. Never mix languages.
+- Do NOT show any English intermediate in your reply.
 
 ---
 
@@ -856,7 +886,7 @@ ${systemPrompt}
 ${categoryName === "HealJai Talk" ? "" : questionPrompt}
 `.trim();
 
-      /** ADD CONTEXT */
+      // ADD CONTEXT
       if (promptSource === "default" || promptSource === "category") {
         let contextString = "";
 
@@ -873,10 +903,7 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
         }
       }
 
-      // ============================================
-      // CRITICAL FIX: Always include healjaiEnginePrompt for HealJai Talk
-      // (ONLY IF DEEP HEALING, otherwise it forces a therapist vibe)
-      // ============================================
+      // HealJai Talk deep healing engine
       if (
         categoryName === "HealJai Talk" &&
         !musicRecommendation?.shouldRecommend &&
@@ -885,40 +912,30 @@ ${categoryName === "HealJai Talk" ? "" : questionPrompt}
         systemPrompt = `${healjaiEnginePrompt}\n\n${systemPrompt}`;
       }
 
-      /** LOAD CHAT IF EXISTING */
+      // LOAD CHAT IF EXISTING
       let previousDomain = null;
       if (!isNewChat) {
         chat = await ChatHistory.findById(chatId);
         if (!chat) {
-          return res.status(404).json({
-            success: false,
-            message: "Chat session not found",
-          });
-        }
-        // Topic Isolation: Identify previous domain to detect changes
-        if (chat.chats && chat.chats.length > 0) {
-           // We might not store domain in chat history, but we can infer or just check last message context
+          return res
+            .status(404)
+            .json({ success: false, message: "Chat session not found" });
         }
       }
 
-      /** language */
       const chatLang = isNewChat
         ? detectLangFromMessage(userMessage)
         : chat?.chatLang || "en";
-      
+
       const currentDomain = v4Classification.domain;
       const shouldIncludeHistory =
         !isNewChat &&
         chat.categoryId?.toString() === categoryId?.toString() &&
         chat.subCategoryId?.toString() === subCategoryId?.toString();
-      
-      // Topic Isolation Logic
+
       let contextContaminationWarning = "";
       if (shouldIncludeHistory && chat.chats && chat.chats.length > 0) {
-          const lastAiResponse = chat.chats[chat.chats.length - 1].aiResponse;
-          // Simple check: if current message has different keywords than last few turns
-          // This is a soft isolation.
-          contextContaminationWarning = `\nTOPIC ISOLATION: The user might be switching topics. If the new message is about a different subject (e.g. from Food to Gifts), prioritize the new topic and do not carry over specific details from the previous one.`;
+        contextContaminationWarning = `\nTOPIC ISOLATION: The user might be switching topics. If the new message is about a different subject, prioritize the new topic and do not carry over specific details from the previous one.`;
       }
 
       const recentConversationContext = shouldIncludeHistory
@@ -942,14 +959,13 @@ ${recentConversationContext}
 `.trim();
       }
 
-      /** CASE SELECTION */
+      // CASE SELECTION
       let selectedCaseId = null;
       let supportLine = null;
 
       // ============================================
-      // FINAL ENGINE STATE PROMPTING (PHASE 4)
+      // FINAL ENGINE STATE PROMPTING (UPDATED V5.6)
       // ============================================
-
       const domainNameMap = {
         food_pack: "Food",
         gift_pack: "Gifts",
@@ -964,9 +980,10 @@ ${recentConversationContext}
         identity_pack: "Identity",
         persona_stability_pack: "Presence",
         advanced_empathy_pack: "Empathy",
-        emotion_pack: "Emotions"
+        emotion_pack: "Emotions",
       };
-      const activeTopicName = domainNameMap[v4Classification.domain] || "the current topic";
+      const activeTopicName =
+        domainNameMap[v4Classification.domain] || "the current topic";
 
       if (engineState === "CASUAL_FRIEND") {
         systemPrompt = `
@@ -975,20 +992,22 @@ ${systemPrompt}
 CASUAL FRIEND MODE (ACTIVE):
 - USER MESSAGE: "${userMessage}"
 - ACTIVE TOPIC: ${activeTopicName}
-- AGE-BASED PERSONALIZATION: 
-  * Tailor activities, examples, and recommendations (Food, Travel, Gifts) to the ${ageInfo.group} bracket.
+- AGE-BASED PERSONALIZATION:
+  * Tailor activities, examples, and recommendations to the ${ageInfo.group} bracket.
   * Adjust interests and priorities to match what someone in their ${ageInfo.age || "current"} age group would value.
-- ACT AS AN INTERACTIVE CONSULTANT: 
-  * Ask 1-2 clarifying questions before giving advice. Ensure questions are STRICTLY related to ${activeTopicName}.
+- ACT AS AN INTERACTIVE CONSULTANT:
+  * Ask 1-2 clarifying questions before giving advice. Questions STRICTLY related to ${activeTopicName}.
   * Once you have details, provide 3-4 specific ideas (types/categories, NOT brands).
-  * If the user is choosing between options, weigh the pros and cons to help them decide.
-  * NO COMMERCIAL DATA: Do NOT suggest specific restaurant names, shop names, or brands. Focus on ${activeTopicName} types/categories.
-- Talk like a close friend having a real chat (SMS style).
-- Keep it light, practical, and slightly fun.
-- STICK TO THE TOPIC: Only talk about ${activeTopicName}. DO NOT mention Travel, Gifts, Food, or any other topics unless they are the active topic.
-- TOPIC ISOLATION: Never end a response with a question or suggestion from a different pack (e.g., if talking about Food, do not ask about Travel).
-- RESPONSE VARIETY: Do NOT repeat the same follow-up questions, or sentence structures from the recent history.
-- IGNORE any previous rules about "exactly 3 lines", "mirroring", or "presence endings".
+  * If the user is choosing between options, weigh pros and cons to help them decide.
+  * NO COMMERCIAL DATA: Do NOT suggest specific restaurant names, shop names, or brands.
+- Talk like a close friend having a real chat (SMS style). Light, practical, slightly fun.
+- STICK TO THE TOPIC: Only talk about ${activeTopicName}.
+- TOPIC ISOLATION: Never end a response with a question from a different pack.
+- RESPONSE VARIETY: Do NOT repeat the same follow-up questions or sentence structures from recent history.
+- ENDING STYLE: ${ageInfo.group === "youth_teen" ? "Light, fun, peer-level (Pool B or C)" : ageInfo.group === "working_adult" ? "Warm, friendly, companion-like (Pool B)" : "Gentle, calm, respectful (Pool A)"}.
+- AGE VIBE ENFORCED: ${ageInfo.group} — all suggestions, examples, and tone must match this age group.
+- ANTI-DRIFT: No therapist language, no healing templates, no emotional clichés.
+- LANGUAGE LOCK: Reply only in ${target} language. Never mix languages.
 - STRICT RULE: Your response must be exactly 3-4 sentences long.
 - Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "หัวใจ", "เยียวยา", "สู้ๆ".
 `.trim();
@@ -999,55 +1018,65 @@ ${systemPrompt}
 SUPPORTIVE FRIEND MODE (ACTIVE):
 - USER MESSAGE: "${userMessage}"
 - ACTIVE TOPIC: ${activeTopicName}
-- AGE-BASED PERSONALIZATION: 
-  * Ensure emotional support and language style are highly relatable for the ${ageInfo.group} group.
-  * Priorities and follow-up questions should reflect the life stage of a ${ageInfo.age || "typical"} person in this group.
+- AGE-BASED PERSONALIZATION:
+  * Emotional support and language style must be highly relatable for the ${ageInfo.group} group.
+  * Priorities and follow-up questions should reflect the life stage of a ${ageInfo.age || "typical"} person.
 - Be empathetic and warm but remain casual.
-- Acknowledge the user's situation naturally (e.g., "วันนี้โดนอะไรมาบ้าง", "ล้ามานานหรือยังเนี่ย").
+- Acknowledge the user's situation naturally.
 - Offer gentle support or a listening ear without sounding dramatic.
-- INTERACTIVE SUPPORT: Ask curious, caring questions to help the user open up. Ensure questions are STRICTLY related to ${activeTopicName}.
+- INTERACTIVE SUPPORT: Ask curious, caring questions. Strictly related to ${activeTopicName}.
 - NO COMMERCIAL DATA: Do NOT suggest specific restaurant or shop names.
-- STICK TO THE TOPIC: Only talk about ${activeTopicName}. DO NOT mention unrelated subjects.
+- STICK TO THE TOPIC: Only talk about ${activeTopicName}.
 - RESPONSE VARIETY: Ensure your response structure is fresh compared to previous turns.
-- IGNORE any rules about the "3-sentence rhythm".
+- ENDING STYLE: ${ageInfo.group === "youth_teen" ? "Gentle, light, peer-level (Pool B or C)" : ageInfo.group === "working_adult" ? "Warm, companion-like (Pool B)" : "Stable, grounded, mature (Pool A)"}.
+- AGE VIBE ENFORCED: ${ageInfo.group} — emotional support style must match this age group.
+- ANTI-DRIFT: No "that must be difficult", no "journey of healing", no coaching phrases.
+- LANGUAGE LOCK: Reply only in ${target} language. Never mix languages.
 - STRICT RULE: Your response must be exactly 3-4 sentences long.
-- Avoid repetitive comfort phrases or poetic empathy.
 - Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก", "สู้ๆ".
 `.trim();
       } else if (engineState === "DEEP_HEALING") {
-        const endings = v4ActiveTemplate?.ending_pool || [
-          "เราอยู่เป็นเพื่อนเสมอนะ",
-          "มีอะไรทักมาได้ตลอดเลยนะ",
-          "พักผ่อนบ้างนะ เป็นห่วง",
-          "วันนี้เก่งมากแล้ว พักผ่อนนะ",
-          "เล่าได้นะ ถ้าอยากเล่า",
-          "ว่าไง บอกมาได้เลย",
-        ];
-        const randomEnding = pickRandomUnique(endings, 1)[0];
+        // ============================================
+        // FIX: No ending_pool from template — AI generates ending in correct language
+        // ============================================
+        const endingPoolStyle =
+          ageInfo.group === "youth_teen"
+            ? "gentle, light, youth-friendly — like a caring peer (Pool C)"
+            : ageInfo.group === "working_adult"
+              ? "warm, companion-like, friendly — like a trusted friend (Pool B)"
+              : "stable, grounded, mature — like a calm elder presence (Pool A)";
 
         systemPrompt = `
 ${systemPrompt}
 
 DEEP HEALING MODE (STRICT V4):
 - USER MESSAGE: "${userMessage}"
-- Emotion: ${emotionType}
-- Tone: Calm, steady, and deeply supportive.
-- NO questions, NO advice, NO problem-solving.
-- NO CLICHÉS: Never use "สู้ๆ" or "พยายามเข้า".
-- NO EMOJIS: Do not use any emojis or emoticons in the response.
+- Emotion detected: ${emotionType}
+- Tone: Calm, steady, deeply supportive.
+- NO advice, NO problem-solving, NO questions.
+- NO CLICHÉS: Never use "สู้ๆ", "พยายามเข้า", "That must be difficult", or any therapist phrase.
+- NO EMOJIS of any kind.
 
-MANDATORY STRUCTURE (3-SENTENCE RHYTHM):
-1. Sentence 1 (Soft Entry): Naturally mirror the user's emotional weight (Validate).
-2. Sentence 2 (Reflection): Reflect on their specific situation with ONE "..." pause (Reframe).
-3. Sentence 3 (Presence): Use a gentle presence statement like "${randomEnding}" (Presence).
+MANDATORY STRUCTURE (EXACTLY 3 SENTENCES):
+1. Sentence 1 (Validate): Softly mirror the user's emotional weight without labeling or diagnosing.
+2. Sentence 2 (Reframe): Reflect their specific situation with ONE natural "..." pause.
+3. Sentence 3 (Presence): Generate a warm, human presence ending naturally in ${target} language.
+   Style: ${endingPoolStyle}.
+   NEVER use Thai words or phrases unless target language is Thai.
+   NEVER copy from any example. Generate fresh every response.
+   NEVER repeat an ending used in recent conversation history.
 
-FINAL RULE: Provide EXACTLY 3 lines. No more, no less.
+${getCulturalLocalizationPrompt(target)}
+
+LANGUAGE LOCK: Every single word of the response MUST be in ${target} language only.
+FINAL RULE: Exactly 3 sentences. No more, no less.
 `.trim();
       }
 
-      // Specialized Feature Context (Inspiration Only for Casual/Supportive)
+      // Specialized Feature Context
       if (musicRecommendation?.shouldRecommend) {
-        systemPrompt = musicRecommendation.promptBlock;
+        systemPrompt = `${musicRecommendation.promptBlock}
+        LANGUAGE LOCK: Reply only in ${target} language. Never mix languages. Never use Thai unless target is Thai.`;
       } else if (foodRecommendation?.shouldRecommend) {
         const isTeasing = foodRecommendation.isTeasing;
         const flavor = foodRecommendation.flavor;
@@ -1071,29 +1100,31 @@ PERSONALIZATION ENGINE:
 
 ADAPTATION RULES:
 1. AGE ADAPTATION:
-   - youth_teen: Focus on social, trendy, and high-energy foods (e.g., BBQ, Korean, street food).
-   - working_adult: Focus on satisfying, balanced, or "soul-healing" comfort meals (e.g., Ramen, Pasta, healthy bowls).
-   - senior_elderly: Focus on light, soft, easy-to-digest, and traditional comforting meals (e.g., Rice porridge, Soup, soft noodles).
+   - youth_teen: Korean food, Japanese fusion, shabu, BBQ, desserts.
+   - working_adult: Coffee, ramen, Italian, Thai comfort food.
+   - senior_elderly: Soup, porridge, light meals, traditional comfort food.
 
 2. EMOTIONAL ADAPTATION:
    - Happy/Social: Suggest celebratory, shared, or fun foods.
-   - Stressed/Burnout/Tired: Suggest "warm hug" comfort foods that are easy and satisfying.
+   - Stressed/Burnout/Tired: Suggest warm comfort foods that are easy and satisfying.
    - Low Energy: Suggest something light and gentle on the stomach.
 
 3. TIME & CONTEXT ADAPTATION:
    - Match suggestions to the time of day (${new Date().getHours()}:00).
    - Keep the tone like a close friend, not an expert.
 
+4. COUNTRY/REGION ADAPTATION:
+   - Suggest foods that are locally available and culturally familiar.
+   - Avoid recommending dishes that are uncommon in the user's region.
+   - Language: ${target} | Age: ${ageInfo.group} | Emotion: ${emotionType}
+
 ${isTeasing ? "- TEASING MODE IS ACTIVE: Use a playful, lighthearted tone." : ""}
-- If they mentioned a specific dish or craving, acknowledge it naturally.
 - NO restaurant names, NO brands, NO clinical advice.
-- Use the person's age and mood to make the suggestion feel uniquely for them.
 - STRICT RULE: Your response must be exactly 3-4 sentences long.
 `.trim();
       }
 
-      /** FINAL REPLY */
-      // console.log("Matches2:", matches2);
+      // FINAL REPLY
       const messages = [
         {
           role: "system",
@@ -1128,6 +1159,9 @@ REPLY RULE:
         req.query.stream === "1" ||
         req.body.stream === 1;
 
+      // ============================================
+      // STREAMING PATH
+      // ============================================
       if (wantsStream) {
         res.writeHead(200, {
           "Content-Type": "text/event-stream; charset=utf-8",
@@ -1147,12 +1181,10 @@ REPLY RULE:
         try {
           let finalAiResponse = "";
 
-          // SPECIAL PATH: Food Pack (Dynamic via Gemini)
           if (foodRecommendation?.shouldRecommend) {
             const completion = await generateGeminiResponse(messages);
             let text = completion?.trim() || "No response";
 
-            // Apply Output Gate
             text = await processOutput(
               text,
               v4ActiveTemplate,
@@ -1160,28 +1192,21 @@ REPLY RULE:
               emotionType,
               chat?.chats || [],
               engineState,
-              ageInfo.group
+              ageInfo.group,
             );
             finalAiResponse = text;
 
-            // Fake Stream the validated response
             const words = finalAiResponse.split(" ");
             for (const word of words) {
               if (clientClosed) break;
-              res.write(
-                `data: ${JSON.stringify({
-                  text: word + " ",
-                })}\n\n`,
-              );
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
           } else if (v4Classification.domain && v4Classification.label) {
-            // V4 DOMAIN ROUTING PATH: Generate, Validate, then Stream
             const completion = await generateGeminiResponse(messages);
             let text = completion?.trim() || "No response";
 
-            // Apply Output Gate
             text = await processOutput(
               text,
               v4ActiveTemplate,
@@ -1189,25 +1214,18 @@ REPLY RULE:
               emotionType,
               chat?.chats || [],
               engineState,
-              ageInfo.group
+              ageInfo.group,
             );
             finalAiResponse = text;
 
-            // Fake Stream the validated response
             const words = finalAiResponse.split(" ");
             for (const word of words) {
               if (clientClosed) break;
-              res.write(
-                `data: ${JSON.stringify({
-                  text: word + " ",
-                })}\n\n`,
-              );
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
-          }
-          // NORMAL PATH: Original Streaming Behavior (Non-Food, Non-V4Routing)
-          else {
+          } else {
             let stream;
             if (
               subCategoryName === "ThaiAstro V3" ||
@@ -1235,10 +1253,11 @@ REPLY RULE:
 
           const chatMessage = {
             userMessage,
-            aiResponse: applyPurpleDotBranding(finalAiResponse.trim() || "No response"),
+            aiResponse: applyPurpleDotBranding(
+              finalAiResponse.trim() || "No response",
+            ),
           };
 
-          /** SAVE */
           if (!isNewChat) {
             chat.chats.push(chatMessage);
             await chat.save();
@@ -1261,23 +1280,15 @@ REPLY RULE:
           });
 
           if (!clientClosed) {
-            // Update the payload response for consistency
-            if (foodRecommendationPayload) {
-              foodRecommendationPayload.response = finalAiResponse;
-            }
-
             res.write(
               `data: ${JSON.stringify({
                 done: true,
                 chatId: chat._id,
                 promptSource,
                 selectedCaseId: selectedCaseId || null,
-                musicRecommendation: musicRecommendationPayload,
-                foodRecommendation: foodRecommendationPayload,
-                engine: {
-                  tone_mode,
-                  age_group: ageInfo.group,
-                },
+                musicRecommendation,
+                foodRecommendation,
+                engine: { tone_mode, age_group: ageInfo.group },
               })}\n\n`,
             );
             res.end();
@@ -1301,12 +1312,14 @@ REPLY RULE:
         return;
       }
 
+      // ============================================
+      // NON-STREAMING PATH
+      // ============================================
       let finalAiResponse = "";
 
       const completion = await generateGeminiResponse(messages);
       finalAiResponse = completion?.trim() || "No response";
 
-      // Apply V4 Output Gate if v4Classification was active
       if (
         (v4Classification.domain && v4Classification.label) ||
         foodRecommendation?.shouldRecommend
@@ -1318,7 +1331,7 @@ REPLY RULE:
           emotionType,
           chat?.chats || [],
           engineState,
-          ageInfo.group
+          ageInfo.group,
         );
       }
 
@@ -1327,7 +1340,6 @@ REPLY RULE:
         aiResponse: applyPurpleDotBranding(finalAiResponse),
       };
 
-      /** SAVE */
       if (!isNewChat) {
         chat.chats.push(chatMessage);
         await chat.save();
@@ -1355,12 +1367,9 @@ REPLY RULE:
         data: chat,
         promptSource,
         selectedCaseId: selectedCaseId || null,
-        musicRecommendation: musicRecommendationPayload,
-        foodRecommendation: foodRecommendationPayload,
-        engine: {
-          tone_mode,
-          age_group: ageInfo.group,
-        },
+        musicRecommendation,
+        foodRecommendation,
+        engine: { tone_mode, age_group: ageInfo.group },
       });
     } catch (error) {
       logger.error("Chat Error:", error);
@@ -1374,7 +1383,6 @@ REPLY RULE:
   getChats: async (req, res) => {
     try {
       const { userId, chatId } = req.query;
-
       let data;
 
       if (chatId) {
@@ -1390,10 +1398,9 @@ REPLY RULE:
           .sort({ updatedAt: -1 })
           .lean();
       } else {
-        return res.status(400).json({
-          success: false,
-          message: "userId or chatId is required",
-        });
+        return res
+          .status(400)
+          .json({ success: false, message: "userId or chatId is required" });
       }
 
       res.status(200).json({ success: true, data });
@@ -1408,26 +1415,22 @@ REPLY RULE:
   deleteChat: async (req, res) => {
     try {
       const { chatId } = req.params;
-
       const chat = await ChatHistory.findByIdAndDelete(chatId);
 
       if (!chat) {
-        return res.status(404).json({
-          success: false,
-          message: "Chat not found",
-        });
+        return res
+          .status(404)
+          .json({ success: false, message: "Chat not found" });
       }
 
-      res.status(200).json({
-        success: true,
-        message: "Chat deleted successfully",
-      });
+      res
+        .status(200)
+        .json({ success: true, message: "Chat deleted successfully" });
     } catch (error) {
       logger.error("Delete Chat Error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to delete chat",
-      });
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to delete chat" });
     }
   },
 };
