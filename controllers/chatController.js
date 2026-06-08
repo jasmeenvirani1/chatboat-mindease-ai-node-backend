@@ -1193,6 +1193,7 @@ REPLY RULE:
               chat?.chats || [],
               engineState,
               ageInfo.group,
+              target,
             );
             finalAiResponse = text;
 
@@ -1215,6 +1216,7 @@ REPLY RULE:
               chat?.chats || [],
               engineState,
               ageInfo.group,
+              target,
             );
             finalAiResponse = text;
 
@@ -1332,6 +1334,7 @@ REPLY RULE:
           chat?.chats || [],
           engineState,
           ageInfo.group,
+          target,
         );
       }
 
