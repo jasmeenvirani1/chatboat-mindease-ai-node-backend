@@ -154,7 +154,7 @@ function determineEngineState(resolved, emotionData) {
   // RULE 4: Basic Emotions (emotion_pack)
   if (domain === "emotion_pack") {
     // Blueprint V2: If sad/anxious/angry, prioritize healing structure
-    if (["sad", "anxious", "angry"].includes(emotion)) {
+    if (["sad", "anxious", "angry", "guilt", "shame","grief", "numbness", "jealousy"].includes(emotion)) {
       if (intensity > 0.35) return "DEEP_HEALING";
     }
     if (intensity > 0.45) return "DEEP_HEALING";
@@ -227,7 +227,7 @@ function validateSupportiveResponse(text) {
   return { valid: reasons.length === 0, reasons };
 }
 
-function validateHealingResponse(text) {
+function validateHealingResponse(text, lang = "th") {
   if (!text) return { valid: false, reasons: ["Empty response"] };
 
   const constraints = v4RegressionSuite.global_constraints;
@@ -251,7 +251,8 @@ function validateHealingResponse(text) {
     );
   }
 
-  if (lines.length >= 3) {
+  // Ending pool validation is Thai-only — skip for other languages
+  if (lang === "th" && lines.length >= 3) {
     const lastLine = lines[2];
     const isAllowed = constraints.allowed_endings.some((ending) =>
       lastLine.includes(ending),
@@ -303,7 +304,8 @@ async function processOutput(
   emotion = "",
   history = [],
   engineState = "CASUAL_FRIEND",
-  ageGroup = "working_adult"
+  ageGroup = "working_adult",
+  lang = "th"
 ) {
   let currentResponse = response;
 
@@ -322,7 +324,7 @@ async function processOutput(
   } else if (engineState === "SUPPORTIVE_FRIEND") {
     validation = validateSupportiveResponse(currentResponse);
   } else if (engineState === "DEEP_HEALING") {
-    validation = validateHealingResponse(currentResponse);
+    validation = validateHealingResponse(currentResponse, lang);
   }
 
   if (validation.valid) {
@@ -358,10 +360,15 @@ async function processOutput(
     lines = lines.slice(0, 3);
   } else if (lines.length < 3) {
     while (lines.length < 2) lines.push("...");
-    const endings = template?.ending_pool || (AGE_BASED_ENDINGS[ageGroup] || v4RegressionSuite.global_constraints.allowed_endings);
-    let fallbackEnding = endings[Math.floor(Math.random() * endings.length)];
-    fallbackEnding = filterEmojis(fallbackEnding, emotion);
-    lines.push(fallbackEnding);
+    // Only inject Thai ending pool for Thai — other languages keep their AI-generated ending
+    if (lang === "th") {
+      const endings = template?.ending_pool || (AGE_BASED_ENDINGS[ageGroup] || v4RegressionSuite.global_constraints.allowed_endings);
+      let fallbackEnding = endings[Math.floor(Math.random() * endings.length)];
+      fallbackEnding = filterEmojis(fallbackEnding, emotion);
+      lines.push(fallbackEnding);
+    } else {
+      lines.push("...");
+    }
   }
 
   // Ellipsis adjustment
@@ -376,18 +383,20 @@ async function processOutput(
     }
   }
 
-  // Ending adjustment
-  const allowedEndings = AGE_BASED_ENDINGS[ageGroup] || v4RegressionSuite.global_constraints.allowed_endings;
-  const currentEnding = lines[2];
-  const isValidEnding = allowedEndings.some((e) => currentEnding.includes(e));
+  // Ending adjustment — Thai only: non-Thai languages keep their AI-generated ending
+  if (lang === "th") {
+    const allowedEndings = AGE_BASED_ENDINGS[ageGroup] || v4RegressionSuite.global_constraints.allowed_endings;
+    const currentEnding = lines[2];
+    const isValidEnding = allowedEndings.some((e) => currentEnding.includes(e));
 
-  if (!isValidEnding) {
-    const fallbackPool = template?.ending_pool && template.ending_pool.length > 0
-      ? template.ending_pool
-      : allowedEndings;
-    let fallbackEnding = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
-    fallbackEnding = filterEmojis(fallbackEnding, emotion);
-    lines[2] = fallbackEnding;
+    if (!isValidEnding) {
+      const fallbackPool = template?.ending_pool && template.ending_pool.length > 0
+        ? template.ending_pool
+        : allowedEndings;
+      let fallbackEnding = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
+      fallbackEnding = filterEmojis(fallbackEnding, emotion);
+      lines[2] = fallbackEnding;
+    }
   }
 
   // Final check for "สู้ๆ" in repaired output
