@@ -105,6 +105,9 @@ async function resolveRouting(userMessage, translatedMessage, existingEmotion) {
     if (step === "emotion_classifier") {
       const emotion = existingEmotion || emotionData.emotion;
       if (emotion && emotion !== "neutral") {
+        const wordCount = source.trim().split(/\s+/).length;
+        // Short casual expressions (≤6 words, low-medium intensity) should not escalate
+        if (wordCount <= 6 && emotionData.intensity < 0.65) break;
         resolved.domain = "emotion_pack";
         resolved.label = emotion;
         resolved.pack = responsePack.emotion_pack;
@@ -130,19 +133,18 @@ function determineEngineState(resolved, emotionData) {
     DEEP_HEALING: []
   };
 
-  // RULE 1: High Intensity Override (> 0.7) -> DEEP_HEALING
-  // Serious distress always gets the comforting structure.
-  if (intensity > 0.7) return "DEEP_HEALING";
+  const NEUTRAL_DOMAINS = [
+    "food_pack", "travel_pack", "gift_pack", "lifestyle_pack", "daily_life_pack",
+  ];
 
-  // RULE 2: Smart Friend Logic (Interactive Consultant)
-  // If user talks about Food, Travel, Gifts, or Lifestyle, KEEP IT CASUAL
-  // even if they sound a bit tired or annoyed (medium intensity).
-  if (
-    domain === "food_pack" ||
-    domain === "travel_pack" ||
-    domain === "gift_pack" ||
-    domain === "lifestyle_pack"
-  ) {
+  // RULE 1: High Intensity Override — but neutral topics cap at SUPPORTIVE_FRIEND
+  if (intensity > 0.7) {
+    if (NEUTRAL_DOMAINS.includes(domain)) return "SUPPORTIVE_FRIEND";
+    return "DEEP_HEALING";
+  }
+
+  // RULE 2: Smart Friend Logic — neutral practical topics stay CASUAL_FRIEND
+  if (NEUTRAL_DOMAINS.includes(domain)) {
     return "CASUAL_FRIEND";
   }
 
@@ -227,7 +229,7 @@ function validateSupportiveResponse(text) {
   return { valid: reasons.length === 0, reasons };
 }
 
-function validateHealingResponse(text, lang = "th") {
+function validateHealingResponse(text) {
   if (!text) return { valid: false, reasons: ["Empty response"] };
 
   const constraints = v4RegressionSuite.global_constraints;
@@ -251,16 +253,7 @@ function validateHealingResponse(text, lang = "th") {
     );
   }
 
-  // Ending pool validation is Thai-only — skip for other languages
-  if (lang === "th" && lines.length >= 3) {
-    const lastLine = lines[2];
-    const isAllowed = constraints.allowed_endings.some((ending) =>
-      lastLine.includes(ending),
-    );
-    if (!isAllowed) {
-      reasons.push("Line 3 must be from the allowed ending pool");
-    }
-  }
+  // Ending pool validation removed — AI generates contextual ending based on user message
 
   const forbidden = [...constraints.forbidden_patterns, "สู้ๆ", "สู้ๆนะ", "พยายามเข้า"];
   for (const pattern of forbidden) {
@@ -324,7 +317,7 @@ async function processOutput(
   } else if (engineState === "SUPPORTIVE_FRIEND") {
     validation = validateSupportiveResponse(currentResponse);
   } else if (engineState === "DEEP_HEALING") {
-    validation = validateHealingResponse(currentResponse, lang);
+    validation = validateHealingResponse(currentResponse);
   }
 
   if (validation.valid) {
@@ -383,23 +376,8 @@ async function processOutput(
     }
   }
 
-  // Ending adjustment — Thai only: non-Thai languages keep their AI-generated ending
-  if (lang === "th") {
-    const allowedEndings = AGE_BASED_ENDINGS[ageGroup] || v4RegressionSuite.global_constraints.allowed_endings;
-    const currentEnding = lines[2];
-    const isValidEnding = allowedEndings.some((e) => currentEnding.includes(e));
+  // Ending is AI-generated based on user message — no pool replacement
 
-    if (!isValidEnding) {
-      const fallbackPool = template?.ending_pool && template.ending_pool.length > 0
-        ? template.ending_pool
-        : allowedEndings;
-      let fallbackEnding = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
-      fallbackEnding = filterEmojis(fallbackEnding, emotion);
-      lines[2] = fallbackEnding;
-    }
-  }
-
-  // Final check for "สู้ๆ" in repaired output
   return lines.join("\n").replace(/สู้ๆ|สู้ๆนะ|พยายามเข้า/g, "");
 }
 
