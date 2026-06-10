@@ -8,6 +8,7 @@ const RecentRecommendationSchema = new Schema(
     context: { type: String, trim: true, default: "" },
     vibe: { type: String, trim: true, default: "" },
     genre: { type: String, trim: true, default: "" },
+    songs: { type: [String], default: [] },
     languageBucket: {
       type: String,
       enum: ["thai", "international", "mixed", "unknown"],

@@ -533,6 +533,19 @@ function extractGenrePreferenceUpdate(text = "", userMemory = null) {
   };
 }
 
+function getEngineSongs(contextKey, moodKey, recentSongs = []) {
+  const pool = unique([
+    ...(contextKey ? musicMappings.contextRules[contextKey]?.songs || [] : []),
+    ...(musicMappings.moodRules[moodKey]?.songs || []),
+  ]);
+
+  if (pool.length === 0) return [];
+
+  const recentSet = new Set(recentSongs);
+  const available = pool.filter((song) => !recentSet.has(song));
+  return (available.length > 0 ? available : pool).slice(0, 2);
+}
+
 function recommendMusicForMessage({
   userMessage = "",
   translatedMessage = "",
@@ -591,6 +604,12 @@ function recommendMusicForMessage({
     (contextRule.vibes || []).find(Boolean) ||
     (moodRule.vibes || []).find(Boolean) ||
     vibeKey;
+
+  const recentSongs = (userMemory?.recentRecommendations || [])
+    .flatMap((r) => r?.songs || [])
+    .filter(Boolean)
+    .slice(-20);
+  const engineSongs = getEngineSongs(contextKey, moodKey, recentSongs);
 
   const promptBlock = `
 MUSIC RECOMMENDATION MODE:
@@ -742,7 +761,7 @@ CURRENT RECOMMENDATION DATA:
 - Context: ${recommendationContext || "not specified"}
 - Vibe: ${recommendationVibe}
 - Language bucket: ${languageBucket}
-- Recommended genres: ${recommendedGenres.join(", ")}
+- Recommended genres: ${recommendedGenres.join(", ")}${engineSongs.length > 0 ? `\n- Suggested songs (weave 1–2 naturally into your response, never list them): ${engineSongs.join(" | ")}` : ""}
 
 OUTPUT GOAL:
 The user should feel:
@@ -758,6 +777,7 @@ The user should feel:
     vibe: recommendationVibe,
     languageBucket,
     genres: recommendedGenres,
+    suggestedSongs: engineSongs,
     promptBlock,
     preferenceSignals: {
       explicitGenres,

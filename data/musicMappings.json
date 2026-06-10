@@ -4,7 +4,13 @@
       "aliases": ["lonely", "alone", "เหงา", "เดินคนเดียว", "คิดถึง"],
       "thaiGenres": ["Thai Indie", "Thai Bedroom Pop", "Thai Sad Pop"],
       "internationalGenres": ["Indie Pop", "Sad Indie", "Dream Pop"],
-      "vibes": ["nostalgic indie", "sad soft"]
+      "vibes": ["nostalgic indie", "sad soft"],
+      "songs": [
+        "คิด(แต่ไม่)ถึง – Tilly Birds",
+        "ยิ้มทั้งน้ำตา – Ink Waruntorn",
+        "สุดท้ายก็ต้องยอม – Musketeers",
+        "ฤดูที่ฉันเหงา – Flure"
+      ]
     },
     "nostalgic": {
       "aliases": [
@@ -17,7 +23,13 @@
       ],
       "thaiGenres": ["Thai Indie", "Thai Acoustic", "Thai Emotional Pop"],
       "internationalGenres": ["Indie Folk", "Warm Indie"],
-      "vibes": ["nostalgic indie", "deep emotional"]
+      "vibes": ["nostalgic indie", "deep emotional"],
+      "songs": [
+        "คิด(แต่ไม่)ถึง – Tilly Birds",
+        "ฤดูที่ฉันเหงา – Flure",
+        "ย้อน – Paradox",
+        "นานนาน – Dept"
+      ]
     },
     "tired": {
       "aliases": [
@@ -30,43 +42,74 @@
       ],
       "thaiGenres": ["Thai Acoustic", "Thai Chill Pop", "Thai Healing Pop"],
       "internationalGenres": ["Lofi Beats", "Chillhop"],
-      "vibes": ["soft warm", "calm chill"]
+      "vibes": ["soft warm", "calm chill"],
+      "songs": [
+        "Luv(sic) Part 3 – Nujabes",
+        "คิดถึงแต่ – Mints",
+        "Gravity – John Mayer",
+        "ฝันกลางวัน – Two Popetorn"
+      ]
     },
     "excited": {
       "aliases": ["excited", "สดใส", "คึกคัก", "สดชื่น", "happy", "uplift"],
       "thaiGenres": ["Thai Pop", "Thai City Pop", "Thai Chill Indie"],
       "internationalGenres": ["Morning Pop", "Indie Pop"],
-      "vibes": ["bright indie", "morning fresh"]
+      "vibes": ["bright indie", "morning fresh"],
+      "songs": [
+        "แดนซ์ – 4EVE",
+        "Heroes – Alesso"
+      ]
     },
     "warm": {
       "aliases": ["warm", "อบอุ่น", "gentle", "cozy", "soft"],
       "thaiGenres": ["Thai Folk Pop", "Thai Acoustic", "Thai Healing Pop"],
       "internationalGenres": ["Warm Indie", "Acoustic Morning"],
-      "vibes": ["soft warm", "warm acoustic"]
+      "vibes": ["soft warm", "warm acoustic"],
+      "songs": [
+        "ถ้าเขาจะรัก (ยืนเฉยๆ เขาก็รัก) – First Anuwat",
+        "แค่เธอรักฉัน – Three Man Down"
+      ]
     },
     "sad": {
       "aliases": ["sad", "เศร้า", "เสียใจ", "ร้องไห้", "hurt", "down"],
       "thaiGenres": ["Thai Sad Pop", "Thai Emotional Pop", "Thai Indie"],
       "internationalGenres": ["Sad Piano", "Soft Soul", "Sad Indie"],
-      "vibes": ["sad soft", "deep emotional"]
+      "vibes": ["sad soft", "deep emotional"],
+      "songs": [
+        "ยอม – Musketeers",
+        "How to disappear – Lauv",
+        "All I Want – Kodaline",
+        "Unloveable – Mild"
+      ]
     },
     "focus": {
       "aliases": ["focus", "study", "work", "อ่านหนังสือ", "ทำงาน", "โฟกัส"],
       "thaiGenres": ["Thai Lofi"],
       "internationalGenres": ["Focus Beats", "Lofi Beats", "Calm Piano"],
-      "vibes": ["focus clean", "calm chill"]
+      "vibes": ["focus clean", "calm chill"],
+      "songs": [
+        "THAI LOFI MIX"
+      ]
     },
     "late night": {
       "aliases": ["late night", "midnight", "กลางคืน", "ดึก", "night"],
       "thaiGenres": ["Thai R&B", "Thai Soul", "Thai Dream Pop"],
       "internationalGenres": ["Night Drive", "Dream Pop", "R&B Soul"],
-      "vibes": ["night cozy", "deep emotional"]
+      "vibes": ["night cozy", "deep emotional"],
+      "songs": [
+        "ทางผ่าน – Pure",
+        "เจ็บจนพอ – Wanyai"
+      ]
     },
     "calm": {
       "aliases": ["calm", "peaceful", "สบายใจ", "นิ่ง", "ผ่อนคลาย"],
       "thaiGenres": ["Thai Chill Pop", "Thai Acoustic"],
       "internationalGenres": ["Chill Pop", "Acoustic Morning", "Calm Piano"],
-      "vibes": ["calm chill", "soft warm"]
+      "vibes": ["calm chill", "soft warm"],
+      "songs": [
+        "เธอคือของขวัญ – สิงโต นำโชค",
+        "ฤดูที่ฉันเหงา – Flure"
+      ]
     },
     "healing": {
       "aliases": [
@@ -79,19 +122,35 @@
       ],
       "thaiGenres": ["Thai Healing Pop", "Thai Folk Pop"],
       "internationalGenres": ["Warm Indie", "Soft Soul"],
-      "vibes": ["soft warm", "warm acoustic"]
+      "vibes": ["soft warm", "warm acoustic"],
+      "songs": [
+        "เธอคือของขวัญ – สิงโต นำโชค",
+        "ฤดูที่ฉันเหงา – Flure",
+        "Let It Go – James Bay",
+        "Good Days – SZA"
+      ]
     },
     "rainy": {
       "aliases": ["rain", "rainy", "ฝน", "ฝนตก"],
       "thaiGenres": ["Thai Indie", "Thai Emotional Pop"],
       "internationalGenres": ["Sad Indie", "Dream Pop"],
-      "vibes": ["sad soft", "nostalgic indie"]
+      "vibes": ["sad soft", "nostalgic indie"],
+      "songs": [
+        "ฝนตกที่หน้าต่าง – LOSO (Acoustic)",
+        "เพียงชายคนนี้ไม่ใช่ผู้วิเศษ – โปเตโต้",
+        "Banana Pancakes – Jack Johnson",
+        "Here With Me – d4vd"
+      ]
     },
     "driving": {
       "aliases": ["drive", "driving", "road trip", "ขับรถ", "บนรถ"],
       "thaiGenres": ["Thai City Pop", "Thai Chill Indie"],
       "internationalGenres": ["Night Drive", "Morning Pop", "Indie Folk"],
-      "vibes": ["bright indie", "night cozy"]
+      "vibes": ["bright indie", "night cozy"],
+      "songs": [
+        "ทางผ่าน – Pure",
+        "เจ็บจนพอ – Wanyai"
+      ]
     }
   },
   "contextRules": {
@@ -165,6 +224,39 @@
       "aliases": ["before sleep", "before bed", "ก่อนนอน", "sleepy"],
       "genres": ["Calm Piano", "Thai Acoustic", "Soft Soul"],
       "vibes": ["soft warm", "calm chill"]
+    },
+    "warm food": {
+      "aliases": ["warm food", "อาหารอุ่น", "กินข้าว", "มื้ออาหาร", "eating warm", "กินข้าวอุ่น"],
+      "genres": ["Thai Folk Pop", "Thai Acoustic", "Thai Healing Pop"],
+      "vibes": ["soft warm", "warm acoustic"],
+      "songs": [
+        "ถ้าเขาจะรัก (ยืนเฉยๆ เขาก็รัก) – First Anuwat",
+        "แค่เธอรักฉัน – Three Man Down",
+        "เธอคือของขวัญ – สิงโต นำโชค",
+        "คืนนี้ – Tilly Birds"
+      ]
+    },
+    "sweet dessert": {
+      "aliases": ["dessert", "sweet dessert", "ของหวาน", "ขนมหวาน", "ice cream", "cake", "ไอศกรีม", "เค้ก"],
+      "genres": ["Thai Chill Indie", "Thai Bedroom Pop", "Thai Chill Pop"],
+      "vibes": ["soft warm", "bright indie"],
+      "songs": [
+        "วาฬเกยตื้น – GUNGUN",
+        "เพื่อนเล่น ไม่เล่นเพื่อน – Tilly Birds",
+        "แค่เธอรักฉัน – Three Man Down",
+        "Beached Whale – GUNGUN"
+      ]
+    },
+    "coffee shop": {
+      "aliases": ["coffee", "cafe", "coffee shop", "คาเฟ่", "ร้านกาแฟ", "กาแฟ", "นั่งคาเฟ่"],
+      "genres": ["Thai City Pop", "Thai Chill Pop", "Thai Indie"],
+      "vibes": ["calm chill", "warm acoustic"],
+      "songs": [
+        "พูดทำไม – Polycat",
+        "ดีใจด้วยนะ – Ink Waruntorn",
+        "ยิ้มทั้งน้ำตา – Ink Waruntorn",
+        "ช้าๆ – Palaphol"
+      ]
     }
   },
   "vibeRules": {

@@ -344,6 +344,7 @@ async function upsertUserMusicMemory({ userId, recommendation }) {
       context: recommendation.context || "",
       vibe: recommendation.vibe || "",
       genre,
+      songs: recommendation.suggestedSongs || [],
       languageBucket: recommendation.languageBucket || "unknown",
       recommendedAt: new Date(),
     });
@@ -502,8 +503,7 @@ const chatController = {
       const specializedFeatures = [
         {
           id: "music",
-          shouldRun:
-            shouldRunMusicRecommendation && engineState !== "DEEP_HEALING",
+          shouldRun: shouldRunMusicRecommendation,
           execute: () =>
             recommendMusicForMessage({
               userMessage,
@@ -1156,7 +1156,18 @@ DAILY CHECK-IN (when natural):
         try {
           let finalAiResponse = "";
 
-          if (foodRecommendation?.shouldRecommend) {
+          if (musicRecommendation?.shouldRecommend) {
+            const completion = await generateGeminiResponse(messages);
+            finalAiResponse = completion?.trim() || "No response";
+
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (foodRecommendation?.shouldRecommend) {
             const completion = await generateGeminiResponse(messages);
             let text = completion?.trim() || "No response";
 
@@ -1298,8 +1309,9 @@ DAILY CHECK-IN (when natural):
       finalAiResponse = completion?.trim() || "No response";
 
       if (
-        (v4Classification.domain && v4Classification.label) ||
-        foodRecommendation?.shouldRecommend
+        !musicRecommendation?.shouldRecommend &&
+        ((v4Classification.domain && v4Classification.label) ||
+          foodRecommendation?.shouldRecommend)
       ) {
         finalAiResponse = await processOutput(
           finalAiResponse,
