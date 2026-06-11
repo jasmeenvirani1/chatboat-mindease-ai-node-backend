@@ -529,7 +529,7 @@ const chatController = {
 
       const HEALJAI_ACTIVE_CATEGORIES = new Set([
         "HealJai Talk",
-        "HealJai Talk V2",
+        "Astria Talk",
         "Emotions",
       ]);
       const isHealJaiCategory =
@@ -1261,7 +1261,7 @@ DAILY CHECK-IN (when natural):
               subCategoryName === "ThaiAstro V3" ||
               subCategoryName === "รหัส Healjai V3" ||
               subCategoryName === "Uranian V3" ||
-              categoryName === "HealJai Talk V2"
+              categoryName === "Astria Talk"
             ) {
               // stream = await generateClaudeResponseStream(messages);
               stream = await generateGeminiResponseStream(messages);
