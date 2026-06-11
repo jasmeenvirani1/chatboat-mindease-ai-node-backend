@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const ChatHistory = require("../models/ChatModel.js");
 const Category = require("../models/CategoryModel.js");
 const SubCategory = require("../models/SubCategoryModel.js");
@@ -439,6 +440,32 @@ const chatController = {
         userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
 
+      // Daily chat limit: 10 chats/day for free users, unlimited for subscribers
+      if (userId) {
+        const isSubscribed = subscriptionId && subscriptionStatus === "Active";
+
+        if (!isSubscribed) {
+          const startOfDay = getKolkataMidnightDate();
+          const [limitCheck] = await ChatHistory.aggregate([
+            { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+            { $unwind: "$chats" },
+            { $match: { "chats.messageTime": { $gte: startOfDay } } },
+            { $count: "total" },
+          ]);
+          const usedToday = limitCheck?.total || 0;
+          if (usedToday >= 10) {
+            return res.status(403).json({
+              success: false,
+              limitReached: true,
+              usedToday,
+              limit: 10,
+              message:
+                "Daily chat limit of 10 reached. Subscribe for unlimited chats.",
+            });
+          }
+        }
+      }
+
       const target = detectLangFromMessage(userMessage);
 
       // Translate ALL non-English input to English for internal processing
@@ -460,90 +487,141 @@ const chatController = {
       const allSentences = getSentencesForEmotion(emotionType);
       const sentences = pickRandomUnique(allSentences, 10);
 
-      const shouldRunMusicRecommendation = detectMusicIntent(
-        `${userMessage} ${translatedMessage}`.trim(),
-      );
-      const shouldRunFoodRecommendation = detectFoodIntent(
-        `${userMessage} ${translatedMessage}`.trim(),
-      );
-
-      const updatedMusicMemory = await saveUserMusicGenrePreferences({
-        userId,
-        userMessage,
-        translatedMessage,
-        existingMemory: userMusicMemory,
-      });
-      if (updatedMusicMemory) {
-        userMusicMemory = updatedMusicMemory.toObject
-          ? updatedMusicMemory.toObject()
-          : updatedMusicMemory;
-      }
-
       // ============================================
-      // V4 DOMAIN ROUTING & ENGINE STATE
+      // LOAD CATEGORY & SUBCATEGORY DATA
       // ============================================
-      const v4Classification = await resolveRouting(
-        userMessage,
-        translatedMessage,
-        emotionType,
-      );
-      const engineState = v4Classification.engineState;
-      let v4ActiveTemplate = null;
+      let chat = null;
+      let categoryName = null;
+      let categoryPrompt = null;
+      let subCategoryName = null;
+      let subCategoryPrompt = null;
 
-      if (v4Classification.domain && v4Classification.label) {
-        v4ActiveTemplate = getTemplate(
-          v4Classification.domain,
-          v4Classification.label,
+      if (categoryId) {
+        const category = await Category.findById(categoryId).select(
+          "name prompt freeUserPrompt",
         );
+        if (category) {
+          if (subscriptionId && subscriptionStatus === "active") {
+            categoryPrompt = category.prompt?.trim() || null;
+          } else {
+            categoryPrompt = category.freeUserPrompt?.trim() || null;
+          }
+          categoryName = category.name;
+        }
       }
 
-      // ============================================
-      // SPECIALIZED FEATURE PRIORITY SYSTEM
-      // ============================================
-      const specializedFeatures = [
-        {
-          id: "music",
-          shouldRun: shouldRunMusicRecommendation,
-          execute: () =>
-            recommendMusicForMessage({
-              userMessage,
-              translatedMessage,
-              emotionType,
-              userMemory: userMusicMemory,
-            }),
-        },
-        {
-          id: "food",
-          shouldRun:
-            shouldRunFoodRecommendation && engineState !== "DEEP_HEALING",
-          execute: () =>
-            recommendFoodForMessage({
-              userMessage,
-              translatedMessage,
-              emotionType,
-            }),
-        },
-      ];
-
-      let activeSpecialized = null;
-      for (const feature of specializedFeatures) {
-        if (feature.shouldRun) {
-          const result = feature.execute();
-          if (result?.shouldRecommend) {
-            activeSpecialized = { id: feature.id, result };
-            break;
+      if (subCategoryId) {
+        const subCategory = await SubCategory.findById(subCategoryId).select(
+          "name prompt categoryId freeUserPrompt",
+        );
+        if (subCategory) {
+          if (subscriptionId && subscriptionStatus === "active") {
+            subCategoryPrompt = subCategory.prompt?.trim() || null;
+          } else {
+            subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
+          }
+          subCategoryName = subCategory.name;
+          if (!categoryId && subCategory.categoryId) {
+            categoryId = subCategory.categoryId;
           }
         }
       }
 
-      const musicRecommendation =
-        activeSpecialized?.id === "music"
-          ? activeSpecialized.result
-          : { shouldRecommend: false };
-      const foodRecommendation =
-        activeSpecialized?.id === "food"
-          ? activeSpecialized.result
-          : { shouldRecommend: false };
+      const HEALJAI_ACTIVE_CATEGORIES = new Set([
+        "HealJai Talk",
+        "HealJai Talk V2",
+        "Emotions",
+      ]);
+      const isHealJaiCategory =
+        HEALJAI_ACTIVE_CATEGORIES.has(categoryName) ||
+        HEALJAI_ACTIVE_CATEGORIES.has(subCategoryName);
+
+      // ============================================
+      // SPECIALIZED FEATURES (HealJai categories only)
+      // ============================================
+      let musicRecommendation = { shouldRecommend: false };
+      let foodRecommendation = { shouldRecommend: false };
+      let v4Classification = { domain: null, label: null, engineState: null };
+      let engineState = null;
+      let v4ActiveTemplate = null;
+
+      if (isHealJaiCategory) {
+        const shouldRunMusicRecommendation = detectMusicIntent(
+          `${userMessage} ${translatedMessage}`.trim(),
+        );
+        const shouldRunFoodRecommendation = detectFoodIntent(
+          `${userMessage} ${translatedMessage}`.trim(),
+        );
+
+        const updatedMusicMemory = await saveUserMusicGenrePreferences({
+          userId,
+          userMessage,
+          translatedMessage,
+          existingMemory: userMusicMemory,
+        });
+        if (updatedMusicMemory) {
+          userMusicMemory = updatedMusicMemory.toObject
+            ? updatedMusicMemory.toObject()
+            : updatedMusicMemory;
+        }
+
+        const v4Result = await resolveRouting(
+          userMessage,
+          translatedMessage,
+          emotionType,
+        );
+        v4Classification = v4Result;
+        engineState = v4Classification.engineState;
+
+        if (v4Classification.domain && v4Classification.label) {
+          v4ActiveTemplate = getTemplate(
+            v4Classification.domain,
+            v4Classification.label,
+          );
+        }
+
+        const specializedFeatures = [
+          {
+            id: "music",
+            shouldRun: shouldRunMusicRecommendation,
+            execute: () =>
+              recommendMusicForMessage({
+                userMessage,
+                translatedMessage,
+                emotionType,
+                userMemory: userMusicMemory,
+              }),
+          },
+          {
+            id: "food",
+            shouldRun:
+              shouldRunFoodRecommendation && engineState !== "DEEP_HEALING",
+            execute: () =>
+              recommendFoodForMessage({
+                userMessage,
+                translatedMessage,
+                emotionType,
+              }),
+          },
+        ];
+
+        let activeSpecialized = null;
+        for (const feature of specializedFeatures) {
+          if (feature.shouldRun) {
+            const result = feature.execute();
+            if (result?.shouldRecommend) {
+              activeSpecialized = { id: feature.id, result };
+              break;
+            }
+          }
+        }
+
+        if (activeSpecialized?.id === "music") {
+          musicRecommendation = activeSpecialized.result;
+        } else if (activeSpecialized?.id === "food") {
+          foodRecommendation = activeSpecialized.result;
+        }
+      }
 
       if (!userMessage) {
         return res
@@ -575,44 +653,6 @@ const chatController = {
           });
         } catch (planetErr) {
           logger.error("Uranian planet calc error:", planetErr);
-        }
-      }
-
-      let chat = null;
-      let categoryName = null;
-      let categoryPrompt = null;
-      let subCategoryName = null;
-      let subCategoryPrompt = null;
-
-      // LOAD CATEGORY & SUBCATEGORY DATA
-      if (categoryId) {
-        const category = await Category.findById(categoryId).select(
-          "name prompt freeUserPrompt",
-        );
-        if (category) {
-          if (subscriptionId && subscriptionStatus === "active") {
-            categoryPrompt = category.prompt?.trim() || null;
-          } else {
-            categoryPrompt = category.freeUserPrompt?.trim() || null;
-          }
-          categoryName = category.name;
-        }
-      }
-
-      if (subCategoryId) {
-        const subCategory = await SubCategory.findById(subCategoryId).select(
-          "name prompt categoryId freeUserPrompt",
-        );
-        if (subCategory) {
-          if (subscriptionId && subscriptionStatus === "active") {
-            subCategoryPrompt = subCategory.prompt?.trim() || null;
-          } else {
-            subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
-          }
-          subCategoryName = subCategory.name;
-          if (!categoryId && subCategory.categoryId) {
-            categoryId = subCategory.categoryId;
-          }
         }
       }
 
@@ -713,18 +753,19 @@ If Senior: very gentle, slow, comforting, avoid slang.
       // ============================================
       let defaultPrompt = "";
 
-      if (engineState === "CASUAL_FRIEND") {
-        defaultPrompt = "";
-      } else if (engineState === "SUPPORTIVE_FRIEND") {
-        defaultPrompt = `
+      if (isHealJaiCategory) {
+        if (engineState === "CASUAL_FRIEND") {
+          defaultPrompt = "";
+        } else if (engineState === "SUPPORTIVE_FRIEND") {
+          defaultPrompt = `
 CROSS-PACK INTELLIGENCE (AUTO):
 - Work stress → also consider health and sleep context.
 - Relationship pain → also consider self-worth and emotional energy.
 - Burnout → also consider lifestyle and recovery.
 - Blend naturally. Never ask the user to switch topics.
 `.trim();
-      } else {
-        defaultPrompt = `
+        } else {
+          defaultPrompt = `
 CROSS-PACK INTELLIGENCE (AUTO):
 - Work stress → also consider health and sleep context.
 - Relationship pain → also consider self-worth and emotional energy.
@@ -741,6 +782,7 @@ DAILY CHECK-IN (when natural):
   "Feel free to check in again whenever." or "This space is always here."
 - Must feel completely human. Never like a notification or marketing message.
 `.trim();
+        }
       }
 
       // Priority: SubCategory > Category > Default
@@ -1221,7 +1263,8 @@ DAILY CHECK-IN (when natural):
               subCategoryName === "Uranian V3" ||
               categoryName === "HealJai Talk V2"
             ) {
-              stream = await generateClaudeResponseStream(messages);
+              // stream = await generateClaudeResponseStream(messages);
+              stream = await generateGeminiResponseStream(messages);
             } else {
               stream = await generateGeminiResponseStream(messages);
             }
