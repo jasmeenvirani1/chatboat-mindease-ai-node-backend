@@ -40,6 +40,7 @@ const {
   getTemplate,
   processOutput,
 } = require("../helper/v4MasterService");
+const { buildAstriaIndiaContext } = require("../helper/astriaIndiaService");
 
 // ============================================
 // HELPER FUNCTIONS
@@ -422,6 +423,8 @@ const chatController = {
       } = req.body;
 
       let dob0;
+      let dob_time0;
+      let dob_place0;
       let userName;
       let subscriptionId;
       let subscriptionStatus;
@@ -429,10 +432,12 @@ const chatController = {
 
       if (userId) {
         const user = await User.findById(userId).select(
-          "dob username subscriptionId subscriptionStatus",
+          "dob dob_time dob_place username subscriptionId subscriptionStatus",
         );
         if (user) {
           dob0 = user.dob;
+          dob_time0 = user.dob_time;
+          dob_place0 = user.dob_place;
           userName = user.username;
           subscriptionId = user.subscriptionId;
           subscriptionStatus = user.subscriptionStatus;
@@ -535,6 +540,10 @@ const chatController = {
       const isHealJaiCategory =
         HEALJAI_ACTIVE_CATEGORIES.has(categoryName) ||
         HEALJAI_ACTIVE_CATEGORIES.has(subCategoryName);
+
+      // Astria India Engine — isolated flag for "รหัส Healjai V3"
+      const isAstriaIndia = subCategoryName === "รหัส Healjai V3";
+      // console.log("Astria India Engine Active:", isAstriaIndia);
 
       // ============================================
       // SPECIALIZED FEATURES (HealJai categories only)
@@ -1090,11 +1099,33 @@ DAILY CHECK-IN (when natural):
           `.trim();
       }
 
+      // ============================================
+      // ASTRIA INDIA ENGINE — รหัส Healjai V3 ONLY
+      // Fully overrides systemPrompt for this subcategory.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      if (isAstriaIndia) {
+        systemPrompt = await buildAstriaIndiaContext({
+          dob:                  dob0,
+          dob_time:             dob_time0,
+          dob_place:            dob_place0,
+          emotionType,
+          emotionIntensity,
+          userMessage,
+          translatedMessage,
+          target,
+          ageInfo,
+          clientPromptOverride: subCategoryPrompt || null,
+        });
+      }
+
       // Specialized Feature Context
-      if (musicRecommendation?.shouldRecommend) {
+      // isAstriaIndia guard: prevent music/food blocks from overriding the Astria India prompt
+      // even if isHealJaiCategory ever becomes true for this subcategory in the future.
+      if (!isAstriaIndia && musicRecommendation?.shouldRecommend) {
         systemPrompt = `${musicRecommendation.promptBlock}
         LANGUAGE LOCK: Reply only in ${target} language. Never mix languages. Never use Thai unless target is Thai.`;
-      } else if (foodRecommendation?.shouldRecommend) {
+      } else if (!isAstriaIndia && foodRecommendation?.shouldRecommend) {
         const isTeasing = foodRecommendation.isTeasing;
         const flavor = foodRecommendation.flavor;
 
@@ -1150,6 +1181,7 @@ DAILY CHECK-IN (when natural):
           content: systemPrompt.trim(),
         },
       ];
+      // console.log("System Prompt for AI:", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
