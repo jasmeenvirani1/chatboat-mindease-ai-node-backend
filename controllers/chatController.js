@@ -1106,9 +1106,9 @@ DAILY CHECK-IN (when natural):
       // ============================================
       if (isAstriaIndia) {
         systemPrompt = await buildAstriaIndiaContext({
-          dob:                  dob0,
-          dob_time:             dob_time0,
-          dob_place:            dob_place0,
+          dob: dob0,
+          dob_time: dob_time0,
+          dob_place: dob_place0,
           emotionType,
           emotionIntensity,
           userMessage,

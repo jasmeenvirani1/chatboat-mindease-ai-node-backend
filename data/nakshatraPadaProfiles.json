@@ -1,0 +1,974 @@
+[
+  {
+    "index": 0, "name": "Ashwini", "pada": 1, "lord": "Ketu", "navamshaSign": "Aries",
+    "traits": "swift beginnings, bold healing instinct, fearless pioneering momentum, direct urgency",
+    "emotional": "emotionally direct and restless; finds peace through immediate bold forward movement",
+    "karmic": "learning to pause before leaping — the body needs stillness as much as motion",
+    "relationship": "enthusiastic and initiating; drawn to vitality and independence in a partner",
+    "fears": "stagnation and bold constraint",
+    "desires": "pure freedom and immediate energetic new beginnings"
+  },
+  {
+    "index": 0, "name": "Ashwini", "pada": 2, "lord": "Ketu", "navamshaSign": "Taurus",
+    "traits": "grounded healing instinct, patient pioneering energy, earthy swiftness, sensory restlessness",
+    "emotional": "emotionally steady beneath the restlessness; finds peace through beauty and simplicity",
+    "karmic": "learning that deep healing requires patience alongside speed",
+    "relationship": "warm and sensory; values comfort and natural beauty in partnership",
+    "fears": "loss of beauty and groundedness",
+    "desires": "swift beauty and lasting ease in forward movement"
+  },
+  {
+    "index": 0, "name": "Ashwini", "pada": 3, "lord": "Ketu", "navamshaSign": "Gemini",
+    "traits": "quick-minded healing instinct, versatile beginnings, mentally agile, curious and swift",
+    "emotional": "emotionally quick-shifting; processes feelings through thinking and movement simultaneously",
+    "karmic": "learning to settle the mind alongside the restless body",
+    "relationship": "playful and communicative; needs mental stimulation and variety in a partner",
+    "fears": "boredom and mental stagnation",
+    "desires": "perpetual mental and physical discovery in new beginnings"
+  },
+  {
+    "index": 0, "name": "Ashwini", "pada": 4, "lord": "Ketu", "navamshaSign": "Cancer",
+    "traits": "emotionally intuitive healing instinct, nurturing swiftness, compassionate pioneering spirit",
+    "emotional": "most emotionally sensitive Ashwini; restlessness is deeply felt in the heart",
+    "karmic": "learning to nurture the self as much as it leaps forward toward others",
+    "relationship": "protective and nurturing; needs emotional safety to fully express vital energy",
+    "fears": "emotional abandonment and unprotected vulnerability",
+    "desires": "healing connection and emotionally safe new beginnings"
+  },
+  {
+    "index": 1, "name": "Bharani", "pada": 1, "lord": "Venus", "navamshaSign": "Leo",
+    "traits": "creative intensity with regal flair, transformative brilliance, magnetic endurance and pride",
+    "emotional": "carries deep feelings with inner pride; needs recognition for its transformative capacity",
+    "karmic": "learning to create for its own sake rather than for outer recognition",
+    "relationship": "deeply bonded and passionate; drawn to creative vital partners who recognise worth",
+    "fears": "creative invisibility and being unvalued in depth",
+    "desires": "deep creative union and recognition of transformative power"
+  },
+  {
+    "index": 1, "name": "Bharani", "pada": 2, "lord": "Venus", "navamshaSign": "Virgo",
+    "traits": "precise transformative depth, healing through creative discipline, careful moral endurance",
+    "emotional": "carries deep feelings with careful restraint; processes grief analytically and thoroughly",
+    "karmic": "learning to honour imperfection as part of the genuine transformative process",
+    "relationship": "devoted and precise; loves through service and careful sustained attention",
+    "fears": "incompletion and creative imperfection",
+    "desires": "deep creative refinement and purposeful transformation through discipline"
+  },
+  {
+    "index": 1, "name": "Bharani", "pada": 3, "lord": "Venus", "navamshaSign": "Libra",
+    "traits": "relational transformative depth, beauty-seeking endurance, harmonious creative will",
+    "emotional": "most Venus-aligned Bharani; feels deeply through the lens of beauty and partnership",
+    "karmic": "learning to complete cycles with grace rather than prolonged relational clinging",
+    "relationship": "deeply committed to harmony; loves with full balance and aesthetic completeness",
+    "fears": "disharmony and relational incompletion",
+    "desires": "beautiful balanced creative union and harmonious transformation"
+  },
+  {
+    "index": 1, "name": "Bharani", "pada": 4, "lord": "Venus", "navamshaSign": "Scorpio",
+    "traits": "intense transformative depth, psychological creative power, magnetic endurance at soul-level",
+    "emotional": "most intense Bharani; processes emotion at the deepest psychological level",
+    "karmic": "learning to release what must die in order for new creation to live",
+    "relationship": "deeply bonded and transformative; needs total emotional and psychological commitment",
+    "fears": "betrayal and deep psychological wounding",
+    "desires": "total creative and psychological transformation through complete love"
+  },
+  {
+    "index": 2, "name": "Krittika", "pada": 1, "lord": "Sun", "navamshaSign": "Sagittarius",
+    "traits": "philosophical fire, purifying wisdom, principled authority, expansive moral clarity",
+    "emotional": "channels strong feelings through philosophical frameworks; idealistic inner protective fire",
+    "karmic": "learning that wisdom requires lived experience as much as principle",
+    "relationship": "idealistic and principled; needs a partner who shares expansive honest values",
+    "fears": "moral compromise and narrow philosophical thinking",
+    "desires": "philosophical purity and expansive honest protective flame"
+  },
+  {
+    "index": 2, "name": "Krittika", "pada": 2, "lord": "Sun", "navamshaSign": "Capricorn",
+    "traits": "disciplined clarity, structured authority, patient sharp discernment, methodical purifying fire",
+    "emotional": "feels frustration deeply but contains it with long discipline; builds through patience",
+    "karmic": "learning to protect structure without becoming rigid or burning what it guards",
+    "relationship": "loyal and disciplined; commits fully once trust is established over time",
+    "fears": "structural collapse and long-hidden dishonesty",
+    "desires": "disciplined clarity and enduring honest structure through patient fire"
+  },
+  {
+    "index": 2, "name": "Krittika", "pada": 3, "lord": "Sun", "navamshaSign": "Aquarius",
+    "traits": "humanitarian clarity, purifying fire for collective good, innovative honest authority",
+    "emotional": "channels feelings toward collective ideals; may seem detached when most passionately protective",
+    "karmic": "learning that individual needs are as valid as collective purpose",
+    "relationship": "principled and independent; needs shared higher collective vision in a partner",
+    "fears": "corruption of collective ideals and loss of individual honest truth",
+    "desires": "purifying innovation and honest collective protective flame"
+  },
+  {
+    "index": 2, "name": "Krittika", "pada": 4, "lord": "Sun", "navamshaSign": "Pisces",
+    "traits": "spiritual clarity, compassionate purifying fire, visionary protection, intuitive authority",
+    "emotional": "deeply compassionate beneath the fierce exterior; fire that serves the sacred",
+    "karmic": "learning to surrender the need to protect into the hands of something larger",
+    "relationship": "spiritually devoted and fiercely protective; loves with vision and sacred compassion",
+    "fears": "spiritual impurity and compassionate trust betrayed",
+    "desires": "sacred flame and spiritually honest purifying clarity"
+  },
+  {
+    "index": 3, "name": "Rohini", "pada": 1, "lord": "Moon", "navamshaSign": "Aries",
+    "traits": "warm energetic abundance, active nurturing instinct, pioneering creative richness",
+    "emotional": "emotionally generous with directness and initiative; abundance expressed with bold energy",
+    "karmic": "learning to nourish without rushing the natural flowering of those cared for",
+    "relationship": "warm and initiating; brings forward energy and creative abundance to partnership",
+    "fears": "loss of creative momentum and stagnant vital abundance",
+    "desires": "energetic love and pioneering abundant creative flowering"
+  },
+  {
+    "index": 3, "name": "Rohini", "pada": 2, "lord": "Moon", "navamshaSign": "Taurus",
+    "traits": "magnetic warmth, deep sensory richness, natural abundance, grounded devoted beauty",
+    "emotional": "most Venusian Rohini; emotionally generous, deeply devoted to beauty and ease",
+    "karmic": "learning to share the abundance that arrives so naturally without holding it tightly",
+    "relationship": "warm, sensuous, and devoted; needs material and emotional security to fully bloom",
+    "fears": "loss of beauty, comfort, and material sustaining ease",
+    "desires": "total sensory love and naturally abundant creative flowering"
+  },
+  {
+    "index": 3, "name": "Rohini", "pada": 3, "lord": "Moon", "navamshaSign": "Gemini",
+    "traits": "communicative warmth, intellectually rich nurturing, creative versatile abundance",
+    "emotional": "emotionally expressive and communicative; processes feeling through creative dialogue",
+    "karmic": "learning to move from intellectual abundance into deeper emotional present-moment presence",
+    "relationship": "playful, communicative, and creatively warm; needs mental spark in partnership",
+    "fears": "emotional disconnection and creative conversational stagnation",
+    "desires": "creative dialogue and intellectually rich warm abundance"
+  },
+  {
+    "index": 3, "name": "Rohini", "pada": 4, "lord": "Moon", "navamshaSign": "Cancer",
+    "traits": "deep maternal warmth, intuitive nurturing, emotional abundance, home-centred richness",
+    "emotional": "most emotionally deep Rohini; intuition and feeling are completely intertwined",
+    "karmic": "learning that receiving nourishment is as sacred as giving it to others",
+    "relationship": "deeply nurturing and protective; creates profound emotional home for loved ones",
+    "fears": "emotional loss and separation from those most beloved",
+    "desires": "deep emotional love and a nourishing beautifully abundant home"
+  },
+  {
+    "index": 4, "name": "Mrigashira", "pada": 1, "lord": "Mars", "navamshaSign": "Leo",
+    "traits": "proud searching spirit, creatively curious, gentle seeking with inner radiance and dignity",
+    "emotional": "seeks emotional meaning with genuine pride; restlessness expressed with warm confidence",
+    "karmic": "learning that the quiet search carries its own dignity without need for display",
+    "relationship": "curious and warm; drawn to partners who genuinely inspire and illuminate",
+    "fears": "creative emptiness and loss of dignified seeking drive",
+    "desires": "radiant discovery and creatively proud perpetual searching"
+  },
+  {
+    "index": 4, "name": "Mrigashira", "pada": 2, "lord": "Mars", "navamshaSign": "Virgo",
+    "traits": "precise seeking, analytical curiosity, gentle discernment, methodical careful searching",
+    "emotional": "emotionally careful and precise; seeks perfection in the objects of its gentle discovery",
+    "karmic": "learning that not every discovery needs analysing before it can be genuinely received",
+    "relationship": "attentive and precise; loves through careful thoughtful gestures over time",
+    "fears": "imprecision and chaotically undirected searching",
+    "desires": "refined discovery and carefully understood emotional terrain"
+  },
+  {
+    "index": 4, "name": "Mrigashira", "pada": 3, "lord": "Mars", "navamshaSign": "Libra",
+    "traits": "harmonious searching, aesthetically curious, balanced gentle restlessness, beauty-oriented",
+    "emotional": "emotionally attuned to beauty and balance; finds peace through aesthetic discovery",
+    "karmic": "learning to rest within beauty rather than always seeking something beyond it",
+    "relationship": "gentle, harmonious, and aesthetically drawn; needs beauty and balance in a partner",
+    "fears": "disharmony and aesthetic emptiness in the seeking journey",
+    "desires": "beautiful balanced discovery and harmoniously gentle perpetual seeking"
+  },
+  {
+    "index": 4, "name": "Mrigashira", "pada": 4, "lord": "Mars", "navamshaSign": "Scorpio",
+    "traits": "deep psychological searching, intense curious depth, transformative gentle seeking",
+    "emotional": "emotionally probing and quietly intense; the gentle exterior hides profound inner depth",
+    "karmic": "learning that some depths are meant to rest in, not endlessly explore further",
+    "relationship": "psychologically curious and deeply attentive; needs real emotional depth in a partner",
+    "fears": "surface-level existence and psychological emptiness beneath the search",
+    "desires": "psychological depth and transformative endless gentle discovery"
+  },
+  {
+    "index": 5, "name": "Ardra", "pada": 1, "lord": "Rahu", "navamshaSign": "Sagittarius",
+    "traits": "philosophical storm energy, expansive breakthrough potential, wisdom-seeking raw intensity",
+    "emotional": "carries raw emotional power directed toward higher meaning; storms with genuine purpose",
+    "karmic": "learning to find philosophical grounding within the centre of the storm",
+    "relationship": "deeply transformative and honest; needs a partner who can grow through shared intensity",
+    "fears": "emotional meaninglessness and purposeless philosophical destruction",
+    "desires": "philosophical breakthrough and wisdom born from honest transformative storm"
+  },
+  {
+    "index": 5, "name": "Ardra", "pada": 2, "lord": "Rahu", "navamshaSign": "Capricorn",
+    "traits": "disciplined storm energy, structured breakthrough, methodical raw emotional power",
+    "emotional": "contains emotional intensity within disciplined structure; storms that ultimately build",
+    "karmic": "learning that even breakthrough must be built upon sound patient foundation",
+    "relationship": "intense and committed; brings disciplined structure to emotional depth in partnership",
+    "fears": "structural chaos and undirected destructive power",
+    "desires": "disciplined breakthrough and structured honest long-term transformation"
+  },
+  {
+    "index": 5, "name": "Ardra", "pada": 3, "lord": "Rahu", "navamshaSign": "Aquarius",
+    "traits": "collective storm energy, humanitarian breakthrough potential, innovative raw intensity",
+    "emotional": "channels emotional storms toward collective healing and innovative renewal",
+    "karmic": "learning to honour personal pain alongside collective transformative purpose",
+    "relationship": "intellectually intense and idealistic; needs shared vision of honest breakthrough",
+    "fears": "collective stagnation and emotional isolation within the storm",
+    "desires": "humanitarian breakthrough and innovative honest collective transformation"
+  },
+  {
+    "index": 5, "name": "Ardra", "pada": 4, "lord": "Rahu", "navamshaSign": "Pisces",
+    "traits": "spiritual storm energy, compassionate breakthrough, transcendent raw emotional power",
+    "emotional": "most spiritually intense Ardra; storms that carry deep seeds of compassion and vision",
+    "karmic": "learning that dissolution and compassion are two faces of the same honest truth",
+    "relationship": "spiritually transformative; needs a partner who can receive deep emotional truth",
+    "fears": "spiritual emptiness and compassion exhausted entirely by the storm",
+    "desires": "transcendent breakthrough and compassionate honest renewal from within the storm"
+  },
+  {
+    "index": 6, "name": "Punarvasu", "pada": 1, "lord": "Jupiter", "navamshaSign": "Aries",
+    "traits": "energetic renewal, bold resilient optimism, pioneering home-returning wisdom, active rebuilding",
+    "emotional": "resilient and boldly initiating; bounces back with energy and clear forward momentum",
+    "karmic": "learning that each bold return carries new wisdom earned through the journey",
+    "relationship": "warm and initiating; brings fresh energy and genuine optimism to loved ones",
+    "fears": "permanent defeat and inability to begin again with honest purpose",
+    "desires": "energetic renewal and pioneering return to what truly matters"
+  },
+  {
+    "index": 6, "name": "Punarvasu", "pada": 2, "lord": "Jupiter", "navamshaSign": "Taurus",
+    "traits": "grounded renewal, abundant resilience, patient home-returning wisdom, earthy optimism",
+    "emotional": "emotionally stable in return; rebuilds patiently with natural sensory abundance",
+    "karmic": "learning to share the abundance that comes through each repeated renewal",
+    "relationship": "warm, patient, and genuinely generous; creates stable beautiful home after difficulty",
+    "fears": "loss of grounding and material security during times of return",
+    "desires": "grounded renewal and abundant patient return to belonging"
+  },
+  {
+    "index": 6, "name": "Punarvasu", "pada": 3, "lord": "Jupiter", "navamshaSign": "Gemini",
+    "traits": "communicative renewal, intellectually resilient, versatile optimism, wisdom through dialogue",
+    "emotional": "emotionally quick to bounce back; processes difficulty through open communication",
+    "karmic": "learning that wisdom shared in words multiplies rather than depletes the self",
+    "relationship": "playful and communicative; brings lightness and renewal through genuine dialogue",
+    "fears": "intellectual stagnation and loss of communicative honest connection",
+    "desires": "communicative renewal and intellectually expansive return to wisdom"
+  },
+  {
+    "index": 6, "name": "Punarvasu", "pada": 4, "lord": "Jupiter", "navamshaSign": "Cancer",
+    "traits": "nurturing renewal, emotionally resilient, intuitive home-returning wisdom, deep optimism",
+    "emotional": "most emotionally deep Punarvasu; renewal is felt through care, intuition, and home",
+    "karmic": "learning that the home within always endures even when the outer home is lost",
+    "relationship": "deeply nurturing and protective; rebuilds emotional home with full compassionate heart",
+    "fears": "permanent emotional homelessness and deep rootlessness",
+    "desires": "emotional renewal and deep nurturing return to true belonging"
+  },
+  {
+    "index": 7, "name": "Pushya", "pada": 1, "lord": "Saturn", "navamshaSign": "Leo",
+    "traits": "nurturing with dignity, disciplined creative generosity, sustaining spirit with inner pride",
+    "emotional": "holds emotional generosity with inner pride; cares deeply and wants that care seen",
+    "karmic": "learning to nourish without needing acknowledgment for each devoted act of care",
+    "relationship": "devoted and proud; loves through reliable creative generosity over time",
+    "fears": "invisibility of sincere care and loss of personal dignity",
+    "desires": "dignified sustained nourishment and genuinely recognised generous spirit"
+  },
+  {
+    "index": 7, "name": "Pushya", "pada": 2, "lord": "Saturn", "navamshaSign": "Virgo",
+    "traits": "precise nurturing, analytical care, methodical sustaining depth, healing through discipline",
+    "emotional": "holds nurturing instinct with great precision; gives carefully and very thoroughly",
+    "karmic": "learning to receive nurturing as carefully and openly as it is given",
+    "relationship": "devoted and precise; loves through thoughtful practical acts of sustained care",
+    "fears": "imprecise care and being seen as inadequate in giving",
+    "desires": "precise sustained nourishment and perfectly offered disciplined care"
+  },
+  {
+    "index": 7, "name": "Pushya", "pada": 3, "lord": "Saturn", "navamshaSign": "Libra",
+    "traits": "harmonious nurturing, balanced sustained care, relational sustaining depth, aesthetic discipline",
+    "emotional": "emotionally balanced and fair in care; nourishes through creating harmony and beauty",
+    "karmic": "learning that giving and receiving must be in honest and sustained equilibrium",
+    "relationship": "devoted and harmonious; creates balanced emotional beauty within partnership",
+    "fears": "imbalance in giving and disharmony within the act of care",
+    "desires": "harmonious sustained nourishment and balanced generous spirit in relationship"
+  },
+  {
+    "index": 7, "name": "Pushya", "pada": 4, "lord": "Saturn", "navamshaSign": "Scorpio",
+    "traits": "deep psychological nurturing, intense sustained care, transformative disciplined giving",
+    "emotional": "holds the deepest emotional nurturing of all Pushya padas; cares at the level of the soul",
+    "karmic": "learning to release the tendency to hold those it nurtures too tightly",
+    "relationship": "deeply devoted and psychologically protective; loves with complete total commitment",
+    "fears": "loss of those nurtured and inability to protect at the deepest level",
+    "desires": "deep transformative nourishment and soul-level sustaining devoted care"
+  },
+  {
+    "index": 8, "name": "Ashlesha", "pada": 1, "lord": "Mercury", "navamshaSign": "Sagittarius",
+    "traits": "philosophical serpent wisdom, expansive perception, wisdom-seeking complex intelligence",
+    "emotional": "processes depth through philosophical meaning; seeks to understand the underlying why",
+    "karmic": "learning to trust intuition alongside philosophical analytical reasoning",
+    "relationship": "perceptive and philosophically deep; needs a partner who seeks genuine wisdom",
+    "fears": "shallow thinking and loss of philosophical grounding in depth",
+    "desires": "philosophical wisdom and expansive deep layered understanding"
+  },
+  {
+    "index": 8, "name": "Ashlesha", "pada": 2, "lord": "Mercury", "navamshaSign": "Capricorn",
+    "traits": "disciplined serpent wisdom, structured perception, methodical complex intelligence",
+    "emotional": "contains emotional depth within long disciplined self-control; internalizes very long",
+    "karmic": "learning to let disciplined structure serve trust rather than prevent real opening",
+    "relationship": "perceptive and reliably committed; loves through steadfast presence over long time",
+    "fears": "exposure and loss of carefully constructed layered self-protection",
+    "desires": "disciplined wisdom and structured deep understanding that endures"
+  },
+  {
+    "index": 8, "name": "Ashlesha", "pada": 3, "lord": "Mercury", "navamshaSign": "Aquarius",
+    "traits": "innovative serpent wisdom, humanitarian deep perception, independent complex intelligence",
+    "emotional": "processes emotional depth through intellectual distance and innovative independent thinking",
+    "karmic": "learning to honour emotional truth alongside intellectual detachment",
+    "relationship": "perceptive and independent; needs genuine freedom within a committed authentic bond",
+    "fears": "emotional entrapment and intellectual superficiality masking as depth",
+    "desires": "independent wisdom and innovatively deep understanding"
+  },
+  {
+    "index": 8, "name": "Ashlesha", "pada": 4, "lord": "Mercury", "navamshaSign": "Pisces",
+    "traits": "spiritual serpent wisdom, compassionate deep perception, visionary complex intelligence",
+    "emotional": "most spiritually deep Ashlesha; intuition and emotion merge into profound inner knowing",
+    "karmic": "learning to share the compassion that lies within the self-protected depth",
+    "relationship": "perceptive and spiritually attuned; needs genuine soul-level honest connection",
+    "fears": "spiritual betrayal and the dissolution of carefully protected inner knowing",
+    "desires": "spiritual wisdom and compassionately deep layered understanding"
+  },
+  {
+    "index": 9, "name": "Magha", "pada": 1, "lord": "Ketu", "navamshaSign": "Aries",
+    "traits": "bold ancestral power, pioneering regal bearing, initiating connection to lineage and source",
+    "emotional": "carries heritage with bold confidence and forward motion; regal and energetically direct",
+    "karmic": "learning to honour the past while building something genuinely new with bold initiative",
+    "relationship": "proud and initiating; needs a partner who respects both roots and ambitious direction",
+    "fears": "dishonour of lineage and loss of bold pioneering regal spirit",
+    "desires": "bold legacy and pioneering regal connection to ancestral source"
+  },
+  {
+    "index": 9, "name": "Magha", "pada": 2, "lord": "Ketu", "navamshaSign": "Taurus",
+    "traits": "grounded ancestral power, abundant regal bearing, sensory connection to lineage and earth",
+    "emotional": "carries heritage with patient earthly richness; abundance flows naturally from deep roots",
+    "karmic": "learning to build new legacy upon the beautiful abundant foundation of the past",
+    "relationship": "proud and sensory; needs a partner who appreciates beauty, tradition, and depth",
+    "fears": "loss of material heritage and earthly ancestral connection",
+    "desires": "abundant grounded legacy and sensory regal connection to source"
+  },
+  {
+    "index": 9, "name": "Magha", "pada": 3, "lord": "Ketu", "navamshaSign": "Gemini",
+    "traits": "communicative ancestral power, intellectually regal, versatile connection to lineage through story",
+    "emotional": "carries heritage through stories and communication; lineage expressed and alive in words",
+    "karmic": "learning to transmit ancestral wisdom not only in words but in the lived daily life",
+    "relationship": "proud and communicative; brings ancestral wisdom to life through authentic dialogue",
+    "fears": "stories lost and lineage silenced by forgetting",
+    "desires": "communicative legacy and intellectually vibrant regal connection to source"
+  },
+  {
+    "index": 9, "name": "Magha", "pada": 4, "lord": "Ketu", "navamshaSign": "Cancer",
+    "traits": "emotionally deep ancestral power, nurturing regal bearing, intuitive connection to lineage",
+    "emotional": "most emotionally connected Magha; feels ancestors as a living emotional present presence",
+    "karmic": "learning to honour the emotional truth of lineage alongside its formal dignity",
+    "relationship": "proud and nurturing; creates family and legacy with full emotional depth and care",
+    "fears": "emotional disconnection from roots and ancestral abandonment",
+    "desires": "deep emotional legacy and nurturing regal connection to ancestral source"
+  },
+  {
+    "index": 10, "name": "Purva Phalguni", "pada": 1, "lord": "Venus", "navamshaSign": "Leo",
+    "traits": "radiant creative rest, joyfully expressive brilliance, pleasure-seeking with inner dignity",
+    "emotional": "emotionally warm and radiant; needs beauty, play, and genuine recognition to fully thrive",
+    "karmic": "learning that true joy comes from the inside rather than from outer admiration",
+    "relationship": "romantic, generous, and magnetically warm; loves with creative radiant generosity",
+    "fears": "creative invisibility and loveless empty existence",
+    "desires": "radiant creative joy and beautiful genuine recognition in love"
+  },
+  {
+    "index": 10, "name": "Purva Phalguni", "pada": 2, "lord": "Venus", "navamshaSign": "Virgo",
+    "traits": "refined creative rest, precise joyful expression, pleasure found through beautiful service",
+    "emotional": "finds joy through careful refinement; pleasure and precision walk together naturally",
+    "karmic": "learning that rest is sacred even when every beautiful detail has not been perfected",
+    "relationship": "affectionate and precise; loves through careful acts of beautiful service and attention",
+    "fears": "creative imperfection and loveless precision without warmth",
+    "desires": "refined creative joy and perfectly offered beautiful ease in love"
+  },
+  {
+    "index": 10, "name": "Purva Phalguni", "pada": 3, "lord": "Venus", "navamshaSign": "Libra",
+    "traits": "harmonious creative rest, balanced joyful expression, relational pleasure through shared beauty",
+    "emotional": "emotionally warm and deeply relational; joy is always shared rather than solitary",
+    "karmic": "learning that inner joy is the honest foundation from which shared beauty truly grows",
+    "relationship": "romantic and harmonious; loves through creating mutual beauty and genuine balance",
+    "fears": "relational disharmony and loveless beautiful emptiness",
+    "desires": "harmonious creative joy and balanced beautiful connection in partnership"
+  },
+  {
+    "index": 10, "name": "Purva Phalguni", "pada": 4, "lord": "Venus", "navamshaSign": "Scorpio",
+    "traits": "intense creative rest, transformative joyful expression, deep pleasure-seeking with emotional weight",
+    "emotional": "carries joy at great emotional depth; pleasure is intertwined with transformative intensity",
+    "karmic": "learning that joy does not require intensity to be genuinely real and complete",
+    "relationship": "deeply romantic and transformatively passionate; loves with full emotional commitment",
+    "fears": "superficial pleasure and deep unresolved lovelessness",
+    "desires": "intense creative joy and transformatively beautiful deep connection"
+  },
+  {
+    "index": 11, "name": "Uttara Phalguni", "pada": 1, "lord": "Sun", "navamshaSign": "Sagittarius",
+    "traits": "philosophically loyal, expansive solar steadiness, sustained wisdom through honest generous service",
+    "emotional": "warm and idealistic; finds deep meaning through service directed toward a larger honest vision",
+    "karmic": "learning to receive graciously what is given as freely as it gives",
+    "relationship": "devoted and philosophically expansive; needs a partner who shares honest direction",
+    "fears": "ingratitude and philosophical isolation from meaningful purpose",
+    "desires": "expansive lasting bonds and honest service to a larger meaning"
+  },
+  {
+    "index": 11, "name": "Uttara Phalguni", "pada": 2, "lord": "Sun", "navamshaSign": "Capricorn",
+    "traits": "disciplined loyal service, structured solar steadiness, patient sustained effort and reliability",
+    "emotional": "emotionally dependable and measured; gives through steady long disciplined presence",
+    "karmic": "learning to receive graciously what sustained patient effort has honestly earned",
+    "relationship": "committed and disciplined; builds partnerships through patient long sustained loyalty",
+    "fears": "ingratitude for long patient disciplined service",
+    "desires": "disciplined lasting bonds and structured honest sustained generous giving"
+  },
+  {
+    "index": 11, "name": "Uttara Phalguni", "pada": 3, "lord": "Sun", "navamshaSign": "Aquarius",
+    "traits": "humanitarian loyal service, innovative solar steadiness, honest collective generous contribution",
+    "emotional": "emotionally driven by collective wellbeing; gives through large honest shared purpose",
+    "karmic": "learning that personal warmth and collective service must both be genuinely honoured",
+    "relationship": "devoted and idealistic; needs shared humanitarian vision in a committed partner",
+    "fears": "collective ingratitude and isolation from larger humanitarian purpose",
+    "desires": "innovative lasting bonds and honest humanitarian solar service"
+  },
+  {
+    "index": 11, "name": "Uttara Phalguni", "pada": 4, "lord": "Sun", "navamshaSign": "Pisces",
+    "traits": "spiritual loyal service, compassionate solar steadiness, visionary honest devoted generosity",
+    "emotional": "emotionally compassionate and spiritually motivated; serves from a place of sacred vision",
+    "karmic": "learning that devotion to the sacred and graciously receiving are equally holy acts",
+    "relationship": "spiritually devoted and generous; loves with lasting compassionate honest vision",
+    "fears": "spiritual ingratitude and disconnection from sacred honest purpose",
+    "desires": "spiritual lasting bonds and visionary honest compassionate solar service"
+  },
+  {
+    "index": 12, "name": "Hasta", "pada": 1, "lord": "Moon", "navamshaSign": "Aries",
+    "traits": "bold practical skill, initiating craftsmanship, direct intelligent nimbleness and energy",
+    "emotional": "emotionally direct and practically bold; moves through difficulty with confident creative hands",
+    "karmic": "learning to trust that quick skillful action is itself a genuine form of wisdom",
+    "relationship": "playful and initiating; keeps relationships practically active and genuinely alive",
+    "fears": "practical helplessness and loss of bold initiating skill",
+    "desires": "bold creative skill and pioneering practical intelligent action"
+  },
+  {
+    "index": 12, "name": "Hasta", "pada": 2, "lord": "Moon", "navamshaSign": "Taurus",
+    "traits": "grounded practical skill, sensory craftsmanship, patient intelligent nimbleness and beauty",
+    "emotional": "emotionally grounded and sensory; finds emotional safety through tangible beautiful creation",
+    "karmic": "learning to trust the slow patient hand as much as the quick clever one",
+    "relationship": "warm and practically grounded; brings sensory comfort and reliable skill to partnership",
+    "fears": "loss of material creative agency and practical groundlessness",
+    "desires": "grounded creative skill and patient beautiful practical creation"
+  },
+  {
+    "index": 12, "name": "Hasta", "pada": 3, "lord": "Moon", "navamshaSign": "Gemini",
+    "traits": "communicative practical skill, versatile craftsmanship, playful intelligent nimbleness",
+    "emotional": "emotionally adaptive and expressive; processes feeling through wit and creative practical work",
+    "karmic": "learning to let the hands speak honestly what the tongue cannot always fully say",
+    "relationship": "playful and communicative; brings lightness and creative dialogue to partnership",
+    "fears": "loss of creative versatility and practical honest disconnection",
+    "desires": "communicative creative skill and intellectually playful practical intelligent action"
+  },
+  {
+    "index": 12, "name": "Hasta", "pada": 4, "lord": "Moon", "navamshaSign": "Cancer",
+    "traits": "emotionally intuitive skill, nurturing craftsmanship, compassionate intelligent hands",
+    "emotional": "most emotionally deep Hasta; creates and repairs always from a place of genuine care",
+    "karmic": "learning to trust that emotional intuition lives in the hands as much as the heart",
+    "relationship": "nurturing and practically caring; creates emotional safety through thoughtful skillful acts",
+    "fears": "emotional helplessness and loss of nurturing practical capacity",
+    "desires": "nurturing creative skill and emotionally intelligent compassionate practical care"
+  },
+  {
+    "index": 13, "name": "Chitra", "pada": 1, "lord": "Mars", "navamshaSign": "Leo",
+    "traits": "radiant creative brilliance, magnetic regal vision, dynamic architectural pride and energy",
+    "emotional": "aesthetic needs run deep with desire for recognition; creates to be genuinely seen",
+    "karmic": "learning to create from inner truth rather than for outer approval and display",
+    "relationship": "magnetically attractive and proud; needs a partner who truly recognises inner vision",
+    "fears": "creative invisibility and loss of architectural dignity",
+    "desires": "radiant creative brilliance and genuinely recognised magnetic vision"
+  },
+  {
+    "index": 13, "name": "Chitra", "pada": 2, "lord": "Mars", "navamshaSign": "Virgo",
+    "traits": "precise creative brilliance, methodical architectural vision, analytical dynamic creative force",
+    "emotional": "aesthetic needs tied to perfection; finds deep satisfaction in flawlessly refined creation",
+    "karmic": "learning that creative excellence is genuinely different from creative perfectionism",
+    "relationship": "magnetically precise; loves through careful attention to beautiful functional detail",
+    "fears": "creative imprecision and architectural mediocrity",
+    "desires": "precise creative brilliance and methodically perfect dynamic vision"
+  },
+  {
+    "index": 13, "name": "Chitra", "pada": 3, "lord": "Mars", "navamshaSign": "Libra",
+    "traits": "harmonious creative brilliance, balanced architectural vision, relational dynamic beauty",
+    "emotional": "most balanced Chitra; aesthetic sensitivity expressed through harmony and shared partnership",
+    "karmic": "learning that beauty honestly shared is beauty genuinely doubled",
+    "relationship": "magnetically beautiful and harmonious; creates mutual aesthetic vision in love",
+    "fears": "creative disharmony and beauty undermined by unresolved conflict",
+    "desires": "harmonious creative brilliance and balanced dynamic vision within partnership"
+  },
+  {
+    "index": 13, "name": "Chitra", "pada": 4, "lord": "Mars", "navamshaSign": "Scorpio",
+    "traits": "intense creative brilliance, psychological architectural vision, transformative dynamic force",
+    "emotional": "most psychologically deep Chitra; creates from places of profound emotional honest truth",
+    "karmic": "learning to share creative depth without fearing it will be misunderstood",
+    "relationship": "magnetically intense; needs a partner who can truly match the depth of creative vision",
+    "fears": "creative depth unexpressed and psychological beauty completely unseen",
+    "desires": "intense creative brilliance and transformative dynamic psychological vision"
+  },
+  {
+    "index": 14, "name": "Swati", "pada": 1, "lord": "Rahu", "navamshaSign": "Sagittarius",
+    "traits": "philosophically free movement, expansive independent intelligence, wisdom through self-direction",
+    "emotional": "emotional health tied to philosophical freedom and expansive honest personal vision",
+    "karmic": "learning that true freedom includes the freedom to commit to something genuinely greater",
+    "relationship": "independent and philosophically expansive; needs shared vision rather than any control",
+    "fears": "philosophical constraint and loss of expansive honest self-direction",
+    "desires": "philosophical freedom and self-directed expansive wise flourishing"
+  },
+  {
+    "index": 14, "name": "Swati", "pada": 2, "lord": "Rahu", "navamshaSign": "Capricorn",
+    "traits": "disciplined independent movement, structured self-sufficiency, methodical flexible adaptability",
+    "emotional": "emotional health depends on disciplined personal freedom; structures independence carefully",
+    "karmic": "learning that discipline and freedom can be in genuine productive partnership",
+    "relationship": "independent and reliable; needs a partner who respects structured self-direction",
+    "fears": "disciplinary control that masquerades convincingly as helpful structure",
+    "desires": "disciplined freedom and self-directed structured flourishing over time"
+  },
+  {
+    "index": 14, "name": "Swati", "pada": 3, "lord": "Rahu", "navamshaSign": "Aquarius",
+    "traits": "innovatively independent movement, humanitarian self-sufficiency, collective adaptable freedom",
+    "emotional": "emotional health tied to independence within collective ideals; humanistically and freely expressive",
+    "karmic": "learning that individual freedom serves highest when directed toward genuine collective good",
+    "relationship": "independent and idealistic; needs a partner who shares humanitarian honest vision",
+    "fears": "collective control and loss of innovating personal independence",
+    "desires": "innovative freedom and humanitarian self-directed flourishing"
+  },
+  {
+    "index": 14, "name": "Swati", "pada": 4, "lord": "Rahu", "navamshaSign": "Pisces",
+    "traits": "spiritually free movement, compassionate independence, transcendent self-sufficient adaptability",
+    "emotional": "most spiritually attuned Swati; freedom is experienced as compassionate dissolution into the sacred",
+    "karmic": "learning that freedom and compassion are ultimately the same movement of the open heart",
+    "relationship": "independent and spiritually open; needs a partner who honours sacred personal space",
+    "fears": "spiritual constraint and compassion that becomes emotional entrapment",
+    "desires": "spiritual freedom and compassionate transcendent self-directed flourishing"
+  },
+  {
+    "index": 15, "name": "Vishakha", "pada": 1, "lord": "Jupiter", "navamshaSign": "Aries",
+    "traits": "boldly determined focus, pioneering goal-directed patience, energetically purposeful drive",
+    "emotional": "contains emotion with bold forward drive; burns with energetic and quiet purposeful fire",
+    "karmic": "learning that bold beginnings must be accompanied by patient and sustained honest effort",
+    "relationship": "committed and initiating; needs a partner who shares directional ambitious purpose",
+    "fears": "wasted pioneering energy and purposeless beginning without follow-through",
+    "desires": "bold meaningful achievement and pioneering lasting results"
+  },
+  {
+    "index": 15, "name": "Vishakha", "pada": 2, "lord": "Jupiter", "navamshaSign": "Taurus",
+    "traits": "grounded determined focus, patient goal-direction, sensory purposeful persistence and endurance",
+    "emotional": "contains emotion with grounded steady patience; purpose expressed through sustained endurance",
+    "karmic": "learning that sensory pleasure and purposeful effort can genuinely enrich each other",
+    "relationship": "committed and grounded; builds partnerships through shared material and purposeful direction",
+    "fears": "wasted grounded effort and purposeless sensory existence without meaning",
+    "desires": "grounded meaningful achievement and patient lasting sensory purposeful results"
+  },
+  {
+    "index": 15, "name": "Vishakha", "pada": 3, "lord": "Jupiter", "navamshaSign": "Gemini",
+    "traits": "communicatively determined focus, intellectually goal-directed, versatile purposeful drive",
+    "emotional": "contains emotion through intellectual framing of purpose; speaks the goal clearly into being",
+    "karmic": "learning that the communication of purpose is not the same as its genuine achievement",
+    "relationship": "committed and communicative; shares direction through dialogue and intellectual honest bond",
+    "fears": "purposeless communication and goals spoken but never honestly achieved",
+    "desires": "communicative meaningful achievement and intellectually purposeful lasting results"
+  },
+  {
+    "index": 15, "name": "Vishakha", "pada": 4, "lord": "Jupiter", "navamshaSign": "Cancer",
+    "traits": "emotionally determined focus, nurturing goal-direction, intuitive purposeful persistence",
+    "emotional": "most emotionally deep Vishakha; purpose is felt honestly through the heart not only the mind",
+    "karmic": "learning that emotional truth and purposeful achievement are not in opposition",
+    "relationship": "committed and nurturing; needs a partner who shares both heart and clear direction",
+    "fears": "emotional purposelessness and goals that hollow the heart over time",
+    "desires": "emotionally meaningful achievement and nurturing purposeful lasting results"
+  },
+  {
+    "index": 16, "name": "Anuradha", "pada": 1, "lord": "Saturn", "navamshaSign": "Leo",
+    "traits": "devoted loyal friendship with inner dignity, persevering heart that naturally seeks recognition",
+    "emotional": "holds love quietly but needs that devotion to be genuinely seen and honestly honoured",
+    "karmic": "learning that true devotion needs no outer recognition to be inwardly complete",
+    "relationship": "deeply loyal and proud; one of the most devoted while needing mutual recognition",
+    "fears": "abandonment and invisible devotion that goes permanently unacknowledged",
+    "desires": "recognised true friendship and dignified lasting reciprocal loyalty"
+  },
+  {
+    "index": 16, "name": "Anuradha", "pada": 2, "lord": "Saturn", "navamshaSign": "Virgo",
+    "traits": "precisely devoted loyalty, healing friendly discipline, methodical persevering heart",
+    "emotional": "holds love with great care and precision; serves devotion through healing practical acts",
+    "karmic": "learning to honour the self with the same precision it applies to devoted service",
+    "relationship": "deeply loyal and precise; loves through careful healing service given over long time",
+    "fears": "imprecise reciprocity and overlooked precise acts of devotion",
+    "desires": "precisely reciprocated true friendship and carefully sustained lasting loyalty"
+  },
+  {
+    "index": 16, "name": "Anuradha", "pada": 3, "lord": "Saturn", "navamshaSign": "Libra",
+    "traits": "harmonious devoted loyalty, balanced friendly persistence, aesthetically graceful devotion",
+    "emotional": "most balanced Anuradha; devotion expressed through creating harmony and shared beauty",
+    "karmic": "learning that balanced devotion requires both giving and receiving in true honest measure",
+    "relationship": "deeply loyal and harmonious; creates beautiful balanced devotion within partnership",
+    "fears": "relational imbalance and devotion offered without reciprocal honest harmony",
+    "desires": "harmonious true friendship and balanced gracefully reciprocal lasting loyalty"
+  },
+  {
+    "index": 16, "name": "Anuradha", "pada": 4, "lord": "Saturn", "navamshaSign": "Scorpio",
+    "traits": "intensely devoted loyalty, psychological friendly depth, transformative persevering heart",
+    "emotional": "most psychologically deep Anuradha; devotion is felt and offered at the level of the soul",
+    "karmic": "learning to allow transformation to come through genuine trust rather than only endurance",
+    "relationship": "most deeply devoted; loves with complete psychological and soul-level commitment",
+    "fears": "soul-level abandonment and devotion betrayed at the deepest honest layer",
+    "desires": "intense true friendship and transformative deeply reciprocal lasting loyalty"
+  },
+  {
+    "index": 17, "name": "Jyeshtha", "pada": 1, "lord": "Mercury", "navamshaSign": "Sagittarius",
+    "traits": "philosophical elder wisdom, expansive protective authority, visionary complex intelligence",
+    "emotional": "carries responsibility through philosophical framing; seeks meaning within the protective role",
+    "karmic": "learning to release the philosophical need to carry all wisdom alone",
+    "relationship": "protective and philosophically wise; guides loved ones toward expansive honest growth",
+    "fears": "philosophical disrespect and expansive honest purpose undermined",
+    "desires": "philosophical protective wisdom and expansively deeply honoured authority"
+  },
+  {
+    "index": 17, "name": "Jyeshtha", "pada": 2, "lord": "Mercury", "navamshaSign": "Capricorn",
+    "traits": "disciplined elder wisdom, structured protective authority, patient complex layered intelligence",
+    "emotional": "carries responsibility with long disciplined patience; protects through reliable structure",
+    "karmic": "learning to release control when those protected are truly ready to carry their own weight",
+    "relationship": "protective and disciplined; loves through creating reliable structured honest safety",
+    "fears": "structural disrespect and disciplined protective power dismissed",
+    "desires": "disciplined protective wisdom and structured deeply honoured lasting authority"
+  },
+  {
+    "index": 17, "name": "Jyeshtha", "pada": 3, "lord": "Mercury", "navamshaSign": "Aquarius",
+    "traits": "humanitarian elder wisdom, innovative protective authority, collective complex intelligence",
+    "emotional": "carries protective responsibility toward collective wellbeing; innovates through earned wisdom",
+    "karmic": "learning that collective protection must also honour individual emotional honest truth",
+    "relationship": "protective and humanitarian; guides loved ones toward shared higher collective purpose",
+    "fears": "collective disrespect and innovative wisdom rejected by those protected",
+    "desires": "humanitarian protective wisdom and innovatively deeply honoured authority"
+  },
+  {
+    "index": 17, "name": "Jyeshtha", "pada": 4, "lord": "Mercury", "navamshaSign": "Pisces",
+    "traits": "spiritual elder wisdom, compassionate protective authority, visionary complex intelligence",
+    "emotional": "most compassionate Jyeshtha; protection is offered from a place of genuine spiritual depth",
+    "karmic": "learning to release the spiritual burden of endless protective responsibility for others",
+    "relationship": "protective and spiritually attuned; guides with vision and compassionate honest authority",
+    "fears": "spiritual disrespect and compassionate wisdom dismissed without understanding",
+    "desires": "spiritual protective wisdom and visionary deeply honoured compassionate authority"
+  },
+  {
+    "index": 18, "name": "Mula", "pada": 1, "lord": "Ketu", "navamshaSign": "Aries",
+    "traits": "boldly truth-seeking dissolution, pioneering radical honesty, direct transformative letting-go",
+    "emotional": "experiences dissolution with direct boldness; tears down structures with forward honest momentum",
+    "karmic": "learning that what is boldly destroyed by honesty creates space for what is truly new",
+    "relationship": "seeks authenticity with directness; cannot sustain anything that masks deeper truth",
+    "fears": "bold inauthenticity and pioneering energy that serves only ego",
+    "desires": "bold truth and pioneering real transformative dissolution"
+  },
+  {
+    "index": 18, "name": "Mula", "pada": 2, "lord": "Ketu", "navamshaSign": "Taurus",
+    "traits": "grounded truth-seeking dissolution, patient radical honesty, sensory transformative letting-go",
+    "emotional": "experiences dissolution with grounded patience; truth-seeking is slow thorough and complete",
+    "karmic": "learning that radical honesty can be gentle and still be fully and completely true",
+    "relationship": "seeks authenticity with patient groundedness; values beautiful truth over comfortable illusion",
+    "fears": "comfortable inauthenticity and earthly existence without honest root truth",
+    "desires": "grounded truth and patient beautiful real transformative dissolution"
+  },
+  {
+    "index": 18, "name": "Mula", "pada": 3, "lord": "Ketu", "navamshaSign": "Gemini",
+    "traits": "communicative truth-seeking dissolution, articulate radical honesty, versatile transformative letting-go",
+    "emotional": "experiences dissolution through verbal expression; speaks clearly what must honestly be dissolved",
+    "karmic": "learning that some truths need genuine presence and not only clear articulation",
+    "relationship": "seeks authenticity through dialogue; needs honest open communication above comfortable words",
+    "fears": "linguistic inauthenticity and truth spoken beautifully but never actually lived",
+    "desires": "communicative truth and articulately expressed real transformation"
+  },
+  {
+    "index": 18, "name": "Mula", "pada": 4, "lord": "Ketu", "navamshaSign": "Cancer",
+    "traits": "emotionally deep truth-seeking dissolution, nurturing radical honesty, intuitive transformative letting-go",
+    "emotional": "most emotionally felt Mula; dissolution is deeply personal and intuitively guided by inner truth",
+    "karmic": "learning to nurture the self honestly through the process of radical transformative truth",
+    "relationship": "seeks authenticity through emotional depth; needs a partner who can hold truth safely",
+    "fears": "emotional inauthenticity and hollow nurturing without honest transformative ground",
+    "desires": "emotional truth and nurturing compassionate real transformative dissolution"
+  },
+  {
+    "index": 19, "name": "Purva Ashadha", "pada": 1, "lord": "Venus", "navamshaSign": "Leo",
+    "traits": "radiant early momentum, creative declaration with proud inner confidence, magnetic vital energy",
+    "emotional": "optimistic and radiant; carries natural belief in its visible creative power and direction",
+    "karmic": "learning that radiant declaration must be grounded in patient sustained honest effort",
+    "relationship": "enthusiastic and magnetically warm; inspires recognition and genuine creative growth",
+    "fears": "creative defeat and invisible early honest momentum",
+    "desires": "radiant early triumph and magnetically sustained confident forward movement"
+  },
+  {
+    "index": 19, "name": "Purva Ashadha", "pada": 2, "lord": "Venus", "navamshaSign": "Virgo",
+    "traits": "precise early momentum, refined creative declaration, analytically confident inner assurance",
+    "emotional": "optimistic with careful discernment; believes in capacity through practical honest preparation",
+    "karmic": "learning that real victory is refined through genuine process not only declared with confidence",
+    "relationship": "enthusiastic and precise; inspires through careful refined creative contribution",
+    "fears": "imprecise defeat and unrefined early momentum without follow-through",
+    "desires": "precise early triumph and carefully refined sustained forward movement"
+  },
+  {
+    "index": 19, "name": "Purva Ashadha", "pada": 3, "lord": "Venus", "navamshaSign": "Libra",
+    "traits": "harmonious early momentum, balanced creative declaration, relational inner confidence and beauty",
+    "emotional": "optimistic and balanced; carries natural belief in the beauty of shared creative power",
+    "karmic": "learning that harmonious declaration must also hold space for others to rise alongside",
+    "relationship": "enthusiastic and harmonious; inspires mutual creative growth and beautiful partnership",
+    "fears": "relational defeat and disharmonious early honest momentum",
+    "desires": "harmonious early triumph and balanced beautiful sustained forward movement"
+  },
+  {
+    "index": 19, "name": "Purva Ashadha", "pada": 4, "lord": "Venus", "navamshaSign": "Scorpio",
+    "traits": "intense early momentum, transformative creative declaration, psychological inner confidence",
+    "emotional": "optimistic with great emotional depth; believes in power through transformative honest intensity",
+    "karmic": "learning that real victory requires honest confrontation with the psychological depths",
+    "relationship": "enthusiastic and transformatively passionate; inspires deep honest creative commitment",
+    "fears": "psychological defeat and hollow early momentum without depth",
+    "desires": "intense early triumph and transformatively deep sustained forward movement"
+  },
+  {
+    "index": 20, "name": "Uttara Ashadha", "pada": 1, "lord": "Sun", "navamshaSign": "Sagittarius",
+    "traits": "philosophical lasting achievement, expansive universal integrity, visionary long patient endurance",
+    "emotional": "carries quiet certainty with philosophical vision; unmoved by external philosophical opinion",
+    "karmic": "learning that enduring achievement requires both patient endurance and philosophical grounding",
+    "relationship": "steady and philosophically principled; builds partnerships oriented toward wisdom",
+    "fears": "philosophical meaninglessness and expansive moral compromise",
+    "desires": "philosophical true achievement and expansively lasting universal integrity"
+  },
+  {
+    "index": 20, "name": "Uttara Ashadha", "pada": 2, "lord": "Sun", "navamshaSign": "Capricorn",
+    "traits": "disciplined lasting achievement, structured universal integrity, patient methodical endurance",
+    "emotional": "carries quiet certainty with long disciplined patience; builds from stone and honest principle",
+    "karmic": "learning that disciplined moral achievement leaves a legacy beyond personal recognition",
+    "relationship": "steady and disciplined; builds partnerships through shared long-term moral structure",
+    "fears": "structural meaninglessness and disciplined effort without honest moral grounding",
+    "desires": "disciplined true achievement and structurally enduring universal integrity"
+  },
+  {
+    "index": 20, "name": "Uttara Ashadha", "pada": 3, "lord": "Sun", "navamshaSign": "Aquarius",
+    "traits": "humanitarian lasting achievement, innovative universal integrity, collective patient long endurance",
+    "emotional": "carries quiet certainty through collective moral vision; serves the universal through personal steadiness",
+    "karmic": "learning that individual moral endurance genuinely contributes to collective lasting truth",
+    "relationship": "steady and humanitarian; builds partnerships oriented toward meaningful collective purpose",
+    "fears": "collective meaninglessness and moral compromise at the collective honest level",
+    "desires": "humanitarian true achievement and innovatively lasting universal integrity"
+  },
+  {
+    "index": 20, "name": "Uttara Ashadha", "pada": 4, "lord": "Sun", "navamshaSign": "Pisces",
+    "traits": "spiritual lasting achievement, compassionate universal integrity, visionary patient endurance",
+    "emotional": "most spiritually deep Uttara Ashadha; moral certainty grounded in sacred spiritual vision",
+    "karmic": "learning that spiritual compassion is the highest form of lasting universal honest integrity",
+    "relationship": "steady and spiritually principled; builds partnerships through compassionate moral vision",
+    "fears": "spiritual meaninglessness and compassionate moral compromise",
+    "desires": "spiritual true achievement and compassionately lasting universal integrity"
+  },
+  {
+    "index": 21, "name": "Shravana", "pada": 1, "lord": "Moon", "navamshaSign": "Aries",
+    "traits": "boldly receptive listening, pioneering learning through connection, actively deep listening",
+    "emotional": "naturally receptive but with bold initiative; listens deeply and then moves with confidence",
+    "karmic": "learning to fully absorb what has been heard before acting on it with boldness",
+    "relationship": "attentive and initiating; acts on what is genuinely heard with caring forward motion",
+    "fears": "not being truly heard despite active bold honest engagement",
+    "desires": "bold deep listening and pioneering real understanding through connection"
+  },
+  {
+    "index": 21, "name": "Shravana", "pada": 2, "lord": "Moon", "navamshaSign": "Taurus",
+    "traits": "grounded deep listening, sensory learning through connection, patient quiet receptivity",
+    "emotional": "most grounded Shravana; absorbs the emotional states of others with patient earthy presence",
+    "karmic": "learning to process what is absorbed without carrying it into the body as permanent weight",
+    "relationship": "attentive and grounded; remembers and honours every detail of what is shared in care",
+    "fears": "loss of sensory honest connection and absorbing what truly cannot be digested",
+    "desires": "grounded deep listening and patient sensory real understanding"
+  },
+  {
+    "index": 21, "name": "Shravana", "pada": 3, "lord": "Moon", "navamshaSign": "Gemini",
+    "traits": "communicative deep listening, versatile learning through connection, dialogic quiet receptivity",
+    "emotional": "naturally receptive and expressive; listens deeply and then reflects honestly through dialogue",
+    "karmic": "learning that sharing what has been deeply heard is itself a genuine form of listening",
+    "relationship": "attentive and communicative; creates understanding through genuine reflective dialogue",
+    "fears": "loss of communicative honest connection and absorbed feelings without a voice",
+    "desires": "communicative deep listening and dialogic real understanding through connection"
+  },
+  {
+    "index": 21, "name": "Shravana", "pada": 4, "lord": "Moon", "navamshaSign": "Cancer",
+    "traits": "emotionally deep listening, nurturing learning through connection, intuitively quiet receptivity",
+    "emotional": "most emotionally receptive Shravana; absorbs feeling states as if they were its very own",
+    "karmic": "learning to deeply process without losing the honest boundary between self and other",
+    "relationship": "most attentive and nurturing; remembers and honours everything shared with genuine care",
+    "fears": "emotional overwhelm from absorbing too much and not being truly heard in return",
+    "desires": "emotionally deep listening and nurturing compassionate real understanding"
+  },
+  {
+    "index": 22, "name": "Dhanishtha", "pada": 1, "lord": "Mars", "navamshaSign": "Leo",
+    "traits": "radiant rhythmic abundance, creative communal vitality, bold natural rhythm and proud wealth",
+    "emotional": "finds emotional release through vibrant creative expression; rhythm and inner pride entwined",
+    "karmic": "learning to share radiant abundance freely without losing the self within collective joy",
+    "relationship": "vibrant and proud; brings natural creative energy and communal life force to partnership",
+    "fears": "creative isolation and rhythm moving without genuine recognition",
+    "desires": "radiant rhythm, creative shared abundance, and recognised vibrant communal joy"
+  },
+  {
+    "index": 22, "name": "Dhanishtha", "pada": 2, "lord": "Mars", "navamshaSign": "Virgo",
+    "traits": "precise rhythmic abundance, analytical communal vitality, methodical natural wealth and rhythm",
+    "emotional": "finds emotional release through precise creative expression; rhythm refined by careful detail",
+    "karmic": "learning to share abundance freely rather than only through perfectly refined channels",
+    "relationship": "vibrant and precise; brings methodical energy and practical communal honest care to partnership",
+    "fears": "imprecise abundance and rhythm without honest clear purpose",
+    "desires": "precise rhythm, refined shared abundance, and methodically expressed communal joy"
+  },
+  {
+    "index": 22, "name": "Dhanishtha", "pada": 3, "lord": "Mars", "navamshaSign": "Libra",
+    "traits": "harmonious rhythmic abundance, balanced communal vitality, aesthetically beautiful natural wealth",
+    "emotional": "finds emotional release through harmonious creative expression; rhythm and beauty dance together",
+    "karmic": "learning to share harmonic abundance while honestly maintaining own creative centre",
+    "relationship": "vibrant and harmonious; brings balanced aesthetic energy and communal beauty to partnership",
+    "fears": "disharmony in communal rhythm and isolated beautiful abundance without sharing",
+    "desires": "harmonious rhythm, balanced shared abundance, and aesthetic communal joy"
+  },
+  {
+    "index": 22, "name": "Dhanishtha", "pada": 4, "lord": "Mars", "navamshaSign": "Scorpio",
+    "traits": "intense rhythmic abundance, psychological communal vitality, transformative natural wealth",
+    "emotional": "finds emotional release through intense transformative expression; rhythm carries deep psychological weight",
+    "karmic": "learning to share transformative abundance without losing self in communal intensity",
+    "relationship": "vibrant and intensely passionate; brings transformative energy and deep communal honest life",
+    "fears": "communal isolation and rhythm that transforms into destructive undirected force",
+    "desires": "intense rhythm, transformative shared abundance, and deep psychological communal joy"
+  },
+  {
+    "index": 23, "name": "Shatabhisha", "pada": 1, "lord": "Rahu", "navamshaSign": "Sagittarius",
+    "traits": "philosophically healing mystery, expansive solitary wisdom, wisdom-seeking scientific intuition",
+    "emotional": "processes deeply through philosophical frameworks; healing comes through expansive meaning-making",
+    "karmic": "learning to share philosophical wisdom rather than guard it as entirely solitary truth",
+    "relationship": "needs genuine space and philosophical depth even within committed partnership",
+    "fears": "forced exposure of philosophical inner wisdom and expansive ideas dismissed without care",
+    "desires": "philosophical hidden knowledge and expansive genuine healing"
+  },
+  {
+    "index": 23, "name": "Shatabhisha", "pada": 2, "lord": "Rahu", "navamshaSign": "Capricorn",
+    "traits": "disciplined healing mystery, structured solitary wisdom, methodical scientific intuition",
+    "emotional": "processes deeply through disciplined introspection; healing is slow, methodical, and thorough",
+    "karmic": "learning to share structured wisdom through patient and disciplined honest openness",
+    "relationship": "needs genuine structure and chosen solitude even within committed partnership",
+    "fears": "forced disciplinary exposure and carefully structured wisdom dismissed",
+    "desires": "disciplined hidden knowledge and structured methodical genuine healing"
+  },
+  {
+    "index": 23, "name": "Shatabhisha", "pada": 3, "lord": "Rahu", "navamshaSign": "Aquarius",
+    "traits": "innovative healing mystery, humanitarian solitary wisdom, collective scientific intuition",
+    "emotional": "processes deeply through innovative thinking; healing comes through intellectual breakthrough",
+    "karmic": "learning to share innovative wisdom for collective healing rather than personal protection only",
+    "relationship": "needs genuine independence and intellectual space within committed partnership",
+    "fears": "collective exposure of innovative ideas and humanitarian wisdom rejected without understanding",
+    "desires": "innovative hidden knowledge and humanitarian scientific genuine healing"
+  },
+  {
+    "index": 23, "name": "Shatabhisha", "pada": 4, "lord": "Rahu", "navamshaSign": "Pisces",
+    "traits": "spiritual healing mystery, compassionate solitary wisdom, transcendent scientific intuition",
+    "emotional": "most spiritually receptive Shatabhisha; healing arrives through compassionate dissolution",
+    "karmic": "learning to allow spiritual wisdom to flow freely rather than guarding it entirely within",
+    "relationship": "needs genuine sacred space and spiritual depth within committed partnership",
+    "fears": "spiritual exposure and compassionate wisdom dissolved without honest understanding",
+    "desires": "spiritual hidden knowledge and compassionate transcendent genuine healing"
+  },
+  {
+    "index": 24, "name": "Purva Bhadrapada", "pada": 1, "lord": "Jupiter", "navamshaSign": "Aries",
+    "traits": "boldly transformative intensity, pioneering otherworldly wisdom, direct fierce inner fire",
+    "emotional": "lives with great boldness and intensity; swings between extremes with pioneering honest force",
+    "karmic": "learning to channel bold intensity toward what is highest rather than most immediately urgent",
+    "relationship": "deeply passionate and initiating; needs a partner who can genuinely meet direct depth",
+    "fears": "superficiality and meaningless bold beginning without transformative direction",
+    "desires": "bold transcendence and pioneering total honest transformation"
+  },
+  {
+    "index": 24, "name": "Purva Bhadrapada", "pada": 2, "lord": "Jupiter", "navamshaSign": "Taurus",
+    "traits": "grounded transformative intensity, earthy otherworldly wisdom, patient fierce inner fire",
+    "emotional": "lives with great intensity but with grounded patience; extremes expressed through sustained endurance",
+    "karmic": "learning to channel patient intensity toward what genuinely builds rather than only destroys",
+    "relationship": "deeply passionate and grounded; needs a partner who can endure patient transformative depth",
+    "fears": "superficial groundedness and hollow earthy intensity without real transformation",
+    "desires": "grounded transcendence and patiently endured total honest transformation"
+  },
+  {
+    "index": 24, "name": "Purva Bhadrapada", "pada": 3, "lord": "Jupiter", "navamshaSign": "Gemini",
+    "traits": "communicatively transformative intensity, dialogic otherworldly wisdom, articulate fierce inner fire",
+    "emotional": "lives with great intensity expressed through words and ideas; speaks the transformation into being",
+    "karmic": "learning that transformation requires embodied living, not only articulate and knowing words",
+    "relationship": "deeply passionate and communicative; needs a partner who can engage depth through genuine dialogue",
+    "fears": "superficial communication and hollow articulately expressed intensity",
+    "desires": "communicative transcendence and dialogic total honest transformation"
+  },
+  {
+    "index": 24, "name": "Purva Bhadrapada", "pada": 4, "lord": "Jupiter", "navamshaSign": "Cancer",
+    "traits": "emotionally transformative intensity, nurturing otherworldly wisdom, compassionate fierce inner fire",
+    "emotional": "most emotionally deep Purva Bhadrapada; intensity is felt and expressed through the full heart",
+    "karmic": "learning to channel emotional intensity toward what genuinely nurtures and transcends",
+    "relationship": "deeply passionate and nurturing; needs a partner who can compassionately receive emotional depth",
+    "fears": "emotional superficiality and compassionate fire completely exhausted by intensity",
+    "desires": "emotional transcendence and nurturing total honest transformation"
+  },
+  {
+    "index": 25, "name": "Uttara Bhadrapada", "pada": 1, "lord": "Saturn", "navamshaSign": "Leo",
+    "traits": "dignified oceanic depth, creative cosmic patience, wisdom of dissolution with regal bearing",
+    "emotional": "deeply calm beneath the surface with inner pride; processes at cosmic pace with quiet dignity",
+    "karmic": "learning to translate dignified inner depth into meaningful creative daily action",
+    "relationship": "deeply patient and creatively grounded; a still and radiantly calming partner",
+    "fears": "meaningless dignified noise and forced creative urgency",
+    "desires": "dignified depth, radiant creative stillness, and cosmic knowing"
+  },
+  {
+    "index": 25, "name": "Uttara Bhadrapada", "pada": 2, "lord": "Saturn", "navamshaSign": "Virgo",
+    "traits": "precisely deep oceanic patience, analytical cosmic wisdom, methodical resting awareness",
+    "emotional": "deeply calm and precisely analytical; processes at cosmic pace through careful discernment",
+    "karmic": "learning to translate precise inner depth into meaningful practical honest daily action",
+    "relationship": "deeply patient and methodically precise; a still and analytically calming partner",
+    "fears": "precisely meaningless noise and forced analytical urgency without depth",
+    "desires": "precise depth, methodical stillness, and cosmic analytical knowing"
+  },
+  {
+    "index": 25, "name": "Uttara Bhadrapada", "pada": 3, "lord": "Saturn", "navamshaSign": "Libra",
+    "traits": "harmoniously deep oceanic patience, balanced cosmic wisdom, harmonious resting awareness",
+    "emotional": "deeply calm and harmoniously balanced; processes at cosmic pace through aesthetic awareness",
+    "karmic": "learning to translate balanced inner depth into harmonious meaningful daily honest action",
+    "relationship": "deeply patient and harmoniously balanced; a still and beautifully calming honest partner",
+    "fears": "harmonically meaningless noise and forced balanced urgency without genuine rest",
+    "desires": "harmonious depth, balanced stillness, and cosmically harmonious knowing"
+  },
+  {
+    "index": 25, "name": "Uttara Bhadrapada", "pada": 4, "lord": "Saturn", "navamshaSign": "Scorpio",
+    "traits": "intensely deep oceanic patience, psychological cosmic wisdom, transformative resting awareness",
+    "emotional": "most psychologically deep Uttara Bhadrapada; cosmic stillness holds transformative inner power",
+    "karmic": "learning to translate transformative inner depth into meaningful daily psychological honest action",
+    "relationship": "most deeply patient; a still and psychologically transformatively calming partner",
+    "fears": "psychologically meaningless noise and forced transformative urgency without stillness",
+    "desires": "intense depth, transformative stillness, and cosmic psychological knowing"
+  },
+  {
+    "index": 26, "name": "Revati", "pada": 1, "lord": "Mercury", "navamshaSign": "Sagittarius",
+    "traits": "philosophically compassionate completion, expansive gentle guidance, visionary creative nurturing",
+    "emotional": "deeply compassionate with philosophical vision; carries others' pain as a meaningful journey",
+    "karmic": "learning to complete its own philosophical journey while gently guiding others",
+    "relationship": "deeply nurturing and spiritually expansive; gives freely with philosophical compassionate vision",
+    "fears": "philosophical abandonment and expansive compassion offered without honest completion",
+    "desires": "philosophical gentle closure and expansively compassionate honest connection"
+  },
+  {
+    "index": 26, "name": "Revati", "pada": 2, "lord": "Mercury", "navamshaSign": "Capricorn",
+    "traits": "disciplined compassionate completion, structured gentle guidance, patient nurturing vision",
+    "emotional": "deeply compassionate with patient discipline; carries others' pain with methodical honest care",
+    "karmic": "learning to complete its own disciplined journey while steadily and reliably guiding others",
+    "relationship": "deeply nurturing and structured; gives freely with reliable long patient presence",
+    "fears": "disciplinary abandonment and structured compassion offered without honest completion",
+    "desires": "disciplined gentle closure and structured compassionate honest connection"
+  },
+  {
+    "index": 26, "name": "Revati", "pada": 3, "lord": "Mercury", "navamshaSign": "Aquarius",
+    "traits": "innovatively compassionate completion, humanitarian gentle guidance, creative nurturing vision",
+    "emotional": "deeply compassionate with innovative vision; carries others' pain as collective healing",
+    "karmic": "learning to complete its own innovative journey while collectively and gently guiding others",
+    "relationship": "deeply nurturing and humanitarian; gives freely with visionary collective compassion",
+    "fears": "collective abandonment and innovative compassion offered without honest completion",
+    "desires": "innovative gentle closure and humanitarian compassionate honest connection"
+  },
+  {
+    "index": 26, "name": "Revati", "pada": 4, "lord": "Mercury", "navamshaSign": "Pisces",
+    "traits": "spiritually compassionate completion, transcendent gentle guidance, visionary compassionate nurturing",
+    "emotional": "most spiritually compassionate Revati; carries all others' pain as its own sacred honest journey",
+    "karmic": "learning that completing one's own spiritual journey is the greatest honest gift to others",
+    "relationship": "most deeply nurturing Revati; gives with total spiritual compassion and sacred vision",
+    "fears": "spiritual abandonment and transcendent compassion dissolved without genuine completion",
+    "desires": "spiritual gentle closure and transcendent compassionate honest connection"
+  }
+]
