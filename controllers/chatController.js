@@ -230,6 +230,143 @@ USE RULE:
 `.trim();
 }
 
+const SAMAY_GRAPH_START = "<<<SAMAY_PRAVAH_GRAPH>>>";
+const SAMAY_GRAPH_END = "<<<END_SAMAY_PRAVAH_GRAPH>>>";
+
+const VYAKTITVA_DARSHAN_START = "<<<VYAKTITVA_DARSHAN_DATA>>>";
+const VYAKTITVA_DARSHAN_END = "<<<END_VYAKTITVA_DARSHAN_DATA>>>";
+
+function extractSamayPravahGraph(text) {
+  const src = String(text || "");
+  const start = src.indexOf(SAMAY_GRAPH_START);
+  const end = src.indexOf(SAMAY_GRAPH_END);
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    return JSON.parse(src.slice(start + SAMAY_GRAPH_START.length, end).trim());
+  } catch {
+    return null;
+  }
+}
+
+function extractVyaktivaDarshanData(text) {
+  const src = String(text || "");
+  const start = src.indexOf(VYAKTITVA_DARSHAN_START);
+  const end = src.indexOf(VYAKTITVA_DARSHAN_END);
+  if (start === -1 || end === -1 || end < start) return null;
+  try {
+    return JSON.parse(
+      src.slice(start + VYAKTITVA_DARSHAN_START.length, end).trim(),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function buildVyaktivaDarshanCard(data) {
+  const vd = data?.vyaktitva_darshan || data;
+  if (!vd) return "";
+
+  const fields = [
+    { label: "Core Nature", key: "core_nature" },
+    { label: "Emotional Pattern", key: "emotional_pattern" },
+    { label: "Inner Rhythm", key: "inner_rhythm" },
+    { label: "Fear Tendency", key: "fear_tendency" },
+    { label: "Desire Tendency", key: "desire_tendency" },
+    { label: "Relationship Style", key: "relationship_style" },
+    { label: "Pada Code", key: "pada_code" },
+    { label: "Pada Traits", key: "pada_traits" },
+  ];
+
+  const lines = fields
+    .filter((f) => vd[f.key] && String(vd[f.key]).trim())
+    .map((f) => `**${f.label}**\n${vd[f.key]}`)
+    .join("\n\n");
+
+  return `\n\n---\n\n### व्यक्तित्व दर्शन\n\n${lines}`;
+}
+
+function applyVyaktivaDarshanFormat(rawAiResponse) {
+  const data = extractVyaktivaDarshanData(rawAiResponse);
+  const narrativeEnd = rawAiResponse.indexOf(VYAKTITVA_DARSHAN_START);
+  const narrative =
+    narrativeEnd !== -1
+      ? rawAiResponse.slice(0, narrativeEnd).trim()
+      : rawAiResponse.trim();
+
+  if (!data) return narrative;
+  return narrative + buildVyaktivaDarshanCard(data);
+}
+
+const VYAKTITVA_HEADING_BY_LANG = {
+  en: "Personality Profile",
+  hi: "व्यक्तित्व दर्शन",
+  th: "โปรไฟล์บุคลิกภาพ",
+  es: "Perfil de Personalidad",
+  fr: "Profil de Personnalité",
+  de: "Persönlichkeitsprofil",
+  pt: "Perfil de Personalidade",
+  ja: "パーソナリティプロフィール",
+  ko: "성격 프로필",
+  zh: "个性档案",
+  ar: "ملف الشخصية",
+  ru: "Профиль личности",
+  vi: "Hồ Sơ Tính Cách",
+  id: "Profil Kepribadian",
+};
+
+function buildVyaktivaDarshanSecondPrompt(vdData, target, userMessage) {
+  const vd = vdData?.vyaktitva_darshan || vdData;
+
+  const langNameMap = {
+    en: "English", hi: "Hindi", th: "Thai", es: "Spanish",
+    fr: "French", de: "German", pt: "Portuguese", ja: "Japanese",
+    ko: "Korean", zh: "Chinese", ar: "Arabic", ru: "Russian",
+    vi: "Vietnamese", id: "Indonesian",
+  };
+  const langName = langNameMap[target] || "English";
+  const sectionHeading = VYAKTITVA_HEADING_BY_LANG[target] || VYAKTITVA_HEADING_BY_LANG.en;
+
+  const fields = [
+    { label: "Pada Code", value: vd.pada_code },
+    { label: "Pada Traits", value: vd.pada_traits },
+    { label: "Core Nature", value: vd.core_nature },
+    { label: "Emotional Pattern", value: vd.emotional_pattern },
+    { label: "Inner Rhythm", value: vd.inner_rhythm },
+    { label: "Fear Tendency", value: vd.fear_tendency },
+    { label: "Desire Tendency", value: vd.desire_tendency },
+    { label: "Relationship Style", value: vd.relationship_style },
+  ].filter((f) => f.value && String(f.value).trim());
+
+  const profileBlock = fields.map((f) => `${f.label}: ${f.value}`).join("\n");
+
+  return [
+    {
+      role: "system",
+      content: `You are a Vedic personality guide presenting a Vyaktitva Darshan reading.
+
+Below is the personality profile derived from this person's birth chart. Present it as a warm, insightful, professionally formatted response that directly addresses the user's question.
+
+PROFILE DATA:
+${profileBlock}
+
+USER'S QUESTION: "${userMessage}"
+
+OUTPUT FORMAT:
+- Start with "---" on its own line, then "### ${sectionHeading}" as the heading
+- The response must directly relate to what the user asked — pick the most relevant profile dimensions first
+- Present each dimension with **Bold Label** on one line, then the insight on the next line
+- Keep the tone warm, personal, and wise — like a trusted guide, not a data report
+- End with a brief, grounded closing reflection that ties back to the user's question
+
+LANGUAGE RULE: Write every single word in ${langName} only. Never mix languages. Labels must also be in ${langName}.`,
+    },
+    {
+      role: "user",
+      content: userMessage,
+    },
+  ];
+}
+
 function pushRecentUnique(existing = [], items = [], max = 10) {
   const next = Array.isArray(existing) ? [...existing] : [];
   for (const item of items) {
@@ -542,7 +679,18 @@ const chatController = {
         HEALJAI_ACTIVE_CATEGORIES.has(subCategoryName);
 
       // Astria India Engine — isolated flag for "รหัส Healjai V3"
-      const isAstriaIndia = subCategoryName === "รหัส Healjai V3";
+      const isAstriaIndia =
+        subCategoryName === "รหัส Healjai V3" ||
+        categoryName === "รหัส Healjai V3";
+
+      // Samay Pravah Engine — isolated flag for "Samay Pravah" category/subcategory
+      const isSamayPravah =
+        categoryName === "Samay Pravah" || subCategoryName === "Samay Pravah";
+
+      // Vyaktitva Darshan Engine — structured personality profile via Vedic birth chart
+      const isVyaktivaDarshan =
+        categoryName === "Vyaktitva Darshan" ||
+        subCategoryName === "Vyaktitva Darshan";
       // console.log("Astria India Engine Active:", isAstriaIndia);
 
       // ============================================
@@ -863,18 +1011,18 @@ DAILY CHECK-IN (when natural):
       MOST IMPORTANT RULE:
       - If Date of Birth change then don't ask for confirmation. Start processing with new date.
 
-      GLOBAL AGE-BASED RESPONSE RULE:
+      ${!isSamayPravah ? `GLOBAL AGE-BASED RESPONSE RULE:
       - Adapt every part of the response (tone, language style, examples, priorities, interests, recommendations, and follow-up questions) to the user's age group: ${ageInfo.group}.
-      - NEVER generate generic one-size-fits-all responses. Tailor the entire experience based on the user's age bracket.
+      - NEVER generate generic one-size-fits-all responses. Tailor the entire experience based on the user's age bracket.` : ""}
 
       INPUT:
       - User Age Group: ${ageInfo.group} (${ageInfo.age || "unknown"} years old)
       - ${isNewChat ? `Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}` : ""}
       - ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
-      - ${categoryName === "HealJai Talk" ? "" : `Today's Context: ${userData?.dailyMessage || ""}`}
-      - ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData?.lucky_color}`}
-      - ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData?.energy_level}`}
-      - ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData?.golden_hour}`}
+      - ${(categoryName === "HealJai Talk" || isSamayPravah) ? "" : `Today's Context: ${userData?.dailyMessage || ""}`}
+      - ${(categoryName === "HealJai Talk" || isSamayPravah) ? "" : `User today's lucky color: ${userData?.lucky_color}`}
+      - ${(categoryName === "HealJai Talk" || isSamayPravah) ? "" : `User today's Energy level: ${userData?.energy_level}`}
+      - ${(categoryName === "HealJai Talk" || isSamayPravah) ? "" : `User today's Golden Hour: ${userData?.golden_hour}`}
       - ${categoryName === "HealJai Talk" ? buildTrendingTopicContext(trendingTopicData, categoryName) : ""}
       - User planets position: ${JSON.stringify(userProvidedPlanets)}
       - User Message: ${userMessage}
@@ -883,7 +1031,7 @@ DAILY CHECK-IN (when natural):
       - ${subCategoryName === "ThaiAstro V2" ? "Give response in 650 words" : ""}
       - Don't show direct input in response, INPUT is only for you.
 
-      TONE AND EMOTION RULES:
+      ${!isSamayPravah ? `TONE AND EMOTION RULES:
       ${
         engineState === "DEEP_HEALING"
           ? `- Emotional Guidance: ${sentences.join(" | ")}
@@ -891,18 +1039,19 @@ DAILY CHECK-IN (when natural):
       - DO NOT copy them literally. ALWAYS prioritize and align your response with the user's specific message: "${userMessage}".`
           : `- Tone: Be a helpful, friendly companion. Match the user's casual energy — no emotional analysis.`
       }
-      - If userMessage is a date, ignore the emotional sentences and focus on the birth details.
+      - If userMessage is a date, ignore the emotional sentences and focus on the birth details.` : ""}
 
       LANGUAGE RULE (RESTRICTED):
       - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
       - Output ONLY in the user's language. Never mix languages.
       - Do NOT show any English intermediate in your reply.
+      ${isSamayPravah ? "- SAMAY PRAVAH EXCEPTION: The technical graph block markers (<<<SAMAY_PRAVAH_GRAPH>>> and <<<END_SAMAY_PRAVAH_GRAPH>>>) and the JSON inside them are system output — they MUST always be written in English exactly as specified, even when replying in a non-English language. Only the narrative sentences above the graph block should be in the user's language." : ""}
 
       ---
 
       ${systemPrompt}
 
-      ${categoryName === "HealJai Talk" ? "" : questionPrompt}
+      ${(categoryName === "HealJai Talk" || isSamayPravah) ? "" : questionPrompt}
       `.trim();
 
       // ADD CONTEXT
@@ -1115,8 +1264,78 @@ DAILY CHECK-IN (when natural):
           translatedMessage,
           target,
           ageInfo,
-          clientPromptOverride: subCategoryPrompt || null,
+          clientPromptOverride: subCategoryPrompt || categoryPrompt || null,
         });
+      }
+
+      // Vyaktitva Darshan Engine — overrides systemPrompt with Vedic birth chart + structured JSON output
+      if (isVyaktivaDarshan) {
+        const langName =
+          target === "th"
+            ? "Thai"
+            : target === "hi"
+              ? "Hindi"
+              : target === "en"
+                ? "English"
+                : target;
+
+        const vyaktivaBasePrompt = await buildAstriaIndiaContext({
+          dob: dob0,
+          dob_time: dob_time0,
+          dob_place: dob_place0,
+          timezoneOffsetMinutes: 330,
+          emotionType,
+          emotionIntensity,
+          userMessage,
+          translatedMessage,
+          target,
+          ageInfo,
+          clientPromptOverride: subCategoryPrompt || categoryPrompt || null,
+        });
+
+        systemPrompt = `${vyaktivaBasePrompt}
+
+VYAKTITVA DARSHAN OUTPUT RULE:
+Based on the Nakshatra + Pada analysis above, after your narrative response append this exact JSON block with all fields filled in ${langName}:
+${VYAKTITVA_DARSHAN_START}
+{"vyaktitva_darshan":{"core_nature":"","emotional_pattern":"","inner_rhythm":"","fear_tendency":"","desire_tendency":"","relationship_style":"","pada_code":"","pada_traits":""}}
+${VYAKTITVA_DARSHAN_END}
+
+Rules for the JSON:
+- Fill every field in ${langName} based on the birth chart data
+- "pada_code" = Nakshatra name + Pada number (e.g. "Rohini Pada 2")
+- Keep each field to 1–2 sentences, warm and insightful
+- The narrative text comes BEFORE the JSON block
+- Do NOT include the JSON block anywhere in the narrative`;
+      }
+
+      // Samay Pravah — self-contained enforcement block (highest priority, end of prompt)
+      if (isSamayPravah) {
+        systemPrompt = `${systemPrompt}
+
+SAMAY PRAVAH — FINAL OUTPUT RULE (HIGHEST PRIORITY — OVERRIDES ALL LANGUAGE RULES):
+
+No matter what language the user writes in (Hindi, Thai, English, or any other), your response MUST end with the energy graph block written in English. The narrative sentences above the graph block should be in the user's language.
+
+VALID VALUES:
+- movement.type: "outward" | "inward" | "steady"
+- phase_weight.type: "light" | "medium" | "heavy"
+- flow_direction.type: "rising" | "settling" | "scattered"
+- intensity: integer 0–100
+
+CORRECT RESPONSE FORMAT (example for a Hindi-speaking user):
+[2–4 warm sentences in the user's language about their current energy and timing…]
+<<<SAMAY_PRAVAH_GRAPH>>>
+{"movement":{"type":"inward","intensity":72},"phase_weight":{"type":"heavy","intensity":80},"flow_direction":{"type":"settling","intensity":65}}
+<<<END_SAMAY_PRAVAH_GRAPH>>>
+
+MANDATORY RULES — CANNOT BE SKIPPED:
+1. The graph block (all three lines: marker, JSON, end marker) is ALWAYS in English — never translate or omit these lines.
+2. The JSON must be on a single line with no line breaks inside it.
+3. No text is allowed after <<<END_SAMAY_PRAVAH_GRAPH>>>.
+4. All three fields (movement, phase_weight, flow_direction) must always be present.
+5. This graph block is REQUIRED in every single response — never skip it regardless of the user's language.
+6. The narrative text above the graph block must be in the same language the user wrote in.`;
       }
 
       // Specialized Feature Context
@@ -1181,7 +1400,7 @@ DAILY CHECK-IN (when natural):
           content: systemPrompt.trim(),
         },
       ];
-      // console.log("System Prompt for AI:", systemPrompt);
+      console.log("System Prompt for AI:", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -1287,13 +1506,50 @@ DAILY CHECK-IN (when natural):
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
+          } else if (isVyaktivaDarshan) {
+            // Step 1: non-streaming call — AI generates Nakshatra analysis + JSON block
+            const firstCompletion = await generateGeminiResponse(messages);
+            const vdData = extractVyaktivaDarshanData(firstCompletion || "");
+
+            if (vdData) {
+              // Step 2: build second prompt from extracted JSON and stream the formatted response
+              const secondMessages = buildVyaktivaDarshanSecondPrompt(
+                vdData,
+                target,
+                userMessage,
+              );
+              const secondStream =
+                await generateGeminiResponseStream(secondMessages);
+
+              for await (const chunk of secondStream) {
+                if (clientClosed) break;
+                const text = chunk?.text || "";
+                if (!text) continue;
+                finalAiResponse += text;
+                res.write(`data: ${JSON.stringify({ text })}\n\n`);
+                if (res.flush) res.flush();
+              }
+            } else {
+              // Fallback: format the narrative if JSON was not returned
+              finalAiResponse = applyVyaktivaDarshanFormat(
+                firstCompletion || "No response",
+              );
+              const words = finalAiResponse.split(" ");
+              for (const word of words) {
+                if (clientClosed) break;
+                res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+                if (res.flush) res.flush();
+                await new Promise((r) => setTimeout(r, 30));
+              }
+            }
           } else {
             let stream;
             if (
               subCategoryName === "ThaiAstro V3" ||
               subCategoryName === "รหัส Healjai V3" ||
               subCategoryName === "Uranian V3" ||
-              categoryName === "Astria Talk"
+              categoryName === "Astria Talk" ||
+              categoryName === "รหัส Healjai V3"
             ) {
               // stream = await generateClaudeResponseStream(messages);
               stream = await generateGeminiResponseStream(messages);
@@ -1301,14 +1557,80 @@ DAILY CHECK-IN (when natural):
               stream = await generateGeminiResponseStream(messages);
             }
 
-            for await (const chunk of stream) {
-              if (clientClosed) break;
-              const text = chunk?.text || "";
-              if (!text) continue;
+            if (isSamayPravah) {
+              // Filter graph block from stream; full response (with markers) saved to DB
+              let inGraphBlock = false;
+              let graphBlockBuffer = "";
+              let pendingTail = "";
 
-              finalAiResponse += text;
-              res.write(`data: ${JSON.stringify({ text })}\n\n`);
-              if (res.flush) res.flush();
+              for await (const chunk of stream) {
+                if (clientClosed) break;
+                const chunkText = chunk?.text || "";
+                if (!chunkText) continue;
+
+                finalAiResponse += chunkText;
+
+                if (inGraphBlock) {
+                  graphBlockBuffer += chunkText;
+                  if (graphBlockBuffer.includes(SAMAY_GRAPH_END)) {
+                    inGraphBlock = false;
+                    graphBlockBuffer = "";
+                  }
+                } else {
+                  const working = pendingTail + chunkText;
+                  const startIdx = working.indexOf(SAMAY_GRAPH_START);
+
+                  if (startIdx !== -1) {
+                    const toStream = working.slice(0, startIdx);
+                    if (toStream) {
+                      res.write(
+                        `data: ${JSON.stringify({ text: toStream })}\n\n`,
+                      );
+                      if (res.flush) res.flush();
+                    }
+                    inGraphBlock = true;
+                    graphBlockBuffer = working.slice(
+                      startIdx + SAMAY_GRAPH_START.length,
+                    );
+                    pendingTail = "";
+                    if (graphBlockBuffer.includes(SAMAY_GRAPH_END)) {
+                      inGraphBlock = false;
+                      graphBlockBuffer = "";
+                    }
+                  } else {
+                    const tailLen = SAMAY_GRAPH_START.length;
+                    if (working.length > tailLen) {
+                      const toStream = working.slice(
+                        0,
+                        working.length - tailLen,
+                      );
+                      res.write(
+                        `data: ${JSON.stringify({ text: toStream })}\n\n`,
+                      );
+                      if (res.flush) res.flush();
+                      pendingTail = working.slice(working.length - tailLen);
+                    } else {
+                      pendingTail = working;
+                    }
+                  }
+                }
+              }
+
+              // Flush any remaining text before the graph block
+              if (!inGraphBlock && pendingTail) {
+                res.write(`data: ${JSON.stringify({ text: pendingTail })}\n\n`);
+                if (res.flush) res.flush();
+              }
+            } else {
+              for await (const chunk of stream) {
+                if (clientClosed) break;
+                const text = chunk?.text || "";
+                if (!text) continue;
+
+                finalAiResponse += text;
+                res.write(`data: ${JSON.stringify({ text })}\n\n`);
+                if (res.flush) res.flush();
+              }
             }
           }
 
@@ -1352,6 +1674,9 @@ DAILY CHECK-IN (when natural):
                 musicRecommendation,
                 foodRecommendation,
                 engine: { tone_mode, age_group: ageInfo.group },
+                samayPravahGraph: isSamayPravah
+                  ? extractSamayPravahGraph(finalAiResponse)
+                  : null,
               })}\n\n`,
             );
             res.end();
@@ -1400,6 +1725,23 @@ DAILY CHECK-IN (when natural):
         );
       }
 
+      if (isVyaktivaDarshan) {
+        const vdData = extractVyaktivaDarshanData(finalAiResponse);
+        if (vdData) {
+          const secondMessages = buildVyaktivaDarshanSecondPrompt(
+            vdData,
+            target,
+            userMessage,
+          );
+          const secondCompletion = await generateGeminiResponse(secondMessages);
+          finalAiResponse =
+            secondCompletion?.trim() ||
+            applyVyaktivaDarshanFormat(finalAiResponse);
+        } else {
+          finalAiResponse = applyVyaktivaDarshanFormat(finalAiResponse);
+        }
+      }
+
       const chatMessage = {
         userMessage,
         aiResponse: applyPurpleDotBranding(finalAiResponse),
@@ -1435,6 +1777,9 @@ DAILY CHECK-IN (when natural):
         musicRecommendation,
         foodRecommendation,
         engine: { tone_mode, age_group: ageInfo.group },
+        samayPravahGraph: isSamayPravah
+          ? extractSamayPravahGraph(finalAiResponse)
+          : null,
       });
     } catch (error) {
       logger.error("Chat Error:", error);
