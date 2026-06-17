@@ -1,4 +1,633 @@
-/**
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. UPAY MARG — PATH OF ALIGNMENT
+//    40 gentle practices across 9 categories
+//    Theme → 2–3 Upay suggestions
+// ─────────────────────────────────────────────────────────────────────────────
+const UPAY_LIBRARY = [
+  // grounding
+  {
+    id: "morning_light",
+    title: "Morning Light",
+    category: "grounding",
+    description:
+      "Begin the day by sitting quietly as the first rays arrive. Let the warmth settle into the skin. No effort required — just presence.",
+  },
+  {
+    id: "lamp_lighting",
+    title: "Lamp Lighting",
+    category: "grounding",
+    description:
+      "Light a small lamp in a quiet corner. Watch the flame for a few moments. Let the light be a gentle reminder of your own inner steadiness.",
+  },
+  {
+    id: "tree_grounding",
+    title: "Tree Grounding",
+    category: "grounding",
+    description:
+      "Stand barefoot on earth or grass for a few minutes. Feel the solidity beneath. You are also held by something stable.",
+  },
+  {
+    id: "breath_awareness",
+    title: "Breath Awareness",
+    category: "grounding",
+    description:
+      "Close your eyes. Notice the breath as it naturally flows in and out. No need to change it — just observe. Let the rhythm settle the body.",
+  },
+  {
+    id: "earth_offering",
+    title: "Earth Offering",
+    category: "grounding",
+    description:
+      "Place your palms on soil or sand for a moment. Feel the coolness and weight. A simple connection to what is real and steady.",
+  },
+  {
+    id: "sacred_pause",
+    title: "Sacred Pause",
+    category: "grounding",
+    description:
+      "Choose any ordinary moment — before a meal, before stepping out — and pause for three breaths. Let the pause create space within.",
+  },
+  // emotional_balance
+  {
+    id: "water_offering",
+    title: "Water Offering",
+    category: "emotional_balance",
+    description:
+      "Take a glass of clean water and offer it slowly — to a plant, to the earth, or simply hold it with gratitude before drinking.",
+  },
+  {
+    id: "moon_reflection",
+    title: "Moon Reflection",
+    category: "emotional_balance",
+    description:
+      "If possible, sit near a window and look at the moon for a few moments. Let its cool light soften the heaviness of the day.",
+  },
+  {
+    id: "gratitude_practice",
+    title: "Gratitude Practice",
+    category: "emotional_balance",
+    description:
+      "Before sleep, name three things that existed today — simple things. A meal. A voice. A moment of warmth. Let appreciation settle naturally.",
+  },
+  {
+    id: "river_reflection",
+    title: "River Reflection",
+    category: "emotional_balance",
+    description:
+      "If near water, sit beside it and watch the flow. Notice how the river does not hold onto anything. Let thoughts move like water.",
+  },
+  {
+    id: "tears_honoring",
+    title: "Honoring Tears",
+    category: "emotional_balance",
+    description:
+      "If tears have come, do not rush to stop them. They are the body's way of releasing. Be gentle with yourself in this moment.",
+  },
+  {
+    id: "emotion_naming",
+    title: "Soft Naming",
+    category: "emotional_balance",
+    description:
+      "Silently ask yourself — what am I feeling right now? Name it without judgment. Naming creates a small distance, and distance creates space.",
+  },
+  // relationship_harmony
+  {
+    id: "mindful_listening",
+    title: "Mindful Listening",
+    category: "relationship_harmony",
+    description:
+      "In your next conversation, listen fully before responding. Let the other person finish. Notice what shifts when you truly hear rather than wait to speak.",
+  },
+  {
+    id: "silent_blessing",
+    title: "Silent Blessing",
+    category: "relationship_harmony",
+    description:
+      "Think of someone who matters. Without words, hold a quiet wish for their well-being. Let it be simple — like lighting a candle for them in your mind.",
+  },
+  {
+    id: "forgiveness_reflection",
+    title: "Forgiveness Reflection",
+    category: "relationship_harmony",
+    description:
+      "Bring one person to mind who hurt you. Without needing to tell them anything, quietly ask yourself — can I allow this to be less heavy today?",
+  },
+  {
+    id: "acts_of_service",
+    title: "Acts of Service",
+    category: "relationship_harmony",
+    description:
+      "Do something small for someone without expecting anything back. A message. A task. A moment of attention. Kindness heals the giver too.",
+  },
+  {
+    id: "space_for_love",
+    title: "Creating Space for Love",
+    category: "relationship_harmony",
+    description:
+      "Before meeting someone important, take thirty seconds to arrive fully. Close your eyes. Breathe. Let the meeting begin with your whole presence.",
+  },
+  // career_focus
+  {
+    id: "sunrise_intention",
+    title: "Sunrise Intention",
+    category: "career_focus",
+    description:
+      "Each morning, before the day pulls you in, set one simple intention. Not a plan — just a quiet direction. Something like: today I will work with steadiness.",
+  },
+  {
+    id: "digital_detox",
+    title: "Digital Detox",
+    category: "career_focus",
+    description:
+      "Step away from screens for one hour — especially before sleeping. Let the mind decompress. The world will still be there after the break.",
+  },
+  {
+    id: "clarity_breath",
+    title: "Clarity Breath",
+    category: "career_focus",
+    description:
+      "Before an important decision, sit quietly and take five slow breaths. Let the mind settle. The clearest answers often arrive after the noise quiets.",
+  },
+  {
+    id: "small_step",
+    title: "One Small Step",
+    category: "career_focus",
+    description:
+      "Choose the smallest possible next action on something important to you. Take just that one step today. Progress is built in small, quiet movements.",
+  },
+  {
+    id: "work_boundaries",
+    title: "Work Boundary",
+    category: "career_focus",
+    description:
+      "Choose a time to stop working today — and stop. Let the day have an ending. Rest is not a reward; it is part of the work itself.",
+  },
+  // self_reflection
+  {
+    id: "journaling",
+    title: "Gentle Journaling",
+    category: "self_reflection",
+    description:
+      "Write a few lines without worrying about grammar or meaning. Let thoughts flow onto paper. Sometimes the hand knows what the mind cannot yet say.",
+  },
+  {
+    id: "evening_reflection",
+    title: "Evening Reflection",
+    category: "self_reflection",
+    description:
+      "At the end of the day, revisit one moment — something you noticed, something you felt. You do not need to change it. Just remember it.",
+  },
+  {
+    id: "inner_question",
+    title: "The Inner Question",
+    category: "self_reflection",
+    description:
+      "Sit quietly and ask yourself: what do I actually need right now? Wait. Let the answer come from somewhere deeper than the thinking mind.",
+  },
+  {
+    id: "identity_anchor",
+    title: "Identity Anchor",
+    category: "self_reflection",
+    description:
+      "Ask yourself — beyond the roles I play, who am I when I am most myself? Let this question rest softly. No need to answer immediately.",
+  },
+  {
+    id: "pattern_noticing",
+    title: "Pattern Noticing",
+    category: "self_reflection",
+    description:
+      "Notice one recurring thought or feeling from recent days. Without judgment, simply observe. Patterns lose their power when they are seen clearly.",
+  },
+  // gratitude
+  {
+    id: "morning_gratitude",
+    title: "Morning Gratitude",
+    category: "gratitude",
+    description:
+      "Upon waking, before reaching for the phone, let yourself feel grateful for one thing — however small. Let it be your first thought of the day.",
+  },
+  {
+    id: "food_gratitude",
+    title: "Food Gratitude",
+    category: "gratitude",
+    description:
+      "Before eating, pause for a moment. Think of the hands and earth that brought this meal. Let appreciation be part of the nourishment.",
+  },
+  {
+    id: "simple_pleasures",
+    title: "Simple Pleasures",
+    category: "gratitude",
+    description:
+      "Notice one small thing today that gave quiet joy — the warmth of sunlight, a kind word, the smell of rain. Let these small things count.",
+  },
+  {
+    id: "gratitude_for_self",
+    title: "Gratitude for Self",
+    category: "gratitude",
+    description:
+      "Today, offer yourself one quiet acknowledgment. Something you did, however small. You are allowed to appreciate your own efforts.",
+  },
+  // healing
+  {
+    id: "compassion_practice",
+    title: "Compassion Practice",
+    category: "healing",
+    description:
+      "Place a hand on your heart. Silently say: may I be free from suffering. May I be at peace. Let the words be gentle, not forced.",
+  },
+  {
+    id: "ancestor_gratitude",
+    title: "Ancestor Gratitude",
+    category: "healing",
+    description:
+      "Bring to mind those who came before you. Feel their presence — even if only in memory. You are connected to a lineage of survival and strength.",
+  },
+  {
+    id: "healing_breath",
+    title: "Healing Breath",
+    category: "healing",
+    description:
+      "Sit or lie down. Breathe in slowly, hold for a moment, breathe out even slower. With each exhale, imagine releasing something heavy. You are allowed to let go.",
+  },
+  {
+    id: "self_forgiveness",
+    title: "Self-Forgiveness",
+    category: "healing",
+    description:
+      "Silently say to yourself: I forgive myself for what I did not know. I forgive myself for what I could not do. Let this be said with kindness.",
+  },
+  {
+    id: "wound_honoring",
+    title: "Honoring the Wound",
+    category: "healing",
+    description:
+      "If something painful has happened, sit with it — not to fix it, but to acknowledge it. The wound was real. Honor it before trying to move past it.",
+  },
+  // spiritual_alignment
+  {
+    id: "nature_walk",
+    title: "Nature Walk",
+    category: "spiritual_alignment",
+    description:
+      "Walk slowly in a natural place — not rushing, not counting steps. Just walk. Let the trees and sky be present with you. You belong here.",
+  },
+  {
+    id: "lotus_visualization",
+    title: "Lotus Visualization",
+    category: "spiritual_alignment",
+    description:
+      "Close your eyes and imagine a lotus floating on still water. It is rooted in mud but opens toward light. You are also slowly opening.",
+  },
+  {
+    id: "sunrise_witness",
+    title: "Witnessing Sunrise",
+    category: "spiritual_alignment",
+    description:
+      "If possible, wake a little early and sit with the sunrise. Not to do anything — just to watch something beautiful begin again. It happens every day.",
+  },
+  {
+    id: "inner_light",
+    title: "Inner Light",
+    category: "spiritual_alignment",
+    description:
+      "Close your eyes and imagine a small, warm light at the center of your chest. Let it glow gently. This light has always been there, even in difficult times.",
+  },
+  // energy_alignment
+  {
+    id: "morning_routine",
+    title: "Morning Routine",
+    category: "energy_alignment",
+    description:
+      "Begin each day the same way — a few minutes of quiet, a glass of water, a moment of intention. Small repetitions create inner stability over time.",
+  },
+  {
+    id: "evening_wind_down",
+    title: "Evening Wind Down",
+    category: "energy_alignment",
+    description:
+      "Create a simple evening ritual — dim the lights, prepare for rest, let the day have a clear ending. The body responds to signals of safety.",
+  },
+  {
+    id: "energy_check",
+    title: "Energy Check",
+    category: "energy_alignment",
+    description:
+      "Pause three times during the day and notice: where is my energy right now? High, low, scattered? This simple awareness helps you work with your energy, not against it.",
+  },
+  {
+    id: "rest_honor",
+    title: "Honoring Rest",
+    category: "energy_alignment",
+    description:
+      "When tired, stop. Do not push through exhaustion. Rest is not laziness — it is the body's wisdom asking for renewal.",
+  },
+  {
+    id: "energy_release",
+    title: "Energy Release",
+    category: "energy_alignment",
+    description:
+      "If energy is stuck, move the body — stretch, walk, shake the limbs gently. Energy that does not move becomes stagnant. Let it flow.",
+  },
+];
+
+const THEME_MAPPING = {
+  stress: [
+    "breath_awareness",
+    "clarity_breath",
+    "sacred_pause",
+    "evening_wind_down",
+    "rest_honor",
+  ],
+  overthinking: [
+    "breath_awareness",
+    "river_reflection",
+    "inner_question",
+    "digital_detox",
+    "pattern_noticing",
+  ],
+  career_block: [
+    "sunrise_intention",
+    "small_step",
+    "clarity_breath",
+    "morning_routine",
+    "work_boundaries",
+  ],
+  relationship_tension: [
+    "mindful_listening",
+    "silent_blessing",
+    "forgiveness_reflection",
+    "space_for_love",
+    "gratitude_for_self",
+  ],
+  grief: [
+    "tears_honoring",
+    "ancestor_gratitude",
+    "healing_breath",
+    "wound_honoring",
+    "evening_reflection",
+  ],
+  transition: [
+    "lotus_visualization",
+    "inner_question",
+    "sunrise_witness",
+    "morning_routine",
+    "pattern_noticing",
+  ],
+  fear: [
+    "morning_light",
+    "inner_light",
+    "earth_offering",
+    "compassion_practice",
+    "tree_grounding",
+  ],
+  confusion: [
+    "clarity_breath",
+    "river_reflection",
+    "journaling",
+    "inner_question",
+    "breath_awareness",
+  ],
+  loneliness: [
+    "silent_blessing",
+    "tree_grounding",
+    "nature_walk",
+    "gratitude_for_self",
+    "acts_of_service",
+  ],
+  burnout: [
+    "rest_honor",
+    "evening_wind_down",
+    "nature_walk",
+    "self_forgiveness",
+    "gratitude_for_self",
+  ],
+  self_doubt: [
+    "compassion_practice",
+    "sunrise_intention",
+    "identity_anchor",
+    "inner_light",
+    "morning_gratitude",
+  ],
+  attachment: [
+    "river_reflection",
+    "forgiveness_reflection",
+    "inner_question",
+    "pattern_noticing",
+    "sacred_pause",
+  ],
+  anger: [
+    "breath_awareness",
+    "healing_breath",
+    "tree_grounding",
+    "compassion_practice",
+    "sacred_pause",
+  ],
+  sadness: [
+    "moon_reflection",
+    "tears_honoring",
+    "gratitude_practice",
+    "self_forgiveness",
+    "wound_honoring",
+  ],
+  uncertainty: [
+    "sunrise_witness",
+    "inner_question",
+    "morning_light",
+    "sacred_pause",
+    "lotus_visualization",
+  ],
+};
+
+const EMOTION_TO_THEME = {
+  sad: ["sadness", "grief", "loneliness"],
+  anxious: ["stress", "overthinking", "fear", "uncertainty"],
+  angry: ["anger", "relationship_tension", "self_doubt"],
+  neutral: ["transition", "uncertainty", "self_reflection"],
+  happy: ["gratitude", "relationship_harmony", "energy_alignment"],
+};
+
+const UPAY_HEADING_BY_LANG = {
+  en: "Upay Marg",
+  hi: "उपाय मार्ग",
+  th: "วิถีอุปถัมภ์",
+  es: "Camino de Alignación",
+  fr: "Chemin d'Alignement",
+  de: "Pfad der Ausrichtung",
+  pt: "Caminho do Alinhamento",
+  ja: "軌道修正の道",
+  ko: "정렬의 길",
+  zh: "调谐之路",
+  ar: "طريق التوافق",
+  ru: "Путь Выравнивания",
+  vi: "Con Đường Cân Bằng",
+  id: "Jalan Penyelarasan",
+};
+
+function detectUpayMargTheme(emotionType, userMessage, translatedMessage) {
+  const source = (userMessage + " " + (translatedMessage || "")).toLowerCase();
+  const themeKeywords = {
+    stress: ["stress", "pressure", "tension", "burden", "overwhelm"],
+    overthinking: [
+      "overthink",
+      "can't stop",
+      "mind racing",
+      "thinking too much",
+    ],
+    career_block: ["career", "job", "work", "stuck", "promotion", "office"],
+    relationship_tension: [
+      "relationship",
+      "partner",
+      "love",
+      "married",
+      "fight",
+      "disconnect",
+    ],
+    grief: ["grief", "loss", "passed away", "death", "miss"],
+    transition: ["change", "new chapter", "moving", "transition", "adjust"],
+    fear: ["fear", "scared", "afraid", "anxious about"],
+    confusion: ["confused", "unclear", "lost direction", "don't know"],
+    loneliness: ["lonely", "alone", "isolated", "no one"],
+    burnout: ["burnout", "exhausted", "tired of everything", "drained"],
+    self_doubt: ["doubt", "not good enough", "unworthy", "second guess"],
+    attachment: ["attached", "can't let go", "holding on", "cling"],
+    anger: ["angry", "rage", "frustrated", "mad", "resentment"],
+    sadness: ["sad", "depressed", "low", "heartbroken", "blue"],
+    uncertainty: [
+      "uncertain",
+      "unsure",
+      "don't know what",
+      "confused about future",
+    ],
+  };
+  for (const [theme, keywords] of Object.entries(themeKeywords)) {
+    if (keywords.some((kw) => source.includes(kw))) {
+      return theme;
+    }
+  }
+  if (EMOTION_TO_THEME[emotionType]) {
+    return EMOTION_TO_THEME[emotionType][0];
+  }
+  return "transition";
+}
+
+function getUpaySuggestions(theme, count = 3) {
+  let themeUpays = THEME_MAPPING[theme] || THEME_MAPPING["transition"];
+  const seenIds = new Set();
+  const suggestions = [];
+
+  const shuffled = [...themeUpays].sort(() => Math.random() - 0.5);
+
+  for (const id of shuffled) {
+    if (suggestions.length >= count) break;
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
+    const upay = UPAY_LIBRARY.find((u) => u.id === id);
+    if (upay) suggestions.push(upay);
+  }
+
+  if (suggestions.length < count) {
+    for (const upay of UPAY_LIBRARY) {
+      if (suggestions.length >= count) break;
+      if (!seenIds.has(upay.id) && upay.category !== "grounding") {
+        seenIds.add(upay.id);
+        suggestions.push(upay);
+      }
+    }
+  }
+
+  return suggestions;
+}
+
+function buildUpayMargPrompt({
+  nakshatraResult,
+  emotionType,
+  emotionIntensity,
+  userMessage,
+  target,
+  clientPromptOverride,
+}) {
+  const nak = nakshatraResult?.nakshatra;
+  const theme = detectUpayMargTheme(emotionType, userMessage, "");
+  const suggestedUpays = getUpaySuggestions(theme, 3);
+
+  const langName =
+    target === "th"
+      ? "Thai"
+      : target === "hi"
+        ? "Hindi"
+        : target === "en"
+          ? "English"
+          : target;
+
+  const sectionHeading =
+    UPAY_HEADING_BY_LANG[target] || UPAY_HEADING_BY_LANG.en;
+
+  const birthContextBlock = nak
+    ? `INTERNAL BIRTH CONTEXT (never display raw values to user):
+- Birth star nature: ${nak.traits}
+- Emotional pattern: ${nak.emotional}
+- Karmic tone: ${nak.karmic}
+- Fear tendency: ${nak.fears}
+- Desire tendency: ${nak.desires}
+- Relationship style: ${nak.relationship}
+- Inner rhythm: ${nak.karmic}`
+    : `No birth data available. Focus on emotional awareness and gentle guidance only.`;
+
+  const upayList = suggestedUpays
+    .map(
+      (u, i) =>
+        `Practice ${i + 1}: ${u.title}\n  Category: ${u.category}\n  ${u.description}`,
+    )
+    .join("\n\n");
+
+  return `${birthContextBlock}
+
+CURRENT EMOTIONAL STATE:
+- Detected emotion: ${emotionType} (${Math.round((emotionIntensity || 0) * 100)}% intensity)
+- Selected theme: ${theme}
+
+SUGGESTED UPAY PRACTICES (use these as source for your JSON output):
+${upayList}
+
+UPAY MARG — OUTPUT FORMAT:
+Based on the context above, respond ONLY with the following JSON structure. Write the entire response in ${langName} only.
+
+${JSON.stringify(
+  {
+    current_energy: "",
+    vedic_reflection: "",
+    suggested_upay: suggestedUpays.map((u) => ({
+      title: u.title,
+      description: u.description,
+      category: u.category,
+    })),
+    gentle_closing: "",
+  },
+  null,
+  2,
+)}
+
+RULES FOR FILLING THE JSON:
+1. "current_energy" — Softly reflect the user's present emotional state in 1–2 sentences. Do not diagnose. Do not assume facts. Keep it warm and human.
+2. "vedic_reflection" — Use natural Vedic imagery (sunrise, river, lamp, moon, rain, lotus, roots, light). Reveal a deeper pattern gently in 2–3 sentences. Never predict. Never sound mystical for the sake of it.
+3. "suggested_upay" — Keep the title, description, and category exactly as provided above. Select 2–3 that best fit the user's emotional state and theme.
+4. "gentle_closing" — Warm reassurance with a soft remedy woven in naturally in 1–2 sentences. End on a hopeful, grounded note.
+
+STRICT CONSTRAINTS:
+- NEVER mention Nakshatra names, Pada numbers, or Dasha names to the user
+- NEVER promise outcomes or guarantee results
+- NEVER use fear-based astrology language
+- NEVER suggest gemstones, expensive rituals, or paid ceremonies
+- NEVER mention curses, black magic, or karma debt
+- NEVER use therapist-style or robotic language
+- NEVER predict future events
+- Tone: warm, reflective, human, calm, emotionally intelligent, grounded, hopeful
+- Structure: Opening Reflection → Guidance → Soft Landing
+- Language: ${langName} only. Never mix languages.
+
+${clientPromptOverride ? clientPromptOverride.trim() + "\n" : ""}
+OUTPUT YOUR RESPONSE IN VALID JSON FORMAT ONLY.`.trim();
+} /**
  * Astria India Engine — Vedic Guidance Service
  *
  * Activated exclusively for subCategoryName === "รหัส Healjai V3"
@@ -17,7 +646,7 @@
  * Zero third-party astrology API. Zero new npm dependencies.
  */
 
-"use strict";
+("use strict");
 
 const Astronomy = require("astronomy-engine");
 const { buildUtcDate } = require("./uranianPlanets");
@@ -400,7 +1029,11 @@ function computeNakshatra(siderealMoon) {
   const pada = Math.min(Math.floor(posWithinNak / SPAN_PADA) + 1, 4);
   const fractionElapsed = posWithinNak / SPAN_NAK; // 0…1 through the Nakshatra
 
-  return { nakshatra: NAKSHATRA_PADA_PROFILES[safeIdx * 4 + (pada - 1)], pada, fractionElapsed };
+  return {
+    nakshatra: NAKSHATRA_PADA_PROFILES[safeIdx * 4 + (pada - 1)],
+    pada,
+    fractionElapsed,
+  };
 }
 
 /**
@@ -620,8 +1253,8 @@ LANGUAGE RULE (ABSOLUTE): Reply only in ${langName}. Every word must be in ${lan
 async function buildAstriaIndiaContext({
   dob,
   dob_time,
-  dob_place,           // reserved for future geocoding; not used in calculation yet
-  timezoneOffsetMinutes = 420,  // default: Bangkok/ICT (UTC+7). Pass 330 for IST (UTC+5:30).
+  dob_place, // reserved for future geocoding; not used in calculation yet
+  timezoneOffsetMinutes = 420, // default: Bangkok/ICT (UTC+7). Pass 330 for IST (UTC+5:30).
   emotionType,
   emotionIntensity,
   userMessage,
@@ -687,4 +1320,115 @@ async function buildAstriaIndiaContext({
     : computedBlock;
 }
 
-module.exports = { buildAstriaIndiaContext };
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN EXPORTED FUNCTION
+// Called from chatController exclusively when subCategoryName === "รหัส Healjai V3"
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * buildUpayMargPrompt
+ *
+ * Generates a system prompt for the Upay Marg (Path of Alignment) category.
+ * Uses existing Nakshatra engine, Emotional Layer, and Language Detection.
+ *
+ * @param {object} params
+ * @param {object} params.nakshatraResult - from existing Nakshatra engine
+ * @param {string} params.emotionType - from existing detectEmotion()
+ * @param {number} params.emotionIntensity - 0...1
+ * @param {string} params.userMessage
+ * @param {string} params.target - language code
+ * @param {string|null} params.clientPromptOverride - SubCategory.prompt from DB
+ * @returns {string} system prompt
+ */
+function buildUpayMargPrompt({
+  nakshatraResult,
+  emotionType,
+  emotionIntensity,
+  userMessage,
+  target,
+  clientPromptOverride,
+}) {
+  const nak = nakshatraResult?.nakshatra;
+  const theme = detectUpayMargTheme(emotionType, userMessage, "");
+  const suggestedUpays = getUpaySuggestions(theme, 3);
+
+  const langName =
+    target === "th"
+      ? "Thai"
+      : target === "hi"
+        ? "Hindi"
+        : target === "en"
+          ? "English"
+          : target;
+
+  const sectionHeading =
+    UPAY_HEADING_BY_LANG[target] || UPAY_HEADING_BY_LANG.en;
+
+  const birthContextBlock = nak
+    ? `INTERNAL BIRTH CONTEXT (never display raw values to user):
+- Birth star nature: ${nak.traits}
+- Emotional pattern: ${nak.emotional}
+- Karmic tone: ${nak.karmic}
+- Fear tendency: ${nak.fears}
+- Desire tendency: ${nak.desires}
+- Relationship style: ${nak.relationship}
+- Inner rhythm: ${nak.karmic}`
+    : `No birth data available. Focus on emotional awareness and gentle guidance only.`;
+
+  const upayList = suggestedUpays
+    .map(
+      (u, i) =>
+        `Practice ${i + 1}: ${u.title}\n  Category: ${u.category}\n  ${u.description}`,
+    )
+    .join("\n\n");
+
+  return `${birthContextBlock}
+
+CURRENT EMOTIONAL STATE:
+- Detected emotion: ${emotionType} (${Math.round((emotionIntensity || 0) * 100)}% intensity)
+- Selected theme: ${theme}
+
+SUGGESTED UPAY PRACTICES (use these as source for your JSON output):
+${upayList}
+
+UPAY MARG — OUTPUT FORMAT:
+Based on the context above, respond ONLY with the following JSON structure. Write the entire response in ${langName} only.
+
+${JSON.stringify(
+  {
+    current_energy: "",
+    vedic_reflection: "",
+    suggested_upay: suggestedUpays.map((u) => ({
+      title: u.title,
+      description: u.description,
+      category: u.category,
+    })),
+    gentle_closing: "",
+  },
+  null,
+  2,
+)}
+
+RULES FOR FILLING THE JSON:
+1. "current_energy" — Softly reflect the user's present emotional state in 1-2 sentences. Do not diagnose. Do not assume facts. Keep it warm and human.
+2. "vedic_reflection" — Use natural Vedic imagery (sunrise, river, lamp, moon, rain, lotus, roots, light). Reveal a deeper pattern gently in 2-3 sentences. Never predict. Never sound mystical for the sake of it.
+3. "suggested_upay" — Keep the title, description, and category exactly as provided above. Select 2-3 that best fit the user's emotional state and theme.
+4. "gentle_closing" — Warm reassurance with a soft remedy woven in naturally in 1-2 sentences. End on a hopeful, grounded note.
+
+STRICT CONSTRAINTS:
+- NEVER mention Nakshatra names, Pada numbers, or Dasha names to the user
+- NEVER promise outcomes or guarantee results
+- NEVER use fear-based astrology language
+- NEVER suggest gemstones, expensive rituals, or paid ceremonies
+- NEVER mention curses, black magic, or karma debt
+- NEVER use therapist-style or robotic language
+- NEVER predict future events
+- Tone: warm, reflective, human, calm, emotionally intelligent, grounded, hopeful
+- Structure: Opening Reflection -> Guidance -> Soft Landing
+- Language: ${langName} only. Never mix languages.
+
+${clientPromptOverride ? clientPromptOverride.trim() + "\n" : ""}
+OUTPUT YOUR RESPONSE IN VALID JSON FORMAT ONLY.`.trim();
+}
+
+module.exports = { buildAstriaIndiaContext, buildUpayMargPrompt };
