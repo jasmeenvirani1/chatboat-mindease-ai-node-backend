@@ -42,6 +42,13 @@ const {
 } = require("../helper/v4MasterService");
 const { buildAstriaIndiaContext } = require("../helper/astriaIndiaService");
 const SambandhTaalMelService = require("../helper/sambandh-taalmel.service.js");
+const {
+  buildAstriaUSContext,
+  computeWesternBirthChart,
+  parseEnergyMatchPartners,
+  buildEnergyMatchMissingQuestion,
+  isEnergyMatchSubcategory,
+} = require("../helper/astriaUSService");
 
 // ============================================
 // HELPER FUNCTIONS
@@ -65,6 +72,40 @@ function getKolkataMidnightDate() {
   return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
 }
 
+const HINGLISH_MARKERS = new Set([
+  "mujhe","tumhe","aapko","hume","unhe",
+  "kya","kyun","kyunki","kuch","koi","kaun","kahan","kab",
+  "nahi","nahin","nai",
+  "hain","tha","thi","hoga","hogi","hoge",
+  "karna","karta","karti","karte",
+  "raha","rahi","rahe",
+  "aaj","parso","abhi",
+  "yaar","bhai",
+  "bahut","zyada","thoda","bilkul","accha","achha",
+  "bura","theek",
+  "mera","meri","mere",
+  "tera","teri","tumhara","tumhari",
+  "uska","uski","unka","unki",
+  "hamara","hamari",
+  "phir","lekin",
+  "lagta","lagti","lagte",
+  "samajh","malum","pata",
+  "zindagi","pyaar","dil","mann","soch",
+  "kar","karo","karke",
+  "hogaya","hogayi",
+  "sab","sabko","sabse",
+]);
+
+function detectHinglish(text) {
+  const words = text.toLowerCase().match(/[a-z]+/g) || [];
+  let count = 0;
+  for (const w of words) {
+    if (HINGLISH_MARKERS.has(w)) count++;
+    if (count >= 2) return true;
+  }
+  return false;
+}
+
 function detectLangFromMessage(text = "") {
   if (/[\u0E00-\u0E7F]/.test(text)) return "th";
   if (/[ñáéíóúü¿¡]/i.test(text)) return "es";
@@ -77,6 +118,7 @@ function detectLangFromMessage(text = "") {
     return "zh";
   if (/[\u0400-\u04FF]/.test(text)) return "ru";
   if (/[\u0600-\u06FF]/.test(text)) return "ar";
+  if (/[\u0900-\u097F]/.test(text) && /[a-zA-Z]/.test(text)) return "hinglish";
   if (/[\u0900-\u097F]/.test(text)) return "hi";
   if (/[ăâđêôơưĂÂĐÊÔƠƯ]/i.test(text)) return "vi";
   if (/[àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ]/i.test(text) && !/[ñ¿¡]/i.test(text))
@@ -84,6 +126,7 @@ function detectLangFromMessage(text = "") {
   if (/[äöüßÄÖÜ]/i.test(text)) return "de";
   if (/[àèéìíîòóùú]/i.test(text) && !/[ñ¿¡àâæçêëïœ]/i.test(text)) return "it";
   if (/[ãõÃÕ]/i.test(text)) return "pt";
+  if (detectHinglish(text)) return "hinglish";
   return "en";
 }
 
@@ -1389,6 +1432,12 @@ const chatController = {
         userPersona,
       } = req.body;
 
+      if (!userMessage) {
+        return res
+          .status(400)
+          .json({ success: false, message: "userMessage is required" });
+      }
+
       let dob0;
       let dob_time0;
       let dob_place0;
@@ -1473,7 +1522,7 @@ const chatController = {
           "name prompt freeUserPrompt",
         );
         if (category) {
-          if (subscriptionId && subscriptionStatus === "active") {
+          if (subscriptionId && subscriptionStatus === "Active") {
             categoryPrompt = category.prompt?.trim() || null;
           } else {
             categoryPrompt = category.freeUserPrompt?.trim() || null;
@@ -1487,7 +1536,7 @@ const chatController = {
           "name prompt categoryId freeUserPrompt",
         );
         if (subCategory) {
-          if (subscriptionId && subscriptionStatus === "active") {
+          if (subscriptionId && subscriptionStatus === "Active") {
             subCategoryPrompt = subCategory.prompt?.trim() || null;
           } else {
             subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
@@ -1547,6 +1596,12 @@ const chatController = {
         subCategoryName === "Sambandh Taal-Mel" ||
         categoryName === "Sambandh Taal Mel" ||
         subCategoryName === "Sambandh Taal Mel";
+
+      // ============================================
+      // ====== ASTRIA US FLAG ======
+      // ============================================
+      // Astria US Engine — Modern psychology-based Western astrology (US lane)
+      const isAstriaUS = categoryName === "Astria US";
 
       // ============================================
       // SPECIALIZED FEATURES (HealJai categories only)
@@ -1633,12 +1688,6 @@ const chatController = {
         } else if (activeSpecialized?.id === "food") {
           foodRecommendation = activeSpecialized.result;
         }
-      }
-
-      if (!userMessage) {
-        return res
-          .status(400)
-          .json({ success: false, message: "userMessage is required" });
       }
 
       const userDateTime = extractThaiDateTime(userMessage);
@@ -1905,8 +1954,8 @@ DAILY CHECK-IN (when natural):
       }
 
       LANGUAGE RULE (RESTRICTED):
-      - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target} language.
-      - Output ONLY in the user's language. Never mix languages.
+      - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target === "hinglish" ? "Hinglish" : target} language.
+      - ${target === "hinglish" ? "Hinglish means naturally mixing Hindi and English words in the same sentence, written entirely in Roman script (no Devanagari). Match the user's casual code-switching style." : "Output ONLY in the user's language. Never mix languages."}
       - Do NOT show any English intermediate in your reply.
       ${isSamayPravah ? "- SAMAY PRAVAH EXCEPTION: The technical graph block markers (<<<SAMAY_PRAVAH_GRAPH>>> and <<<END_SAMAY_PRAVAH_GRAPH>>>) and the JSON inside them are system output — they MUST always be written in English exactly as specified, even when replying in a non-English language. Only the narrative sentences above the graph block should be in the user's language." : ""}
 
@@ -1954,11 +2003,9 @@ DAILY CHECK-IN (when natural):
         }
       }
 
-      console.log("Is New chat: ", isNewChat);
       const chatLang = isNewChat
         ? detectLangFromMessage(userMessage)
         : chat?.chatLang || "en";
-      console.log("ChatLang: ", chatLang, userMessage);
 
       const currentDomain = v4Classification.domain;
       const shouldIncludeHistory =
@@ -2248,6 +2295,7 @@ RULES:
 
       // Vivah Muhurat Engine — dual birth-chart flow with partner detection
       let vivahMissingFieldsQuestion = null;
+      let energyMatchMissingQuestion = null;
       if (isVivahMuhurat) {
         const vivahPartners = parseVivahPartners(
           userMessage,
@@ -2367,13 +2415,104 @@ RULES:
       }
       // ====== END SAMBANDH TAAL-MEL PROCESSING ======
 
+      // ============================================
+      // ASTRIA US ENGINE — Astria US category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      if (isAstriaUS) {
+        if (isEnergyMatchSubcategory(subCategoryName)) {
+          // Energy Match: needs two birth charts — parse both from message + DB
+          const emPartners = parseEnergyMatchPartners(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (emPartners.missingFields.length > 0) {
+            energyMatchMissingQuestion = buildEnergyMatchMissingQuestion(
+              emPartners.missingFields,
+              !!(dob0 && String(dob0).trim()),
+              target,
+            );
+          } else {
+            let chartA = null;
+            let chartB = null;
+            try {
+              if (emPartners.personA.dob) {
+                chartA = computeWesternBirthChart({
+                  dob: emPartners.personA.dob,
+                  dob_time: emPartners.personA.time || null,
+                  dob_place: emPartners.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria US Energy Match - chartA error:", err);
+            }
+            try {
+              if (emPartners.personB.dob) {
+                chartB = computeWesternBirthChart({
+                  dob: emPartners.personB.dob,
+                  dob_time: emPartners.personB.time || null,
+                  dob_place: emPartners.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria US Energy Match - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaUSContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartA,
+              birthChartB: chartB,
+            });
+          }
+        } else {
+          // All other Astria US subcategories — single user chart
+          let astriaUSBirthChart = null;
+          if (dob0) {
+            try {
+              astriaUSBirthChart = computeWesternBirthChart({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria US birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaUSContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaUSBirthChart,
+          });
+        }
+      }
+      // ====== END ASTRIA US PROCESSING ======
+
       // Specialized Feature Context
-      // isAstriaIndia guard: prevent music/food blocks from overriding the Astria India prompt
-      // even if isHealJaiCategory ever becomes true for this subcategory in the future.
-      if (!isAstriaIndia && musicRecommendation?.shouldRecommend) {
+      // isAstriaIndia / isAstriaUS guard: prevent music/food blocks from overriding these prompts.
+      if (
+        !isAstriaIndia &&
+        !isAstriaUS &&
+        musicRecommendation?.shouldRecommend
+      ) {
         systemPrompt = `${musicRecommendation.promptBlock}
         LANGUAGE LOCK: Reply only in ${target} language. Never mix languages. Never use Thai unless target is Thai.`;
-      } else if (!isAstriaIndia && foodRecommendation?.shouldRecommend) {
+      } else if (
+        !isAstriaIndia &&
+        !isAstriaUS &&
+        foodRecommendation?.shouldRecommend
+      ) {
         const isTeasing = foodRecommendation.isTeasing;
         const flavor = foodRecommendation.flavor;
 
@@ -2429,8 +2568,7 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System Prompt for AI:", systemPrompt);
-
+      console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -2715,6 +2853,15 @@ RULES:
                 if (res.flush) res.flush();
               }
             }
+          } else if (isAstriaUS && energyMatchMissingQuestion) {
+            finalAiResponse = energyMatchMissingQuestion;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
           } else {
             let stream;
             if (
@@ -2810,22 +2957,17 @@ RULES:
           // ============================================
           // ====== UPAY MARG RESPONSE PROCESSING (STREAMING) ======
           // ============================================
-          if (isUpayMarg && finalAiResponse) {
+          if (isUpayMarg && !upayMargParsed && finalAiResponse) {
             try {
-              // Try to parse JSON response
               const jsonMatch = finalAiResponse.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
                 upayMargParsed = JSON.parse(jsonMatch[0]);
-                // Format the response BEFORE streaming
                 const formattedResponse = formatUpayMargResponse(
                   upayMargParsed,
                   target,
                 );
-
-                // Clear finalAiResponse and replace with formatted version
                 finalAiResponse = formattedResponse;
 
-                // Send the formatted response in chunks
                 const words = finalAiResponse.split(" ");
                 for (const word of words) {
                   if (clientClosed) break;
@@ -2835,12 +2977,10 @@ RULES:
                   if (res.flush) res.flush();
                   await new Promise((r) => setTimeout(r, 30));
                 }
-              } else {
-                finalAiResponse = formattedResponse;
               }
+              // no else: keep finalAiResponse as-is when no JSON found
             } catch (err) {
               logger.error("Upay Marg - Response parsing error:", err);
-              // Keep original response as fallback
             }
           }
           // ====== END UPAY MARG RESPONSE PROCESSING ======
@@ -2981,6 +3121,10 @@ RULES:
         finalAiResponse = vivahMissingFieldsQuestion;
       }
 
+      if (isAstriaUS && energyMatchMissingQuestion) {
+        finalAiResponse = energyMatchMissingQuestion;
+      }
+
       // ============================================
       // ====== UPAY MARG RESPONSE PROCESSING (NON-STREAMING) ======
       // ============================================
@@ -3006,10 +3150,8 @@ RULES:
         if (sambandhMissingFields) {
           finalAiResponse = sambandhMissingFields;
         } else {
-          const stCompletion = await generateGeminiResponse(messages);
-          const rawResponse = stCompletion?.trim() || "No response";
+          const rawResponse = completion?.trim() || "No response";
 
-          // Extract the JSON data - using the existing sambandhTaalMelData variable
           sambandhTaalMelData =
             SambandhTaalMelService.extractSambandhTaalMelData(rawResponse);
 
@@ -3126,13 +3268,25 @@ RULES:
   deleteChat: async (req, res) => {
     try {
       const { chatId } = req.params;
-      const chat = await ChatHistory.findByIdAndDelete(chatId);
+      const { userId } = req.body;
 
+      const chat = await ChatHistory.findById(chatId).select("userId");
       if (!chat) {
         return res
           .status(404)
           .json({ success: false, message: "Chat not found" });
       }
+
+      if (userId && chat.userId?.toString() !== userId.toString()) {
+        return res
+          .status(403)
+          .json({
+            success: false,
+            message: "Not authorized to delete this chat",
+          });
+      }
+
+      await ChatHistory.findByIdAndDelete(chatId);
 
       res
         .status(200)
