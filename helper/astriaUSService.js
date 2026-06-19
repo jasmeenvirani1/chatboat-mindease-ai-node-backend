@@ -1368,6 +1368,7 @@ function buildAstriaUSContext({
 module.exports = {
   buildAstriaUSContext,
   computeWesternBirthChart,
+  formatChartBlock,
   parseEnergyMatchPartners,
   buildEnergyMatchMissingQuestion,
   isEnergyMatchSubcategory,

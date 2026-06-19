@@ -41,6 +41,12 @@ const {
   processOutput,
 } = require("../helper/v4MasterService");
 const { buildAstriaIndiaContext } = require("../helper/astriaIndiaService");
+const {
+  buildAstriaIndiaCategoryContext,
+  parseSambandhPartners,
+  buildSambandhMissingQuestion,
+  isSambandhMatchSubcategory,
+} = require("../helper/astriaIndiaModule");
 const SambandhTaalMelService = require("../helper/sambandh-taalmel.service.js");
 const {
   buildAstriaUSContext,
@@ -49,6 +55,27 @@ const {
   buildEnergyMatchMissingQuestion,
   isEnergyMatchSubcategory,
 } = require("../helper/astriaUSService");
+const {
+  buildAstriaSpanishContext,
+  computeWesternBirthChart: computeWesternBirthChartES,
+  parseEnergyMatchPartners: parseEnergyMatchPartnersES,
+  buildEnergyMatchMissingQuestion: buildEnergyMatchMissingQuestionES,
+  isEnergyMatchSubcategory: isEnergyMatchSubcategoryES,
+} = require("../helper/astriaSpanishService");
+const {
+  buildAstriaJapanContext,
+  computeWesternBirthChartJP,
+  parseEnergyMatchPartnersJP,
+  buildEnergyMatchMissingQuestionJP,
+  isCompatibilitySubcategoryJP,
+} = require("../helper/astriaJapanService");
+const {
+  buildAstriaKoreaContext,
+  computeWesternBirthChartKR,
+  parseCompatibilityPartnersKR,
+  buildCompatibilityMissingQuestionKR,
+  isCompatibilitySubcategoryKR,
+} = require("../helper/astriaKoreaService");
 
 // ============================================
 // HELPER FUNCTIONS
@@ -73,28 +100,212 @@ function getKolkataMidnightDate() {
 }
 
 const HINGLISH_MARKERS = new Set([
-  "mujhe","tumhe","aapko","hume","unhe",
-  "kya","kyun","kyunki","kuch","koi","kaun","kahan","kab",
-  "nahi","nahin","nai",
-  "hain","tha","thi","hoga","hogi","hoge",
-  "karna","karta","karti","karte",
-  "raha","rahi","rahe",
-  "aaj","parso","abhi",
-  "yaar","bhai",
-  "bahut","zyada","thoda","bilkul","accha","achha",
-  "bura","theek",
-  "mera","meri","mere",
-  "tera","teri","tumhara","tumhari",
-  "uska","uski","unka","unki",
-  "hamara","hamari",
-  "phir","lekin",
-  "lagta","lagti","lagte",
-  "samajh","malum","pata",
-  "zindagi","pyaar","dil","mann","soch",
-  "kar","karo","karke",
-  "hogaya","hogayi",
-  "sab","sabko","sabse",
+  "mujhe",
+  "tumhe",
+  "aapko",
+  "hume",
+  "unhe",
+  "kya",
+  "kyun",
+  "kyunki",
+  "kuch",
+  "koi",
+  "kaun",
+  "kahan",
+  "kab",
+  "nahi",
+  "nahin",
+  "nai",
+  "hain",
+  "tha",
+  "thi",
+  "hoga",
+  "hogi",
+  "hoge",
+  "karna",
+  "karta",
+  "karti",
+  "karte",
+  "raha",
+  "rahi",
+  "rahe",
+  "aaj",
+  "parso",
+  "abhi",
+  "yaar",
+  "bhai",
+  "bahut",
+  "zyada",
+  "thoda",
+  "bilkul",
+  "accha",
+  "achha",
+  "bura",
+  "theek",
+  "mera",
+  "meri",
+  "mere",
+  "tera",
+  "teri",
+  "tumhara",
+  "tumhari",
+  "uska",
+  "uski",
+  "unka",
+  "unki",
+  "hamara",
+  "hamari",
+  "phir",
+  "lekin",
+  "lagta",
+  "lagti",
+  "lagte",
+  "samajh",
+  "malum",
+  "pata",
+  "zindagi",
+  "pyaar",
+  "dil",
+  "mann",
+  "soch",
+  "kar",
+  "karo",
+  "karke",
+  "hogaya",
+  "hogayi",
+  "sab",
+  "sabko",
+  "sabse",
 ]);
+
+const SPANISH_MARKERS = new Set([
+  "hola",
+  "como",
+  "estas",
+  "estoy",
+  "bien",
+  "gracias",
+  "por",
+  "favor",
+  "que",
+  "quiero",
+  "necesito",
+  "tengo",
+  "tienes",
+  "tiene",
+  "somos",
+  "están",
+  "soy",
+  "eres",
+  "para",
+  "pero",
+  "porque",
+  "cuando",
+  "donde",
+  "quien",
+  "cual",
+  "muy",
+  "más",
+  "también",
+  "todo",
+  "nada",
+  "algo",
+  "hacer",
+  "quiero",
+  "puedo",
+  "puede",
+  "podemos",
+  "decir",
+  "saber",
+  "hay",
+  "aquí",
+  "allí",
+  "ahora",
+  "antes",
+  "después",
+  "siempre",
+  "nunca",
+  "mucho",
+  "poco",
+  "grande",
+  "pequeño",
+  "bueno",
+  "malo",
+  "amor",
+  "vida",
+  "tiempo",
+  "día",
+  "noche",
+  "casa",
+  "trabajo",
+  "dinero",
+  "me",
+  "te",
+  "se",
+  "nos",
+  "les",
+  "del",
+  "una",
+  "los",
+  "las",
+  "sus",
+  "con",
+  "sin",
+  "sobre",
+  "bajo",
+  "entre",
+  "desde",
+  "hasta",
+  "según",
+  "mi",
+  "tu",
+  "su",
+  "mis",
+  "tus",
+]);
+
+const SPANISH_STRONG_MARKERS = new Set([
+  "hola",
+  "gracias",
+  "estoy",
+  "estas",
+  "quiero",
+  "necesito",
+  "tengo",
+  "tienes",
+  "somos",
+  "soy",
+  "eres",
+  "porque",
+  "cuando",
+  "donde",
+  "quien",
+  "también",
+  "puedo",
+  "puede",
+  "podemos",
+  "siempre",
+  "nunca",
+  "pequeño",
+  "amor",
+  "trabajo",
+  "dinero",
+  "aquí",
+  "allí",
+  "después",
+  "según",
+]);
+
+function detectSpanish(text) {
+  const words = text.toLowerCase().match(/[a-záéíóúüñ]+/g) || [];
+  let count = 0;
+  for (const w of words) {
+    if (SPANISH_STRONG_MARKERS.has(w)) return true;
+    if (SPANISH_MARKERS.has(w)) count++;
+    if (count >= 2) return true;
+  }
+  return false;
+}
 
 function detectHinglish(text) {
   const words = text.toLowerCase().match(/[a-z]+/g) || [];
@@ -127,6 +338,7 @@ function detectLangFromMessage(text = "") {
   if (/[àèéìíîòóùú]/i.test(text) && !/[ñ¿¡àâæçêëïœ]/i.test(text)) return "it";
   if (/[ãõÃÕ]/i.test(text)) return "pt";
   if (detectHinglish(text)) return "hinglish";
+  if (detectSpanish(text)) return "es";
   return "en";
 }
 
@@ -1430,7 +1642,10 @@ const chatController = {
         userMessage,
         memory,
         userPersona,
+        spanishTone,
       } = req.body;
+
+      console.log("spanishTone:", spanishTone);
 
       if (!userMessage) {
         return res
@@ -1517,7 +1732,7 @@ const chatController = {
       let subCategoryName = null;
       let subCategoryPrompt = null;
 
-      if (categoryId) {
+      if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
         const category = await Category.findById(categoryId).select(
           "name prompt freeUserPrompt",
         );
@@ -1527,11 +1742,11 @@ const chatController = {
           } else {
             categoryPrompt = category.freeUserPrompt?.trim() || null;
           }
-          categoryName = category.name;
+          categoryName = category.name || null;
         }
       }
 
-      if (subCategoryId) {
+      if (subCategoryId && mongoose.Types.ObjectId.isValid(subCategoryId)) {
         const subCategory = await SubCategory.findById(subCategoryId).select(
           "name prompt categoryId freeUserPrompt",
         );
@@ -1541,7 +1756,7 @@ const chatController = {
           } else {
             subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
           }
-          subCategoryName = subCategory.name;
+          subCategoryName = subCategory.name || null;
           if (!categoryId && subCategory.categoryId) {
             categoryId = subCategory.categoryId;
           }
@@ -1602,6 +1817,36 @@ const chatController = {
       // ============================================
       // Astria US Engine — Modern psychology-based Western astrology (US lane)
       const isAstriaUS = categoryName === "Astria US";
+
+      // ============================================
+      // ====== ASTRIA INDIA CATEGORY FLAG ======
+      // ============================================
+      // Astria India Engine — Vedic-psychology-based Indian astrology (India lane)
+      // Separate from "รหัส Healjai V3" (isAstriaIndia). This is the standalone category.
+      const isAstriaIndiaCategory = categoryName === "Astria India" && !isAstriaUS;
+
+      // ============================================
+      // ====== ASTRIA JAPAN FLAG ======
+      // ============================================
+      // Astria Japan Engine — Soft, polite, minimal, emotionally-reserved Western astrology (Japan lane)
+      const isAstriaJapan = categoryName === "Astria Japan" && !isAstriaUS && !isAstriaIndiaCategory;
+
+      // ============================================
+      // ====== ASTRIA KOREA FLAG ======
+      // ============================================
+      // Astria Korea Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
+      const isAstriaKorea = categoryName === "Astria Korea" && !isAstriaUS && !isAstriaIndiaCategory && !isAstriaJapan;
+
+      // ============================================
+      // ====== ASTRIA SPANISH FLAG ======
+      // ============================================
+      // Astria Spanish Engine — Spanish-lane astrology with 3 tone variants
+      const isAstriaSpanish = categoryName === "Astria Spanish" && !isAstriaUS && !isAstriaIndiaCategory && !isAstriaJapan && !isAstriaKorea;
+      // spanishTone: "neutral" (default) | "spain" | "mexico"
+      const resolvedSpanishTone =
+        !isAstriaUS && isAstriaSpanish && spanishTone
+          ? String(spanishTone).toLowerCase()
+          : "neutral";
 
       // ============================================
       // SPECIALIZED FEATURES (HealJai categories only)
@@ -1954,7 +2199,7 @@ DAILY CHECK-IN (when natural):
       }
 
       LANGUAGE RULE (RESTRICTED):
-      - Always reply in ${target === "th" ? "Thai" : target === "en" ? "English" : target === "hinglish" ? "Hinglish" : target} language.
+      - Always reply in ${{en:"English",th:"Thai",es:"Spanish",hi:"Hindi",hinglish:"Hinglish",fr:"French",de:"German",it:"Italian",pt:"Portuguese",ja:"Japanese",ko:"Korean",zh:"Chinese",ar:"Arabic",ru:"Russian",vi:"Vietnamese",id:"Indonesian"}[target] || "English"} language.
       - ${target === "hinglish" ? "Hinglish means naturally mixing Hindi and English words in the same sentence, written entirely in Roman script (no Devanagari). Match the user's casual code-switching style." : "Output ONLY in the user's language. Never mix languages."}
       - Do NOT show any English intermediate in your reply.
       ${isSamayPravah ? "- SAMAY PRAVAH EXCEPTION: The technical graph block markers (<<<SAMAY_PRAVAH_GRAPH>>> and <<<END_SAMAY_PRAVAH_GRAPH>>>) and the JSON inside them are system output — they MUST always be written in English exactly as specified, even when replying in a non-English language. Only the narrative sentences above the graph block should be in the user's language." : ""}
@@ -2499,18 +2744,339 @@ RULES:
       }
       // ====== END ASTRIA US PROCESSING ======
 
+      // ============================================
+      // ASTRIA SPANISH ENGINE — Astria Spanish category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let energyMatchMissingQuestionES = null;
+      if (isAstriaSpanish && !isAstriaUS) {
+        if (isEnergyMatchSubcategoryES(subCategoryName)) {
+          const emPartnersES = parseEnergyMatchPartnersES(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (emPartnersES.missingFields.length > 0) {
+            energyMatchMissingQuestionES = buildEnergyMatchMissingQuestionES(
+              emPartnersES.missingFields,
+              !!(dob0 && String(dob0).trim()),
+              target,
+            );
+          } else {
+            let chartAES = null;
+            let chartBES = null;
+            try {
+              if (emPartnersES.personA.dob) {
+                chartAES = computeWesternBirthChartES({
+                  dob: emPartnersES.personA.dob,
+                  dob_time: emPartnersES.personA.time || null,
+                  dob_place: emPartnersES.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Spanish Energy Match - chartA error:", err);
+            }
+            try {
+              if (emPartnersES.personB.dob) {
+                chartBES = computeWesternBirthChartES({
+                  dob: emPartnersES.personB.dob,
+                  dob_time: emPartnersES.personB.time || null,
+                  dob_place: emPartnersES.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Spanish Energy Match - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaSpanishContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartAES,
+              birthChartB: chartBES,
+              spanishTone: resolvedSpanishTone,
+            });
+          }
+        } else {
+          // All other Astria Spanish subcategories — single user chart
+          let astriaSpanishBirthChart = null;
+          if (dob0) {
+            try {
+              astriaSpanishBirthChart = computeWesternBirthChartES({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Spanish birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaSpanishContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaSpanishBirthChart,
+            spanishTone: resolvedSpanishTone,
+          });
+        }
+      }
+      // ====== END ASTRIA SPANISH PROCESSING ======
+
+      // ============================================
+      // ASTRIA JAPAN ENGINE — Astria Japan category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let energyMatchMissingQuestionJP = null;
+      if (isAstriaJapan) {
+        if (isCompatibilitySubcategoryJP(subCategoryName)) {
+          // Compatibility: needs two birth charts — parse both from message + DB
+          const emPartnersJP = parseEnergyMatchPartnersJP(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (emPartnersJP.missingFields.length > 0) {
+            energyMatchMissingQuestionJP = buildEnergyMatchMissingQuestionJP(
+              emPartnersJP.missingFields,
+              !!(dob0 && String(dob0).trim()),
+            );
+          } else {
+            let chartAJP = null;
+            let chartBJP = null;
+            try {
+              if (emPartnersJP.personA.dob) {
+                chartAJP = computeWesternBirthChartJP({
+                  dob: emPartnersJP.personA.dob,
+                  dob_time: emPartnersJP.personA.time || null,
+                  dob_place: emPartnersJP.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Japan Compatibility - chartA error:", err);
+            }
+            try {
+              if (emPartnersJP.personB.dob) {
+                chartBJP = computeWesternBirthChartJP({
+                  dob: emPartnersJP.personB.dob,
+                  dob_time: emPartnersJP.personB.time || null,
+                  dob_place: emPartnersJP.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Japan Compatibility - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaJapanContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartAJP,
+              birthChartB: chartBJP,
+            });
+          }
+        } else {
+          // All other Astria Japan subcategories — single user chart
+          let astriaJapanBirthChart = null;
+          if (dob0) {
+            try {
+              astriaJapanBirthChart = computeWesternBirthChartJP({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Japan birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaJapanContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaJapanBirthChart,
+          });
+        }
+      }
+      // ====== END ASTRIA JAPAN PROCESSING ======
+
+      // ============================================
+      // ASTRIA KOREA ENGINE — Astria Korea category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let compatibilityMissingQuestionKR = null;
+      if (isAstriaKorea) {
+        if (isCompatibilitySubcategoryKR(subCategoryName)) {
+          // Compatibility: needs two birth charts — parse both from message + DB
+          const compatPartnersKR = parseCompatibilityPartnersKR(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (compatPartnersKR.missingFields.length > 0) {
+            compatibilityMissingQuestionKR = buildCompatibilityMissingQuestionKR(
+              compatPartnersKR.missingFields,
+              !!(dob0 && String(dob0).trim()),
+            );
+          } else {
+            let chartAKR = null;
+            let chartBKR = null;
+            try {
+              if (compatPartnersKR.personA.dob) {
+                chartAKR = computeWesternBirthChartKR({
+                  dob: compatPartnersKR.personA.dob,
+                  dob_time: compatPartnersKR.personA.time || null,
+                  dob_place: compatPartnersKR.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Korea Compatibility - chartA error:", err);
+            }
+            try {
+              if (compatPartnersKR.personB.dob) {
+                chartBKR = computeWesternBirthChartKR({
+                  dob: compatPartnersKR.personB.dob,
+                  dob_time: compatPartnersKR.personB.time || null,
+                  dob_place: compatPartnersKR.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Korea Compatibility - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaKoreaContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartAKR,
+              birthChartB: chartBKR,
+            });
+          }
+        } else {
+          // All other Astria Korea subcategories — single user chart
+          let astriaKoreaBirthChart = null;
+          if (dob0) {
+            try {
+              astriaKoreaBirthChart = computeWesternBirthChartKR({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Korea birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaKoreaContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaKoreaBirthChart,
+          });
+        }
+      }
+      // ====== END ASTRIA KOREA PROCESSING ======
+
+      // ============================================
+      // ASTRIA INDIA CATEGORY ENGINE — "Astria India" category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let sambandhMissingQuestionIN = null;
+      if (isAstriaIndiaCategory) {
+        if (isSambandhMatchSubcategory(subCategoryName)) {
+          // Sambandh Match: needs two birth charts — parse both from message + DB
+          const sambandhPartnersIN = parseSambandhPartners(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (sambandhPartnersIN.missingFields.length > 0) {
+            sambandhMissingQuestionIN = buildSambandhMissingQuestion(
+              sambandhPartnersIN.missingFields,
+              !!(dob0 && String(dob0).trim()),
+              target,
+            );
+          } else {
+            systemPrompt = await buildAstriaIndiaCategoryContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              dob: dob0,
+              dob_time: dob_time0,
+              dob_place: dob_place0,
+              emotionType,
+              emotionIntensity,
+              ageInfo,
+              dobB: sambandhPartnersIN.personB.dob,
+              dob_timeB: sambandhPartnersIN.personB.time,
+              dob_placeB: sambandhPartnersIN.personB.place,
+            });
+          }
+        } else {
+          // All other Astria India subcategories — single user chart
+          systemPrompt = await buildAstriaIndiaCategoryContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            dob: dob0,
+            dob_time: dob_time0,
+            dob_place: dob_place0,
+            emotionType,
+            emotionIntensity,
+            ageInfo,
+          });
+        }
+      }
+      // ====== END ASTRIA INDIA CATEGORY PROCESSING ======
+
       // Specialized Feature Context
-      // isAstriaIndia / isAstriaUS guard: prevent music/food blocks from overriding these prompts.
+      // isAstriaIndia / isAstriaIndiaCategory / isAstriaUS / isAstriaSpanish / isAstriaJapan / isAstriaKorea guard: prevent music/food blocks from overriding these prompts.
       if (
         !isAstriaIndia &&
+        !isAstriaIndiaCategory &&
         !isAstriaUS &&
+        !isAstriaSpanish &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
         musicRecommendation?.shouldRecommend
       ) {
         systemPrompt = `${musicRecommendation.promptBlock}
         LANGUAGE LOCK: Reply only in ${target} language. Never mix languages. Never use Thai unless target is Thai.`;
       } else if (
         !isAstriaIndia &&
+        !isAstriaIndiaCategory &&
         !isAstriaUS &&
+        !isAstriaSpanish &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
         foodRecommendation?.shouldRecommend
       ) {
         const isTeasing = foodRecommendation.isTeasing;
@@ -2569,6 +3135,7 @@ RULES:
         },
       ];
       console.log("System Prompt:", systemPrompt);
+      console.log("subCategoryPrompt:", subCategoryPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -2862,6 +3429,46 @@ RULES:
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
+          } else if (
+            isAstriaSpanish &&
+            !isAstriaUS &&
+            energyMatchMissingQuestionES
+          ) {
+            finalAiResponse = energyMatchMissingQuestionES;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (isAstriaJapan && energyMatchMissingQuestionJP) {
+            finalAiResponse = energyMatchMissingQuestionJP;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (isAstriaKorea && compatibilityMissingQuestionKR) {
+            finalAiResponse = compatibilityMissingQuestionKR;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
+            finalAiResponse = sambandhMissingQuestionIN;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
           } else {
             let stream;
             if (
@@ -3125,6 +3732,22 @@ RULES:
         finalAiResponse = energyMatchMissingQuestion;
       }
 
+      if (isAstriaSpanish && !isAstriaUS && energyMatchMissingQuestionES) {
+        finalAiResponse = energyMatchMissingQuestionES;
+      }
+
+      if (isAstriaJapan && energyMatchMissingQuestionJP) {
+        finalAiResponse = energyMatchMissingQuestionJP;
+      }
+
+      if (isAstriaKorea && compatibilityMissingQuestionKR) {
+        finalAiResponse = compatibilityMissingQuestionKR;
+      }
+
+      if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
+        finalAiResponse = sambandhMissingQuestionIN;
+      }
+
       // ============================================
       // ====== UPAY MARG RESPONSE PROCESSING (NON-STREAMING) ======
       // ============================================
@@ -3278,12 +3901,10 @@ RULES:
       }
 
       if (userId && chat.userId?.toString() !== userId.toString()) {
-        return res
-          .status(403)
-          .json({
-            success: false,
-            message: "Not authorized to delete this chat",
-          });
+        return res.status(403).json({
+          success: false,
+          message: "Not authorized to delete this chat",
+        });
       }
 
       await ChatHistory.findByIdAndDelete(chatId);
