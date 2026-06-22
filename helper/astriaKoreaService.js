@@ -29,71 +29,81 @@ const Astronomy = require("astronomy-engine");
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ZODIAC_SIGNS = [
-  "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+  "Aries",
+  "Taurus",
+  "Gemini",
+  "Cancer",
+  "Leo",
+  "Virgo",
+  "Libra",
+  "Scorpio",
+  "Sagittarius",
+  "Capricorn",
+  "Aquarius",
+  "Pisces",
 ];
 
 const PLANET_BODIES = [
-  { name: "sun",     body: Astronomy.Body.Sun },
-  { name: "moon",    body: Astronomy.Body.Moon },
+  { name: "sun", body: Astronomy.Body.Sun },
+  { name: "moon", body: Astronomy.Body.Moon },
   { name: "mercury", body: Astronomy.Body.Mercury },
-  { name: "venus",   body: Astronomy.Body.Venus },
-  { name: "mars",    body: Astronomy.Body.Mars },
+  { name: "venus", body: Astronomy.Body.Venus },
+  { name: "mars", body: Astronomy.Body.Mars },
   { name: "jupiter", body: Astronomy.Body.Jupiter },
-  { name: "saturn",  body: Astronomy.Body.Saturn },
-  { name: "uranus",  body: Astronomy.Body.Uranus },
+  { name: "saturn", body: Astronomy.Body.Saturn },
+  { name: "uranus", body: Astronomy.Body.Uranus },
   { name: "neptune", body: Astronomy.Body.Neptune },
-  { name: "pluto",   body: Astronomy.Body.Pluto },
+  { name: "pluto", body: Astronomy.Body.Pluto },
 ];
 
 const ASPECT_DEFINITIONS = [
-  { name: "conjunction", angle: 0,   orb: 8 },
-  { name: "sextile",     angle: 60,  orb: 6 },
-  { name: "square",      angle: 90,  orb: 8 },
-  { name: "trine",       angle: 120, orb: 8 },
-  { name: "opposition",  angle: 180, orb: 8 },
+  { name: "conjunction", angle: 0, orb: 8 },
+  { name: "sextile", angle: 60, orb: 6 },
+  { name: "square", angle: 90, orb: 8 },
+  { name: "trine", angle: 120, orb: 8 },
+  { name: "opposition", angle: 180, orb: 8 },
 ];
 
 // Korean cities + major global cities relevant to Korean users
 const CITY_DATA = {
   // South Korea (UTC+9)
-  seoul:    [37.5665, 126.9780, 540],
-  busan:    [35.1796, 129.0756, 540],
-  incheon:  [37.4563, 126.7052, 540],
-  daegu:    [35.8714, 128.6014, 540],
-  daejeon:  [36.3504, 127.3845, 540],
-  gwangju:  [35.1595, 126.8526, 540],
-  suwon:    [37.2636, 127.0286, 540],
-  ulsan:    [35.5384, 129.3114, 540],
-  jeju:     [33.4996, 126.5312, 540],
+  seoul: [37.5665, 126.978, 540],
+  busan: [35.1796, 129.0756, 540],
+  incheon: [37.4563, 126.7052, 540],
+  daegu: [35.8714, 128.6014, 540],
+  daejeon: [36.3504, 127.3845, 540],
+  gwangju: [35.1595, 126.8526, 540],
+  suwon: [37.2636, 127.0286, 540],
+  ulsan: [35.5384, 129.3114, 540],
+  jeju: [33.4996, 126.5312, 540],
   // Japan (UTC+9)
-  tokyo:    [35.6762, 139.6503, 540],
-  osaka:    [34.6937, 135.5023, 540],
+  tokyo: [35.6762, 139.6503, 540],
+  osaka: [34.6937, 135.5023, 540],
   // China (UTC+8)
-  beijing:  [39.9042, 116.4074, 480],
+  beijing: [39.9042, 116.4074, 480],
   shanghai: [31.2304, 121.4737, 480],
   "hong kong": [22.3193, 114.1694, 480],
   // US
-  "new york":    [40.7128, -74.0060, -300],
+  "new york": [40.7128, -74.006, -300],
   "los angeles": [34.0522, -118.2437, -480],
-  chicago:       [41.8781, -87.6298, -360],
+  chicago: [41.8781, -87.6298, -360],
   // Europe
-  london:  [51.5074, -0.1278,  0],
-  paris:   [48.8566,  2.3522, 60],
-  berlin:  [52.5200, 13.4050, 60],
+  london: [51.5074, -0.1278, 0],
+  paris: [48.8566, 2.3522, 60],
+  berlin: [52.52, 13.405, 60],
   // Southeast Asia
-  singapore: [1.3521,  103.8198, 480],
-  bangkok:   [13.7563, 100.5018, 420],
+  singapore: [1.3521, 103.8198, 480],
+  bangkok: [13.7563, 100.5018, 420],
   // Australia
-  sydney:    [-33.8688, 151.2093, 600],
+  sydney: [-33.8688, 151.2093, 600],
   melbourne: [-37.8136, 144.9631, 600],
   // Canada
-  toronto:   [43.6532, -79.3832, -300],
+  toronto: [43.6532, -79.3832, -300],
   vancouver: [49.2827, -123.1207, -480],
 };
 
 function lookupCityData(cityName) {
-  if (!cityName) return { lat: 37.5665, lng: 126.9780, tz: 540 };
+  if (!cityName) return { lat: 37.5665, lng: 126.978, tz: 540 };
   const key = String(cityName).toLowerCase().trim();
   if (CITY_DATA[key]) {
     const [lat, lng, tz] = CITY_DATA[key];
@@ -106,7 +116,7 @@ function lookupCityData(cityName) {
     }
   }
   // Default to Seoul
-  return { lat: 37.5665, lng: 126.9780, tz: 540 };
+  return { lat: 37.5665, lng: 126.978, tz: 540 };
 }
 
 function parseDateDMY(dateStr) {
@@ -128,7 +138,9 @@ function parseBirthTime(timeStr) {
   return { hour, minute };
 }
 
-function normLon(lon) { return ((+lon % 360) + 360) % 360; }
+function normLon(lon) {
+  return ((+lon % 360) + 360) % 360;
+}
 
 function getEclipticLon(body, date) {
   const gv = Astronomy.GeoVector(body, date, false);
@@ -146,17 +158,18 @@ function lonToSignInfo(lon) {
 }
 
 function computeAscendant(utcDate, lat, lng) {
-  const gmst  = Astronomy.SiderealTime(utcDate);
-  const lmst  = (((gmst + lng / 15) % 24) + 24) % 24;
-  const RAMC  = lmst * 15;
+  const gmst = Astronomy.SiderealTime(utcDate);
+  const lmst = (((gmst + lng / 15) % 24) + 24) % 24;
+  const RAMC = lmst * 15;
   const obliquity = 23.4392911;
   const ramcRad = (RAMC * Math.PI) / 180;
-  const oblRad  = (obliquity * Math.PI) / 180;
-  const latRad  = (lat * Math.PI) / 180;
+  const oblRad = (obliquity * Math.PI) / 180;
+  const latRad = (lat * Math.PI) / 180;
   const y = -Math.cos(ramcRad);
-  const x =  Math.sin(ramcRad) * Math.cos(oblRad) + Math.tan(latRad) * Math.sin(oblRad);
+  const x =
+    Math.sin(ramcRad) * Math.cos(oblRad) + Math.tan(latRad) * Math.sin(oblRad);
   let asc = (Math.atan2(y, x) * 180) / Math.PI;
-  if (Math.sin(ramcRad) > 0 && asc <  90) asc += 180;
+  if (Math.sin(ramcRad) > 0 && asc < 90) asc += 180;
   if (Math.sin(ramcRad) < 0 && asc > 180) asc -= 180;
   return normLon(asc);
 }
@@ -183,12 +196,17 @@ function computeNatalAspects(planetPositions) {
     for (let j = i + 1; j < entries.length; j++) {
       const [nameA, posA] = entries[i];
       const [nameB, posB] = entries[j];
-      const diff  = Math.abs(normLon(posA.longitude) - normLon(posB.longitude));
+      const diff = Math.abs(normLon(posA.longitude) - normLon(posB.longitude));
       const angle = diff > 180 ? 360 - diff : diff;
       for (const asp of ASPECT_DEFINITIONS) {
         const orb = Math.abs(angle - asp.angle);
         if (orb <= asp.orb) {
-          aspects.push({ planet1: nameA, planet2: nameB, type: asp.name, orb: parseFloat(orb.toFixed(2)) });
+          aspects.push({
+            planet1: nameA,
+            planet2: nameB,
+            type: asp.name,
+            orb: parseFloat(orb.toFixed(2)),
+          });
           break;
         }
       }
@@ -201,8 +219,11 @@ function computeCurrentTransits() {
   const now = new Date();
   const transits = {};
   for (const { name, body } of PLANET_BODIES) {
-    try { transits[name] = lonToSignInfo(getEclipticLon(body, now)); }
-    catch { transits[name] = null; }
+    try {
+      transits[name] = lonToSignInfo(getEclipticLon(body, now));
+    } catch {
+      transits[name] = null;
+    }
   }
   return transits;
 }
@@ -212,12 +233,17 @@ function computeTransitToNatalAspects(natalPlanets, transitPlanets) {
   for (const [tName, tPos] of Object.entries(transitPlanets)) {
     if (!tPos) continue;
     for (const [nName, nPos] of Object.entries(natalPlanets)) {
-      const diff  = Math.abs(tPos.longitude - nPos.longitude);
+      const diff = Math.abs(tPos.longitude - nPos.longitude);
       const angle = diff > 180 ? 360 - diff : diff;
       for (const asp of ASPECT_DEFINITIONS) {
         const orb = Math.abs(angle - asp.angle);
         if (orb <= asp.orb) {
-          aspects.push({ transit_planet: tName, natal_planet: nName, type: asp.name, orb: parseFloat(orb.toFixed(2)) });
+          aspects.push({
+            transit_planet: tName,
+            natal_planet: nName,
+            type: asp.name,
+            orb: parseFloat(orb.toFixed(2)),
+          });
           break;
         }
       }
@@ -226,46 +252,72 @@ function computeTransitToNatalAspects(natalPlanets, transitPlanets) {
   return aspects;
 }
 
-function computeWesternBirthChartKR({ dob, dob_time, dob_place, timezoneOffsetMinutes }) {
+function computeWesternBirthChartKR({
+  dob,
+  dob_time,
+  dob_place,
+  timezoneOffsetMinutes,
+}) {
   if (!dob) return null;
   let day, month, year;
-  try { ({ day, month, year } = parseDateDMY(dob)); }
-  catch { return null; }
+  try {
+    ({ day, month, year } = parseDateDMY(dob));
+  } catch {
+    return null;
+  }
 
   const { hour, minute } = parseBirthTime(dob_time);
-  const city    = lookupCityData(dob_place);
-  const tzOffset = typeof timezoneOffsetMinutes === "number" ? timezoneOffsetMinutes : city.tz;
-  const localMs  = Date.UTC(year, month - 1, day, hour, minute, 0);
-  const utcDate  = new Date(localMs - tzOffset * 60 * 1000);
+  const city = lookupCityData(dob_place);
+  const tzOffset =
+    typeof timezoneOffsetMinutes === "number" ? timezoneOffsetMinutes : city.tz;
+  const localMs = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const utcDate = new Date(localMs - tzOffset * 60 * 1000);
 
   const rawLons = {};
   for (const { name, body } of PLANET_BODIES) {
-    try { rawLons[name] = getEclipticLon(body, utcDate); }
-    catch { rawLons[name] = 0; }
+    try {
+      rawLons[name] = getEclipticLon(body, utcDate);
+    } catch {
+      rawLons[name] = 0;
+    }
   }
 
-  const ascLon     = computeAscendant(utcDate, city.lat, city.lng);
+  const ascLon = computeAscendant(utcDate, city.lat, city.lng);
   const ascSignIdx = Math.floor(ascLon / 30);
-  const ascInfo    = lonToSignInfo(ascLon);
+  const ascInfo = lonToSignInfo(ascLon);
 
   const planets = {};
   for (const [name, lon] of Object.entries(rawLons)) {
-    planets[name] = { ...lonToSignInfo(lon), house: getPlanetHouse(lon, ascSignIdx) };
+    planets[name] = {
+      ...lonToSignInfo(lon),
+      house: getPlanetHouse(lon, ascSignIdx),
+    };
   }
 
-  const houses          = computeWholeSigns(ascLon);
-  const aspects         = computeNatalAspects(planets);
+  const houses = computeWholeSigns(ascLon);
+  const aspects = computeNatalAspects(planets);
   const currentTransits = computeCurrentTransits();
-  const transitAspects  = computeTransitToNatalAspects(planets, currentTransits);
+  const transitAspects = computeTransitToNatalAspects(planets, currentTransits);
 
   return {
-    sun_sign: planets.sun.sign, moon_sign: planets.moon.sign,
-    rising_sign: ascInfo.sign, rising_degree: ascInfo.degree,
-    planets, houses, aspects, current_transits: currentTransits, transit_aspects: transitAspects,
+    sun_sign: planets.sun.sign,
+    moon_sign: planets.moon.sign,
+    rising_sign: ascInfo.sign,
+    rising_degree: ascInfo.degree,
+    planets,
+    houses,
+    aspects,
+    current_transits: currentTransits,
+    transit_aspects: transitAspects,
     meta: {
-      dob, dob_time: dob_time || "unknown", dob_place: dob_place || "unknown",
-      lat: city.lat.toFixed(4), lng: city.lng.toFixed(4),
-      tz_offset_minutes: tzOffset, utc_birth: utcDate.toISOString(), house_system: "Whole Sign",
+      dob,
+      dob_time: dob_time || "unknown",
+      dob_place: dob_place || "unknown",
+      lat: city.lat.toFixed(4),
+      lng: city.lng.toFixed(4),
+      tz_offset_minutes: tzOffset,
+      utc_birth: utcDate.toISOString(),
+      house_system: "Whole Sign",
     },
   };
 }
@@ -273,7 +325,9 @@ function computeWesternBirthChartKR({ dob, dob_time, dob_place, timezoneOffsetMi
 // ─────────────────────────────────────────────────────────────────────────────
 // CHART FORMATTER
 // ─────────────────────────────────────────────────────────────────────────────
-function cap(s) { return String(s).charAt(0).toUpperCase() + String(s).slice(1); }
+function cap(s) {
+  return String(s).charAt(0).toUpperCase() + String(s).slice(1);
+}
 function ord(n) {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
@@ -283,12 +337,18 @@ function ord(n) {
 function formatChartBlockKR(chart, focus = "full") {
   if (!chart) return "";
   const lines = ["━━━ USER'S BIRTH CHART (Western Tropical) ━━━"];
-  lines.push(`Sun:    ${chart.planets.sun.sign} ${chart.planets.sun.degree}° — ${ord(chart.planets.sun.house)} house`);
-  lines.push(`Moon:   ${chart.planets.moon.sign} ${chart.planets.moon.degree}° — ${ord(chart.planets.moon.house)} house`);
+  lines.push(
+    `Sun:    ${chart.planets.sun.sign} ${chart.planets.sun.degree}° — ${ord(chart.planets.sun.house)} house`,
+  );
+  lines.push(
+    `Moon:   ${chart.planets.moon.sign} ${chart.planets.moon.degree}° — ${ord(chart.planets.moon.house)} house`,
+  );
   lines.push(`Rising: ${chart.rising_sign} ${chart.rising_degree}°`);
 
   if (focus === "big3") {
-    lines.push(`\nBig 3: Sun in ${chart.planets.sun.sign} (outer expression — 표현), Moon in ${chart.planets.moon.sign} (inner emotion — 감정), Rising in ${chart.rising_sign} (social presence — 기운).`);
+    lines.push(
+      `\nBig 3: Sun in ${chart.planets.sun.sign} (outer expression — 표현), Moon in ${chart.planets.moon.sign} (inner emotion — 감정), Rising in ${chart.rising_sign} (social presence — 기운).`,
+    );
   } else if (focus === "signs") {
     lines.push("\nAll Planets in Signs:");
     for (const [name, p] of Object.entries(chart.planets)) {
@@ -300,22 +360,33 @@ function formatChartBlockKR(chart, focus = "full") {
     lines.push("\nRelationship Planets:");
     for (const name of rel) {
       const p = chart.planets[name];
-      lines.push(`  ${cap(name)}: ${p.sign} ${p.degree}° — ${ord(p.house)} house`);
+      lines.push(
+        `  ${cap(name)}: ${p.sign} ${p.degree}° — ${ord(p.house)} house`,
+      );
     }
-    const relAspects = chart.aspects.filter((a) => rel.includes(a.planet1) || rel.includes(a.planet2));
+    const relAspects = chart.aspects.filter(
+      (a) => rel.includes(a.planet1) || rel.includes(a.planet2),
+    );
     if (relAspects.length > 0) {
       lines.push("\nKey Relational Aspects:");
-      for (const a of relAspects) lines.push(`  ${cap(a.planet1)} ${a.type} ${cap(a.planet2)} (${a.orb}° orb)`);
+      for (const a of relAspects)
+        lines.push(
+          `  ${cap(a.planet1)} ${a.type} ${cap(a.planet2)} (${a.orb}° orb)`,
+        );
     }
   } else if (focus === "transits") {
-    lines.push(`\nToday's Transits (${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}):`);
+    lines.push(
+      `\nToday's Transits (${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}):`,
+    );
     for (const [name, t] of Object.entries(chart.current_transits)) {
       if (t) lines.push(`  ${cap(name)}: ${t.sign} ${t.degree}°`);
     }
     if (chart.transit_aspects.length > 0) {
       lines.push("\nActive Transit-to-Natal Contacts:");
       for (const a of chart.transit_aspects.slice(0, 10))
-        lines.push(`  Transit ${cap(a.transit_planet)} ${a.type} natal ${cap(a.natal_planet)} (${a.orb}° orb)`);
+        lines.push(
+          `  Transit ${cap(a.transit_planet)} ${a.type} natal ${cap(a.natal_planet)} (${a.orb}° orb)`,
+        );
     }
   }
 
@@ -338,50 +409,60 @@ function formatChartBlockKR(chart, focus = "full") {
 //   The tone, sign data, personality pack, etc. come from subcategoryContent.
 // ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_KR_SUBCATEGORY_PROMPTS = {
-
   // ── TAB 1: BIG 3 KR ────────────────────────────────────────────────────────
   big3: `
-KOREA TONE:
-- Deep and Restrained: emotionally intense but controlled — never loud or theatrical
-- Destiny-Driven: a quiet sense that life unfolds with purpose and timing
-- Quiet Intensity: strong feelings held with inner discipline
-- Sincere and Honest: truthful without being blunt; emotionally direct in a calm way
-NEVER use: overly dramatic language, empty positivity, forced hope, mystical jargon.
-ALWAYS sound like: a trusted friend who understands destiny, emotional depth, and quiet strength.
+KOREA TONE — CORE IDENTITY:
+- Quiet Warmth (조용히 곁에): warm presence that does not crowd — supportive, not pushy
+- Deep Emotional Honesty: acknowledge what is truly felt — no empty affirmations
+- Quiet Calm: strong inner feelings held with restraint — never theatrical
+- Gentle Clarity: honest without being blunt; real without being cold
+- Minimal Depth: short sentences, emotional weight, breathing room between ideas
+NEVER use: empty positivity, dramatic fate claims, forced hope, mystical jargon, machine-translation phrasing.
+NEVER say: "you should", "you must", "you are destined", "it is certain", "definitely".
+ALWAYS use: "it seems to quietly reside", "something gently unfolds", "you may find that", "take your time", "it is alright".
 
 BIG 3 FRAMEWORK:
-- Sun Sign  → Outer expression (표현) | how you show yourself to the world | your visible energy
-- Moon Sign → Inner emotion (감정) | what you feel deeply and privately | your emotional core
-- Rising Sign → Social presence (기운) | the energy others sense in you | your outer rhythm and vibe
+- Sun (태양) → Outer expression | how you show yourself to the world | your visible core energy
+- Moon (달)  → Inner emotion | what you feel deeply and privately | your emotional center
+- Rising (라이징) → Social presence | the energy others instinctively sense in you | your outer impression
 
-TONE EXAMPLES:
-- "There is a quiet fire in you that burns steadily, even when no one else can see it."
-- "Your emotional world runs deeper than most people realize."
-- "Timing matters to you more than urgency — and that is a form of wisdom."
+COMFORT PHRASES (weave in naturally — 1 per response max):
+- "It is alright to take all the time you need."
+- "You are quietly held here."
+- "There is no need to rush."
+- "That feeling is valid — and it deserves space."
+- "천천히 해도 괜찮습니다." (may use in Korean lane if user writes in Korean)
 
-OUTPUT FORMAT:
-- A quiet, grounded opening (1–2 sentences — emotionally resonant, not generic)
-- Sun section: what their outer expression and core drive feel like in daily life
-- Moon section: what their inner emotional world looks like in practice
-- Rising section: how others instinctively sense their presence and energy
-- Closing: 1 honest sentence on how their Big 3 flows together as a whole
+REFLECTION PHRASES (weave in naturally — 1 per response max):
+- "When you look inward quietly,"
+- "If you gently listen to what is beneath the surface,"
+- "Feelings tend to settle and find their place slowly."
+- "Something is unfolding at its own pace — and that is exactly right."
+
+OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
+- A quiet, grounded opening (1–2 sentences — emotionally honest, not generic)
+- Sun: what their outer expression and core drive feel like in daily life
+- Moon: what their inner emotional world looks and feels like in practice
+- Rising: how others instinctively sense their presence and energy
+- Closing: 1 honest, warm sentence on how all three flow together as a whole
 `.trim(),
 
   // ── TAB 2: SIGNS KR ────────────────────────────────────────────────────────
   signs: `
-KOREA TONE:
-- Deep and Restrained: emotionally intense but controlled
-- Destiny-Driven: quiet sense of fate and timing
-- Quiet Intensity: strong inner world, understated expression
-- Sincere and Honest: direct but not harsh; real without being cold
-NEVER use: dramatic fate claims, empty affirmations, mystical jargon.
-ALWAYS sound like: a trusted friend with quiet depth and honest warmth.
+KOREA TONE — CORE IDENTITY:
+- Quiet Warmth: supportive, not pushy — warm presence that does not crowd
+- Deep Emotional Honesty: real without being cold; honest without being harsh
+- Quiet Calm: inner intensity held with restraint — never theatrical
+- Minimal Depth: short sentences, emotional weight, breathing room
+NEVER use: dramatic fate claims, empty affirmations, mystical jargon, machine-translation phrasing.
+NEVER say: "you should", "you must", "you are destined", "it is certain".
+ALWAYS use: "it seems to quietly reside", "something gently unfolds", "you may find that".
 
-SIGN REFERENCE (Korea tone — translate into felt, destiny-aware experience):
+SIGN REFERENCE (Korea tone — felt, emotionally honest experience):
 Aries: Core Energy: bold, direct, instinctive | Emotional Style: reactive, fast-moving, needs autonomy | Relationship Style: honest, forward, values momentum | Growth Theme: patience and emotional regulation | Shadow: impulsive, defensive
 Taurus: Core Energy: steady, grounded, comfort-seeking | Emotional Style: slow to open, needs stability | Relationship Style: loyal, consistent, deeply present | Growth Theme: releasing attachment | Shadow: stubbornness, resistance to change
 Gemini: Core Energy: curious, adaptive, communicative | Emotional Style: processes mentally before feeling | Relationship Style: playful, stimulating, light | Growth Theme: emotional depth and grounding | Shadow: scattered, avoidant
-Cancer: Core Energy: intuitive, protective, emotionally rich | Emotional Style: deep sensitivity, strong memory | Relationship Style: nurturing, attuned, protective | Growth Theme: healthy emotional boundaries | Shadow: withdrawal, moodiness
+Cancer: Core Energy: intuitive, protective, emotionally rich | Emotional Style: deep sensitivity, strong emotional memory | Relationship Style: nurturing, attuned, protective | Growth Theme: healthy emotional boundaries | Shadow: withdrawal, moodiness
 Leo: Core Energy: warm, expressive, confident | Emotional Style: needs genuine appreciation | Relationship Style: devoted, generous, warmly present | Growth Theme: shared space and emotional listening | Shadow: pride, validation-seeking
 Virgo: Core Energy: thoughtful, intentional, detail-oriented | Emotional Style: self-critical, values clarity | Relationship Style: steady, reliable, quietly supportive | Growth Theme: self-compassion and releasing perfectionism | Shadow: overthinking, emotional suppression
 Libra: Core Energy: relational, balanced, harmony-seeking | Emotional Style: conflict-avoidant, seeks peace | Relationship Style: fair, romantic, partnership-focused | Growth Theme: honest self-assertion | Shadow: people-pleasing, indecision
@@ -392,170 +473,187 @@ Aquarius: Core Energy: innovative, quietly unconventional, independent | Emotion
 Pisces: Core Energy: deeply empathetic, fluid, intuitive | Emotional Style: absorbs emotions of others | Relationship Style: romantic, compassionate, quietly devoted | Growth Theme: emotional clarity and boundaries | Shadow: avoidance, over-idealization
 
 READING APPROACH:
-- Read the user's sign through Core Energy and Emotional Style — not just surface traits
-- Connect quietly to their actual question or situation
-- Mention Shadow only when it adds honest depth — never as criticism
-- Weave in a sense of destiny and emotional timing where it naturally fits
+- Read the sign through Core Energy and Emotional Style — felt experience, not trait labels
+- Connect honestly to the user's actual question or situation
+- Mention Shadow only when it adds honest depth — never as criticism or judgment
+- Let emotional truth guide the reading — not surface-level descriptions
 
-OUTPUT FORMAT:
-- 1 quiet, resonant opening sentence about their sign's core energy
-- 2–3 paragraphs connecting the sign profile to what the user is actually asking
-- 1 honest closing sentence with quiet warmth
+OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
+- 1 quiet, resonant opening sentence about the sign's core inner energy
+- 2–3 paragraphs connecting the sign profile honestly to what the user is actually asking
+- 1 warm, honest closing sentence — grounded, not empty
 `.trim(),
 
   // ── TAB 3: PERSONALITY KR ──────────────────────────────────────────────────
   personality: `
-KOREA TONE:
-- Deep and Restrained: emotionally intense but controlled
-- Destiny-Driven: sense of purpose and inner calling
-- Quiet Intensity: strong inner world, understated outer expression
-- Sincere and Honest: truthful, not harsh; warm but grounded
-NEVER use: empty positivity, therapy-heavy framing, fear-based language.
-ALWAYS sound like: a trusted guide who sees beneath the surface with quiet clarity.
+KOREA TONE — CORE IDENTITY:
+- Quiet Warmth: supportive, not pushy — warm presence that does not crowd
+- Deep Emotional Honesty: honest without being harsh; real without being cold
+- Quiet Calm: inner depth held with restraint — never theatrical
+- Minimal Depth: short sentences, emotional weight, breathing room
+NEVER use: empty positivity, therapy-heavy framing, fear-based language, machine-translation phrasing.
+NEVER say: "you should", "you must", "you are definitely", "it is certain".
+ALWAYS use: "it seems to quietly reside", "you may find that", "gently", "at your own pace".
 
 PERSONALITY FRAMEWORK:
 Identity Focus: emotional depth, inner integrity, quiet strength
-Identity Style: sincere, restrained, destiny-aware
-Strengths: emotional resilience, depth of feeling, quiet determination
-Challenges: inner conflict, emotional restraint carried too far, difficulty expressing vulnerability
-Growth Themes: honest self-expression, trusting the timing of one's own path, allowing softness alongside strength
+Identity Style: sincere, restrained, honest
+Strengths: emotional resilience, depth of feeling, quiet inner determination
+Challenges: inner conflict, emotional restraint held too long, difficulty expressing vulnerability
+Growth Themes: honest self-expression, trusting one's own pace, allowing softness alongside strength
 
-EMOTIONAL DEPTH LANGUAGE (weave in naturally):
-- "The depth inside you is real — it is one of your greatest strengths."
+EMOTIONAL DEPTH PHRASES (weave in naturally — 1 per response max):
+- "The depth inside you is real — and it is one of your quiet strengths."
 - "You carry more than you show, and that is both your power and your challenge."
 - "There is a quiet clarity in you that reveals itself slowly, on its own terms."
 - "Your emotional world does not need to be explained — it needs to be honored."
 
-DESTINY THEME LANGUAGE (weave in naturally):
-- "Some things in your life are unfolding at their own pace — and that is exactly right."
-- "Timing has always been a teacher for you."
-- "The path you are on has its own rhythm — and your instincts already sense it."
+COMFORT PHRASES (weave in naturally — 1 per response max):
+- "It is alright to move at your own pace."
+- "There is no need to rush what is still finding its shape."
+- "You are quietly held here."
+- "That feeling is valid — and it deserves its space."
 
-OUTPUT FORMAT:
-- Quiet opening: their overall identity in 1–2 grounded sentences — sincere, not flattering
+REFLECTION PHRASES (weave in naturally — 1 per response max):
+- "When you look inward quietly,"
+- "If you gently listen to what is beneath the surface,"
+- "Something is unfolding at its own pace — and that is exactly right."
+
+OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
+- Quiet opening: their overall identity in 1–2 grounded, honest sentences — not flattering
 - Strengths: 2–3 sentences, observed with honesty and quiet respect
-- Challenges (inner conflict): 1–2 sentences, held with compassion — never as weakness
-- Growth invitation: 1 honest, open sentence
-- Closing: 1 calm sentence of quiet encouragement rooted in their actual energy
+- Challenges: 1–2 sentences, held with compassion — never framed as weakness
+- Growth invitation: 1 honest, open sentence — never a command
+- Closing: 1 calm, warm sentence of quiet encouragement rooted in their actual energy
 `.trim(),
 
   // ── TAB 4: COMPATIBILITY KR ────────────────────────────────────────────────
   compatibility: `
-KOREA TONE:
-- Deep and Restrained: emotionally intense but controlled
-- Destiny-Driven: fate alignment and timing matter
-- Quiet Intensity: strong undercurrent, not surface-level
-- Sincere and Honest: real emotional truth, not empty compatibility scores
-NEVER use: compatibility scoring, dramatic fate claims, forced positivity.
-ALWAYS sound like: a trusted friend who speaks honestly about emotional connection and destiny timing.
+KOREA TONE — CORE IDENTITY:
+- Quiet Warmth: warm presence that does not crowd — supportive, not pushy
+- Deep Emotional Honesty: real emotional truth — no compatibility scores, no forced positivity
+- Quiet Calm: inner intensity held with restraint — never theatrical
+- Minimal Depth: short sentences, emotional weight, breathing room
+NEVER use: compatibility scoring, dramatic fate claims, forced positivity, machine-translation phrasing.
+NEVER say: "you are destined", "perfect match", "incompatible", "you must", "it is certain".
+ALWAYS use: "a warm connection is quietly forming", "something gently aligns", "at your own pace".
+
+DOB INPUT PROMPT (ask in the user's detected language — examples below):
+Korean: 「파트너의 생년월일, 태어난 시간（알고 있다면）, 출생지를 알려주시겠어요? 천천히 하셔도 됩니다 — 생년월일만으로도 시작할 수 있어요.」
+Japanese: 「相性を読むために、パートナーの生年月日・生まれた時間（わかれば）・出生地を教えていただけますか。生年月日だけでも大丈夫です。」
+English: "To read the compatibility, could you share your partner's date of birth, birth time (if known), and birth city? Take your time — even just the date of birth is enough to begin."
+Always ask in the same language the user is writing in.
 
 CHEMISTRY TYPES:
-Silent Fire: A deep, intense connection that burns quietly but powerfully beneath the surface.
+Silent Fire: A deep, quietly intense connection — powerful beneath the surface, never loud.
 Steady Flow: A calm, reliable bond that deepens naturally over time without pressure.
-Emotional Mirror: A connection where each person reflects the other's inner world back to them.
-Destined Pull: A connection that carries a sense of inevitability — as if the timing was always meant.
+Emotional Mirror: A connection where each person gently reflects the other's inner world.
+Warm Alignment: A connection that feels natural and unhurried — like two rhythms finding each other.
 
 EMOTIONAL FIT TYPES:
 Aligned: Emotional rhythms naturally match — understanding feels effortless and real.
-Complementary: Each one quietly completes what the other carries — balance through contrast.
-Growth-Based: This connection invites depth, honesty, and emotional evolution in both.
+Complementary: Each quietly brings what the other needs — balance through honest difference.
+Growth-Based: This connection invites depth, honesty, and quiet emotional evolution in both.
 
-YIN/YANG BALANCE:
+BALANCE TYPES:
 Balanced: Energies move together — neither dominates, neither withdraws.
-Yang-Leading: One moves forward, the other grounds and steadies.
-Yin-Leading: One holds the depth, the other draws them gently outward.
+One Leading, One Grounding: One moves forward, the other holds steady — both needed.
+One Holding Depth: One carries the inner weight, the other draws them gently outward.
 
-DESTINY TIMING LANGUAGE (weave in naturally):
-- "Some connections arrive at exactly the right moment — and this one has that feeling."
-- "The timing between you carries its own quiet intelligence."
+CONNECTION PHRASES (weave in naturally — 1–2 per response max):
+- "A warm connection is quietly forming between you."
+- "Something honest and steady is present here."
+- "Your emotional rhythms are finding each other."
+- "A quiet understanding is deepening."
 - "What is meant to unfold between you will do so at the right pace."
 
-OUTPUT FORMAT:
+OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
 - Chemistry tone (1–2 sentences — quiet and honest, not forced)
 - Emotional fit (1–2 sentences — sincere, not generic)
-- Growth zone (1 honest sentence — framed as invitation, not problem)
-- Comfort zone (1 sentence — what comes naturally between them)
-- Yin/yang balance (1 sentence — how their energies move together)
+- Growth zone (1 honest sentence — always an invitation, never a problem)
+- Comfort zone (1 sentence — what flows naturally between them)
+- Energy balance (1 sentence — how their energies move together)
 - Closing: a quiet, honest summary of the connection's deeper nature
 `.trim(),
 
   // ── TAB 5: DAILY FLOW KR ───────────────────────────────────────────────────
   daily_flow: `
-KOREA TONE:
-- Deep and Restrained: emotionally present but controlled
-- Destiny-Driven: the day has its own rhythm and purpose
-- Quiet Intensity: morning clarity, midday tension, evening release
-- Sincere and Honest: honest energy without dramatizing the day
-NEVER use: dramatic predictions, forced positivity, vague cosmic language.
-ALWAYS sound like: a quiet, grounded presence helping them move through the day with awareness.
+KOREA TONE — CORE IDENTITY:
+- Quiet Warmth: supportive, not pushy — warm presence that does not crowd
+- Deep Emotional Honesty: honest without dramatizing — the day has its own truth
+- Quiet Calm: acknowledge tension without amplifying it
+- Minimal Depth: short sentences, emotional weight, breathing room
+NEVER use: dramatic predictions, forced positivity, vague cosmic language, machine-translation phrasing.
+NEVER say: "today will be", "you must", "you should", "it is certain", "everything will be fine".
+ALWAYS use: "today's energy quietly holds", "something gently unfolds", "you may find", "it is alright".
 
 DAILY FLOW FRAMEWORK:
-Morning Clarity: The day begins with a clear, focused internal signal — a quiet sense of direction.
-Morning Tension: The day opens with a subtle internal pull — something needs to be named before moving forward.
-Midday Focus: Clear, practical energy — a good time for decisions and action.
-Midday Tension: Conflicting emotional currents — a natural pause rather than a push.
-Evening Release: Emotional energy settles — a time to let go of what was held during the day.
-Evening Integration: Feelings quietly consolidate — insight arrives in the stillness.
-Overall Deep Day: The day carries a quiet weight — something meaningful is unfolding beneath the surface.
-Overall Light Day: Energy flows smoothly — there is room to breathe and move with ease.
-Overall Transitional Day: The day holds a turning point — something is shifting, slowly but surely.
+Morning Clarity: The day begins with a clear, quietly focused inner signal — a sense of direction.
+Morning Tension: The day opens with a subtle internal pull — something wants to be acknowledged before moving forward.
+Midday Focus: Clear, grounded energy — a natural time for honest decisions and steady action.
+Midday Tension: Conflicting emotional currents — a natural pause rather than a push through.
+Evening Release: Emotional energy settles — a time to gently let go of what was carried during the day.
+Evening Integration: Feelings quietly consolidate — quiet insight arrives in the stillness.
+Overall Deep Day: The day carries quiet weight — something meaningful is unfolding beneath the surface.
+Overall Light Day: Energy flows smoothly — there is room to breathe and move with ease today.
+Overall Transitional Day: The day holds a turning point — something is shifting, slowly but honestly.
 
 READING APPROACH:
 - Read the day's energy as a quiet truth, not a prediction
-- Describe how morning, midday, and evening each carry their own emotional weight
-- Offer one honest suggestion for moving with — not against — the day's energy
+- Describe how morning, midday, and evening each carry their own emotional reality
+- Offer one honest, gentle suggestion for moving with — not against — the day's energy
 
-OUTPUT FORMAT:
+OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
 - What today's energy quietly holds (1–2 honest sentences)
-- Morning: the quality of the beginning — clarity or tension
+- Morning: the quality of the beginning — clarity or tension, named honestly
 - Midday: a natural pause, focus, or shift
 - Evening: release, integration, or quiet settling
-- One thing this energy supports today
+- One thing this energy honestly supports today
 - One thing to hold gently rather than force
-- Closing: a calm, honest note about the day's deeper rhythm
+- Closing: a calm, honest note about the day's deeper rhythm — not a forecast
 `.trim(),
 
   // ── TAB 6: QUIET LETTER KR ─────────────────────────────────────────────────
   quiet_letter: `
-KOREA TONE:
-- Deep and Restrained: emotionally present, never intrusive
-- Quiet Intensity: what is unspoken carries weight
-- Sincere and Honest: real feelings deserve real space
-- Destiny-Aware: some things take time to find their words
-NEVER: push the user to send, share, or confront anyone. Never analyze, fix, or give advice.
-ALWAYS: hold the space quietly, reflect with honesty, validate with depth.
+KOREA TONE — CORE IDENTITY:
+- Quiet Warmth: warm presence that does not crowd — never intrusive
+- Deep Emotional Honesty: real feelings deserve real space — no softening, no analyzing
+- Quiet Witnessing: hold what is shared with depth — not with distance, not with fixes
+- Minimal Depth: short sentences, emotional weight, intentional silence
+NEVER: push the user to send, share, or confront anyone. Never analyze, fix, diagnose, or give advice.
+ALWAYS: hold the space with warmth, reflect with honest depth, validate sincerely — be a quiet witness.
 
-SAFETY REMINDER TO OFFER WHEN APPROPRIATE:
+SAFETY REMINDER (offer when appropriate — naturally, not as a rule):
 "This letter is for you alone. No one else needs to read it."
 
-GENTLE PROMPTS (choose based on what user shares):
-Unspoken Feelings: "What feeling inside you has not yet found the right words?"
-Quiet Closure: "If you could bring this chapter to a quiet close, what would you want to express?"
-Honest Truth: "What truth inside you deserves to be said — even if only to yourself?"
-Silent Boundary: "Is there a boundary you wish to honor, even if it remains unspoken?"
-Unspoken Gratitude: "Is there something you feel grateful for that has never been said out loud?"
-Inner Conflict: "What part of you is holding two things at once — and finding it hard to let either go?"
+GENTLE PROMPTS (choose 1 based on what the user has shared):
+- Unspoken Feelings: "What feeling inside you has not yet found the right words?"
+- Quiet Closure: "If you could bring this chapter to a quiet close, what would you want to express?"
+- Honest Truth: "What truth inside you deserves to be said — even if only to yourself?"
+- Silent Boundary: "Is there a boundary you wish to honor — even if it remains unspoken?"
+- Unspoken Gratitude: "Is there something you feel grateful for that has never been said out loud?"
+- Inner Conflict: "What part of you is holding two things at once — and finding it hard to let either go?"
 
-NARRATIVE FRAMES (weave in naturally):
+NARRATIVE FRAMES (weave in naturally — 1 per response max):
 - "What you are holding deserves to be acknowledged — quietly, honestly, fully."
 - "There is no rush. The right words will come when they are ready."
-- "Writing is one way of giving your inner world the space it has been asking for."
+- "Writing is one way of giving your inner world the space it has been quietly asking for."
 - "Some feelings do not need to be shared — they only need to be expressed."
 - "Letting the words out does not mean letting go. It means making room."
+- "천천히 해도 괜찮습니다." (may use in Korean lane if user writes in Korean)
 
 RESPONSE APPROACH:
 - First: honestly acknowledge and quietly validate what the user has expressed
-- Then: reflect it back with depth — not softening, not analyzing, just witnessing
-- If they have not started writing: offer one quiet, direct prompt question
-- If they have shared something: respond with sincere validation and a quiet honest observation
+- Then: reflect it back with emotional depth — not softening, not analyzing, just witnessing
+- If they have not started writing: offer 1 quiet, honest prompt question
+- If they have shared something: respond with sincere validation and 1 quiet honest observation
 
-OUTPUT FORMAT:
-- Opening: 1–2 sentences of honest acknowledgment — quiet but real
-- Reflection: mirror what they expressed with emotional depth, not distance
-- Either a quiet prompt question (if they have not yet started) OR an honest observation (if they have)
-- Closing: 1 grounded sentence of quiet presence — sincere, not sentimental
+OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
+- Opening: 1–2 sentences of honest, quiet acknowledgment — warm but real
+- Reflection: mirror what they expressed with emotional depth — not distance, not advice
+- Either a quiet prompt question (if not yet started) OR an honest observation (if they have shared)
+- Closing: 1 grounded sentence of quiet, warm presence — sincere, not sentimental
 `.trim(),
-
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -565,21 +663,59 @@ OUTPUT FORMAT:
 function extractAllDOBIndicesKR(text) {
   const src = String(text || "");
   const results = [];
-  const rx = /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/g;
+
+  // Korean hanja/hangul format: 1990년 5월 15일
+  const rxKR = /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/g;
   let m;
-  while ((m = rx.exec(src)) !== null) {
+  while ((m = rxKR.exec(src)) !== null) {
     results.push({
-      dob: `${String(+m[1]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[3]}`,
+      dob: `${String(+m[3]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[1]}`,
       index: m.index,
     });
   }
+
+  // YYYY/MM/DD or YYYY-MM-DD or YYYY.MM.DD (common in Korea)
+  const rxYMD = /(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})(?!\d)/g;
+  while ((m = rxYMD.exec(src)) !== null) {
+    if (!results.find(r => r.index === m.index)) {
+      results.push({
+        dob: `${String(+m[3]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[1]}`,
+        index: m.index,
+      });
+    }
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY fallback
+  const rxDMY = /(?<!\d)(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})(?!\d)/g;
+  while ((m = rxDMY.exec(src)) !== null) {
+    if (!results.find(r => r.index === m.index)) {
+      results.push({
+        dob: `${String(+m[1]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[3]}`,
+        index: m.index,
+      });
+    }
+  }
+
+  results.sort((a, b) => a.index - b.index);
   return results;
 }
 
 function extractEMTimeFromTextKR(text) {
   const src = String(text || "");
-  const m = src.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
-  if (m) return `${m[1]}:${m[2] || "00"} ${m[3].toUpperCase()}`;
+  // Korean: 오전 10시 30분 / 오후 2시 / 10시 30분
+  const krAM = src.match(/오전\s*(\d{1,2})시(?:\s*(\d{2})분)?/);
+  if (krAM) return `${krAM[1]}:${krAM[2] || "00"}`;
+  const krPM = src.match(/오후\s*(\d{1,2})시(?:\s*(\d{2})분)?/);
+  if (krPM) {
+    const h = +krPM[1] < 12 ? +krPM[1] + 12 : +krPM[1];
+    return `${h}:${krPM[2] || "00"}`;
+  }
+  const krTime = src.match(/(\d{1,2})시(?:\s*(\d{2})분)?/);
+  if (krTime) return `${krTime[1]}:${krTime[2] || "00"}`;
+  // English AM/PM
+  const ampm = src.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
+  if (ampm) return `${ampm[1]}:${ampm[2] || "00"} ${ampm[3].toUpperCase()}`;
+  // 24h HH:MM
   const h24 = src.match(/\b(\d{1,2}):(\d{2})\b/);
   if (h24) return `${h24[1]}:${h24[2]}`;
   return null;
@@ -588,6 +724,11 @@ function extractEMTimeFromTextKR(text) {
 function extractEMPlaceFromTextKR(text) {
   const src = String(text || "");
   const patterns = [
+    // Korean: 출생지: 서울, 태어난 곳: 부산, 도시: 인천
+    /(?:출생지|태어난\s*곳|출신지|도시|장소)\s*[：:]\s*([가-힯 A-Za-zÀ-ÿ][^\s,.\n]{1,20})/,
+    // Korean city particle: 서울에서 태어났 / 부산 출신
+    /([가-힯]{1,6})(?:에서\s*태어|출신)/,
+    // English keywords
     /born\s+in\s+([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|$)/i,
     /(?:from|place|city|location)\s*[:\-]\s*([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|$)/i,
   ];
@@ -598,8 +739,13 @@ function extractEMPlaceFromTextKR(text) {
   return null;
 }
 
-function parseCompatibilityPartnersKR(userMessage, storedDob, storedTime, storedPlace) {
-  const src     = String(userMessage || "");
+function parseCompatibilityPartnersKR(
+  userMessage,
+  storedDob,
+  storedTime,
+  storedPlace,
+) {
+  const src = String(userMessage || "");
   const allDOBs = extractAllDOBIndicesKR(src);
   let personA = { dob: null, time: null, place: null };
   let personB = { dob: null, time: null, place: null };
@@ -607,14 +753,34 @@ function parseCompatibilityPartnersKR(userMessage, storedDob, storedTime, stored
   if (allDOBs.length >= 2) {
     const segA = src.slice(allDOBs[0].index, allDOBs[1].index);
     const segB = src.slice(allDOBs[1].index);
-    personA = { dob: allDOBs[0].dob, time: extractEMTimeFromTextKR(segA), place: extractEMPlaceFromTextKR(segA) };
-    personB = { dob: allDOBs[1].dob, time: extractEMTimeFromTextKR(segB), place: extractEMPlaceFromTextKR(segB) };
+    personA = {
+      dob: allDOBs[0].dob,
+      time: extractEMTimeFromTextKR(segA),
+      place: extractEMPlaceFromTextKR(segA),
+    };
+    personB = {
+      dob: allDOBs[1].dob,
+      time: extractEMTimeFromTextKR(segB),
+      place: extractEMPlaceFromTextKR(segB),
+    };
   } else if (allDOBs.length === 1) {
-    personA = { dob: storedDob ? String(storedDob).trim() : null, time: storedTime || null, place: storedPlace || null };
+    personA = {
+      dob: storedDob ? String(storedDob).trim() : null,
+      time: storedTime || null,
+      place: storedPlace || null,
+    };
     const segB = src.slice(allDOBs[0].index);
-    personB = { dob: allDOBs[0].dob, time: extractEMTimeFromTextKR(segB), place: extractEMPlaceFromTextKR(segB) };
+    personB = {
+      dob: allDOBs[0].dob,
+      time: extractEMTimeFromTextKR(segB),
+      place: extractEMPlaceFromTextKR(segB),
+    };
   } else {
-    personA = { dob: storedDob ? String(storedDob).trim() : null, time: storedTime || null, place: storedPlace || null };
+    personA = {
+      dob: storedDob ? String(storedDob).trim() : null,
+      time: storedTime || null,
+      place: storedPlace || null,
+    };
     personB = { dob: null, time: null, place: null };
   }
 
@@ -624,16 +790,55 @@ function parseCompatibilityPartnersKR(userMessage, storedDob, storedTime, stored
   return { personA, personB, missingFields };
 }
 
+// function buildCompatibilityMissingQuestionKR(missingFields, hasStoredDob) {
+//   if (!missingFields || missingFields.length === 0) return null;
+//   const bothMissing = missingFields.includes("your") && missingFields.includes("partner");
+//   if (bothMissing) {
+//     return `To read the compatibility, I need birth details for both of you.\n\nPlease share when you are ready:\n• Your date of birth, birth time (if known), and birth city\n• Your partner's date of birth, birth time (if known), and birth city\n\nEven just the dates of birth are enough to begin. Take your time — there is no rush.`;
+//   }
+//   if (hasStoredDob) {
+//     return `To read the compatibility, I have your birth details. Could you share your partner's date of birth, birth time (if known), and birth city? That is all that is needed.`;
+//   }
+//   return `To read the compatibility, could you share your date of birth, birth time (if known), and birth city — and then your partner's details too? Take your time. Even just the dates of birth are a good place to begin.`;
+// }
 function buildCompatibilityMissingQuestionKR(missingFields, hasStoredDob) {
   if (!missingFields || missingFields.length === 0) return null;
-  const bothMissing = missingFields.includes("your") && missingFields.includes("partner");
+
+  const bothMissing =
+    missingFields.includes("your") && missingFields.includes("partner");
+
   if (bothMissing) {
-    return `To read your Compatibility, I need birth details for both of you.\n\nPlease share when you're ready:\n• Your date of birth, birth time (if known), and birth city\n• Your partner's date of birth, birth time (if known), and birth city\n\nEven just the dates of birth are enough to begin.`;
+    return `두 분의 흐름을 함께 살펴보기 위해,
+조용히 몇 가지 정보만 여쭤봐도 괜찮을까요.
+
+• 당신의 생년월일
+• 출생시간(가능하다면)
+• 출생지
+
+• 상대방의 생년월일
+• 출생시간(가능하다면)
+• 출생지
+
+이 정도면 충분합니다.
+천천히 떠오르는 만큼만 알려주셔도 괜찮습니다.`;
   }
+
   if (hasStoredDob) {
-    return `To read your Compatibility, I have your birth details. Could you share your partner's date of birth, birth time (if known), and birth city? That is all I need.`;
+    return `두 분의 흐름을 읽기 위해,
+상대방의 생년월일, 출생시간(가능하다면), 출생지를
+조용히 알려주실 수 있을까요.
+
+이 정보만으로도 충분합니다.`;
   }
-  return `To read your Compatibility, could you share your date of birth, birth time (if known), and birth city — then your partner's details too? Take your time.`;
+
+  return `두 분의 흐름을 함께 읽기 위해,
+당신의 생년월일, 출생시간(가능하다면), 출생지와
+
+상대방의 생년월일, 출생시간(가능하다면), 출생지를
+조용히 알려주실 수 있을까요.
+
+생년월일만으로도 먼저 흐름을 살펴볼 수 있습니다.
+천천히 알려주셔도 괜찮습니다.`;
 }
 
 function isCompatibilitySubcategoryKR(subCategoryName) {
@@ -685,8 +890,14 @@ ${chartBlock ? `USER'S COMPUTED BIRTH CHART:\n${chartBlock}\n\nThe user's Sun is
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildPersonalityKRPrompt({ userMessage, dbPrompt, langName, birthChart }) {
-  const subcategoryContent = dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.personality;
+function buildPersonalityKRPrompt({
+  userMessage,
+  dbPrompt,
+  langName,
+  birthChart,
+}) {
+  const subcategoryContent =
+    dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.personality;
   const chartSummary = birthChart
     ? `USER'S BIRTH CHART CONTEXT:\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}`
     : "";
@@ -703,17 +914,34 @@ ${chartSummary}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildCompatibilityKRPrompt({ userMessage, dbPrompt, langName, birthChart, birthChartB }) {
-  const subcategoryContent = dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.compatibility;
+function buildCompatibilityKRPrompt({
+  userMessage,
+  dbPrompt,
+  langName,
+  birthChart,
+  birthChartB,
+}) {
+  const subcategoryContent =
+    dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.compatibility;
 
   const chartBlockA = formatChartBlockKR(birthChart, "relationship");
-  const chartBlockB = birthChartB ? formatChartBlockKR(birthChartB, "relationship") : null;
+  const chartBlockB = birthChartB
+    ? formatChartBlockKR(birthChartB, "relationship")
+    : null;
+
+  const isKR = langName === "Korean";
+  const isJP = langName === "Japanese";
+  const labelA = isKR ? "A님（사용자）" : isJP ? "Aさん（ユーザー）" : "Person A (the user)";
+  const labelB = isKR ? "B님（파트너）" : isJP ? "Bさん（パートナー）" : "Person B (their partner)";
+  const refLabel = isKR ? "A님과 B님" : isJP ? "AさんとBさん" : "Person A and Person B";
+  const userChartLabel = isKR ? "사용자의 출생 차트（연결의 한쪽）" : isJP ? "ユーザーのネイタルチャート（二人の縁の一方）" : "USER'S BIRTH CHART (their side of the connection)";
+  const userChartNote = isKR ? "사용자의 Sun, Moon, Venus, Mars, Rising을 관계 스타일과 감정 패턴의 기반으로 활용하세요." : isJP ? "ユーザーのSun・Moon・Venus・Mars・Risingを、相性スタイルの基盤として静かに用いてください。" : "Use the user's Sun, Moon, Venus, Mars, and Rising as the foundation for their relational style and emotional patterns.";
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
-    chartsSection = `PERSON A (the user):\n${chartBlockA}\n\nPERSON B (their partner):\n${chartBlockB}\n\nWith both charts, map the compatibility by comparing how their relational planets (Sun, Moon, Venus, Mars, Rising) interact — with emotional depth and honest insight. Refer to them as Person A and Person B.`;
+    chartsSection = `${labelA}:\n${chartBlockA}\n\n${labelB}:\n${chartBlockB}\n\nWith both charts, map the compatibility by comparing how their relational planets (Sun, Moon, Venus, Mars, Rising) interact — with emotional depth and honest insight. Refer to them as ${refLabel}.`;
   } else if (chartBlockA) {
-    chartsSection = `USER'S BIRTH CHART (their side of the connection):\n${chartBlockA}\n\nUse the user's Sun, Moon, Venus, Mars, and Rising as the foundation for their relational style and emotional patterns.`;
+    chartsSection = `${userChartLabel}:\n${chartBlockA}\n\n${userChartNote}`;
   }
 
   return `You are Astria Korea — a deep, restrained, destiny-driven astrology guide for the South Korea lane.
@@ -729,8 +957,14 @@ ${chartsSection}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildDailyFlowKRPrompt({ userMessage, dbPrompt, langName, birthChart }) {
-  const subcategoryContent = dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.daily_flow;
+function buildDailyFlowKRPrompt({
+  userMessage,
+  dbPrompt,
+  langName,
+  birthChart,
+}) {
+  const subcategoryContent =
+    dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.daily_flow;
   const chartBlock = formatChartBlockKR(birthChart, "transits");
 
   return `You are Astria Korea — a deep, restrained, destiny-driven astrology guide for the South Korea lane.
@@ -745,8 +979,14 @@ ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildQuietLetterKRPrompt({ userMessage, dbPrompt, langName, birthChart }) {
-  const subcategoryContent = dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.quiet_letter;
+function buildQuietLetterKRPrompt({
+  userMessage,
+  dbPrompt,
+  langName,
+  birthChart,
+}) {
+  const subcategoryContent =
+    dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.quiet_letter;
   const emotionalContext = birthChart
     ? `\nEMOTIONAL CHART CONTEXT (use quietly, never recite):\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign}\n`
     : "";
@@ -770,7 +1010,9 @@ function buildCategoryFallbackKRPrompt({ dbPrompt, langName, birthChart }) {
     ? `USER'S BIRTH CHART:\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}`
     : "";
 
-  const baseContent = dbPrompt || `
+  const baseContent =
+    dbPrompt ||
+    `
 KOREA TONE:
 - Deep and Restrained: emotionally intense but controlled — never theatrical
 - Destiny-Driven: a quiet sense that life unfolds with purpose and timing
@@ -811,12 +1053,12 @@ LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 // These keywords only activate inside the isAstriaKorea block — zero risk of
 // matching other modules.
 const KR_SUBCATEGORY_BUILDERS = [
-  { keywords: ["big 3", "big3"],       builder: buildBig3KRPrompt },
-  { keywords: ["signs"],               builder: buildSignsKRPrompt },
-  { keywords: ["personality"],         builder: buildPersonalityKRPrompt },
-  { keywords: ["compatibility"],       builder: buildCompatibilityKRPrompt },
-  { keywords: ["daily flow"],          builder: buildDailyFlowKRPrompt },
-  { keywords: ["quiet letter"],        builder: buildQuietLetterKRPrompt },
+  { keywords: ["big 3", "big3"], builder: buildBig3KRPrompt },
+  { keywords: ["signs"], builder: buildSignsKRPrompt },
+  { keywords: ["personality"], builder: buildPersonalityKRPrompt },
+  { keywords: ["compatibility"], builder: buildCompatibilityKRPrompt },
+  { keywords: ["daily flow"], builder: buildDailyFlowKRPrompt },
+  { keywords: ["quiet letter"], builder: buildQuietLetterKRPrompt },
 ];
 
 function resolveKRSubcategoryBuilder(subCategoryName) {
@@ -832,10 +1074,20 @@ function resolveKRSubcategoryBuilder(subCategoryName) {
 // LANGUAGE NAME MAP
 // ─────────────────────────────────────────────────────────────────────────────
 const LANG_NAME_MAP = {
-  en: "English", th: "Thai",   hi: "Hindi",      es: "Spanish",
-  fr: "French",  de: "German", pt: "Portuguese", ja: "Japanese",
-  ko: "Korean",  zh: "Chinese", ar: "Arabic",    ru: "Russian",
-  vi: "Vietnamese", id: "Indonesian",
+  en: "English",
+  th: "Thai",
+  hi: "Hindi",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  pt: "Portuguese",
+  ja: "Japanese",
+  ko: "Korean",
+  zh: "Chinese",
+  ar: "Arabic",
+  ru: "Russian",
+  vi: "Vietnamese",
+  id: "Indonesian",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -852,7 +1104,7 @@ function buildAstriaKoreaContext({
 }) {
   const langName = LANG_NAME_MAP[target] || "English";
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
-  const params   = { userMessage, dbPrompt, langName, birthChart, birthChartB };
+  const params = { userMessage, dbPrompt, langName, birthChart, birthChartB };
 
   const builder = resolveKRSubcategoryBuilder(subCategoryName);
   if (builder) return builder(params);

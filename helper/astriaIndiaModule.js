@@ -385,21 +385,46 @@ const LANG_NAME_MAP = {
 function extractAllDOBIndices(text) {
   const src = String(text || "");
   const results = [];
-  const rx = /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/g;
+
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (standard Indian format)
+  const rxDMY = /(?<!\d)(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})(?!\d)/g;
   let m;
-  while ((m = rx.exec(src)) !== null) {
+  while ((m = rxDMY.exec(src)) !== null) {
     results.push({
       dob: `${String(+m[1]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[3]}`,
       index: m.index,
     });
   }
+
+  // YYYY/MM/DD or YYYY-MM-DD fallback
+  const rxYMD = /(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})(?!\d)/g;
+  while ((m = rxYMD.exec(src)) !== null) {
+    if (!results.find(r => r.index === m.index)) {
+      results.push({
+        dob: `${String(+m[3]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[1]}`,
+        index: m.index,
+      });
+    }
+  }
+
+  results.sort((a, b) => a.index - b.index);
   return results;
 }
 
 function extractTimeFromText(text) {
   const src = String(text || "");
-  const m = src.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
-  if (m) return `${m[1]}:${m[2] || "00"} ${m[3].toUpperCase()}`;
+  // Hindi: सुबह / दोपहर / शाम with time — e.g. सुबह 10 बजे, रात 11:30 बजे
+  const hiAM = src.match(/(?:सुबह|प्रातः)\s*(\d{1,2})(?::(\d{2}))?\s*बजे?/);
+  if (hiAM) return `${hiAM[1]}:${hiAM[2] || "00"}`;
+  const hiPM = src.match(/(?:दोपहर|शाम|रात)\s*(\d{1,2})(?::(\d{2}))?\s*बजे?/);
+  if (hiPM) {
+    const h = +hiPM[1] < 12 ? +hiPM[1] + 12 : +hiPM[1];
+    return `${h}:${hiPM[2] || "00"}`;
+  }
+  // English AM/PM
+  const ampm = src.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
+  if (ampm) return `${ampm[1]}:${ampm[2] || "00"} ${ampm[3].toUpperCase()}`;
+  // 24h HH:MM
   const h24 = src.match(/\b(\d{1,2}):(\d{2})\b/);
   if (h24) return `${h24[1]}:${h24[2]}`;
   return null;
@@ -408,6 +433,11 @@ function extractTimeFromText(text) {
 function extractPlaceFromText(text) {
   const src = String(text || "");
   const patterns = [
+    // Hindi: जन्म स्थान: मुंबई / शहर: दिल्ली
+    /(?:जन्म\s*स्थान|शहर|जगह|स्थान)\s*[：:]\s*([ऀ-ॿ A-Za-z][^\s,.\n]{1,20})/,
+    // Hindi city particle: मुंबई में पैदा हुआ
+    /([ऀ-ॿ]{2,10})(?:\s*में\s*पैदा|\s*से\s*हूँ|\s*का\s*रहने)/,
+    // English
     /born\s+in\s+([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|$)/i,
     /(?:from|place|city|location|shahar)\s*[:\-]\s*([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|$)/i,
   ];
