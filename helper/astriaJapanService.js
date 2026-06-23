@@ -656,7 +656,7 @@ function extractAllDOBIndicesJP(text) {
   const rxYMD = /(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})(?!\d)/g;
   while ((m = rxYMD.exec(src)) !== null) {
     // skip if already captured by kanji regex at same position
-    if (!results.find(r => r.index === m.index)) {
+    if (!results.find((r) => r.index === m.index)) {
       results.push({
         dob: `${String(+m[3]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[1]}`,
         index: m.index,
@@ -667,7 +667,7 @@ function extractAllDOBIndicesJP(text) {
   // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY fallback
   const rxDMY = /(?<!\d)(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})(?!\d)/g;
   while ((m = rxDMY.exec(src)) !== null) {
-    if (!results.find(r => r.index === m.index)) {
+    if (!results.find((r) => r.index === m.index)) {
       results.push({
         dob: `${String(+m[1]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[3]}`,
         index: m.index,
@@ -916,11 +916,31 @@ function buildCompatibilityJPPrompt({
 
   const isJP = langName === "Japanese";
   const isKR = langName === "Korean";
-  const labelA = isJP ? "Aさん（ユーザー）" : isKR ? "A님（사용자）" : "Person A (the user)";
-  const labelB = isJP ? "Bさん（パートナー）" : isKR ? "B님（파트너）" : "Person B (their partner)";
-  const refLabel = isJP ? "AさんとBさん" : isKR ? "A님과 B님" : "Person A and Person B";
-  const userChartLabel = isJP ? "ユーザーのネイタルチャート（二人の縁の一方）" : isKR ? "사용자의 출생 차트（연결의 한쪽）" : "USER'S BIRTH CHART (their side of the connection)";
-  const userChartNote = isJP ? "ユーザーのSun・Moon・Venus・Mars・Risingを、相性スタイルの基盤として静かに用いてください。" : isKR ? "사용자의 Sun, Moon, Venus, Mars, Rising을 관계 스타일의 기반으로 활용하세요." : "Use the user's Sun, Moon, Venus, Mars, and Rising as the foundation for their relational style.";
+  const labelA = isJP
+    ? "Aさん（ユーザー）"
+    : isKR
+      ? "A님（사용자）"
+      : "Person A (the user)";
+  const labelB = isJP
+    ? "Bさん（パートナー）"
+    : isKR
+      ? "B님（파트너）"
+      : "Person B (their partner)";
+  const refLabel = isJP
+    ? "AさんとBさん"
+    : isKR
+      ? "A님과 B님"
+      : "Person A and Person B";
+  const userChartLabel = isJP
+    ? "ユーザーのネイタルチャート（二人の縁の一方）"
+    : isKR
+      ? "사용자의 출생 차트（연결의 한쪽）"
+      : "USER'S BIRTH CHART (their side of the connection)";
+  const userChartNote = isJP
+    ? "ユーザーのSun・Moon・Venus・Mars・Risingを、相性スタイルの基盤として静かに用いてください。"
+    : isKR
+      ? "사용자의 Sun, Moon, Venus, Mars, Rising을 관계 스타일의 기반으로 활용하세요."
+      : "Use the user's Sun, Moon, Venus, Mars, and Rising as the foundation for their relational style.";
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
@@ -1076,6 +1096,388 @@ const LANG_NAME_MAP = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// JAPAN 3-BOX ENGINE
+// Processes Blood Type / DOB / Destiny Time inputs for the Compatibility tab.
+// Returns structured JSON-ready output for each module and the synthesis.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Blood Type Atmosphere — Japan-soft, no stereotype
+const BLOOD_TYPE_ATMOSPHERES = {
+  A: {
+    atmosphere: "穏やかで繊細な空気感が漂っています。",
+    emotional_tendency:
+      "感情を丁寧に受け止め、静かに整理していく流れがあります。",
+    social_vibe: "場の空気を読む力があり、自然と周りに安心感を与えます。",
+    communication_style: "言葉を選びながら、誠実に気持ちを伝えようとします。",
+  },
+  B: {
+    atmosphere: "自由で生き生きとした、明るい流れが感じられます。",
+    emotional_tendency: "感情が豊かで、瞬間ごとに心が動きやすい面があります。",
+    social_vibe: "自分らしさを大切にしながら、周りとも自然につながります。",
+    communication_style: "率直で温かみのある言葉で、気持ちを伝えます。",
+  },
+  O: {
+    atmosphere: "大らかで包容力のある、安定した空気感があります。",
+    emotional_tendency:
+      "感情の波が穏やかで、ゆったりと自分の内側と向き合えます。",
+    social_vibe: "自然と場をまとめる力があり、安心感を生み出します。",
+    communication_style:
+      "シンプルで温かい言葉で、相手との距離をやわらかく縮めます。",
+  },
+  AB: {
+    atmosphere: "深みと繊細さが重なる、静かで独特の雰囲気があります。",
+    emotional_tendency: "感情を内側でゆっくり処理し、やがて静かに表現します。",
+    social_vibe: "独自の視点を持ちながら、相手の気持ちにも自然と寄り添います。",
+    communication_style:
+      "言葉の奥に深い思いを宿し、静かに、でも確かに伝えます。",
+  },
+};
+
+function buildBloodTypeAtmosphere(bloodType) {
+  const key = String(bloodType || "")
+    .toUpperCase()
+    .trim();
+  const data = BLOOD_TYPE_ATMOSPHERES[key];
+  if (!data) return null;
+  return { blood_type: key, ...data };
+}
+
+// DOB Atmosphere — birth-day emotional weather, Japan-soft
+function buildDOBAtmosphere(dobStr) {
+  if (!dobStr) return null;
+  // Parse the dob string to extract month and day for seasonal nuance
+  let day = 0,
+    month = 0;
+  const ymd = dobStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ymd) {
+    day = +ymd[1];
+    month = +ymd[2];
+  }
+  const iso = dobStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (iso) {
+    month = +iso[2];
+    day = +iso[3];
+  }
+
+  // Seasonal atmosphere mapping — Japan 4-season emotional texture
+  let season_note = "";
+  if (month >= 3 && month <= 5) {
+    season_note =
+      "春の空気をまとって生まれた日は、やわらかく新しい始まりの気配を宿しています。";
+  } else if (month >= 6 && month <= 8) {
+    season_note =
+      "夏の光の中に生まれた日は、生き生きとした温かさと開放感を帯びています。";
+  } else if (month >= 9 && month <= 11) {
+    season_note =
+      "秋の静けさの中に生まれた日は、深みと落ち着きのある内面の豊かさを感じさせます。";
+  } else {
+    season_note =
+      "冬の澄んだ空気の中に生まれた日は、静かな強さと内省的な温かさを持っています。";
+  }
+
+  return {
+    dob: dobStr,
+    day_atmosphere: season_note,
+    inner_mood:
+      "生まれた日の空気が、あなたの内側に静かな優しさを残しています。",
+    energy_texture: "穏やかで、自然に心が整っていく流れがあります。",
+    quiet_guidance: "無理をしなくても、自然と心が落ち着いていく日です。",
+  };
+}
+
+// Destiny Time Flow — birth time as timing energy, Japan-soft
+function buildDestinyTimeFlow(timeStr) {
+  if (!timeStr) return null;
+  const m = String(timeStr).match(/^(\d{1,2}):?(\d{2})?/);
+  if (!m) return null;
+  const hour = +m[1];
+
+  let timing_flow = "";
+  let best_window = "";
+  let emotional_opening = "";
+  if (hour >= 4 && hour < 8) {
+    timing_flow =
+      "夜明けとともに生まれた時間は、清らかで静かな始まりの流れを宿しています。";
+    best_window = "朝の静かな時間帯に、心が最も開きやすくなります。";
+    emotional_opening =
+      "新しいことへの感受性が高く、やわらかな意欲が自然に湧きます。";
+  } else if (hour >= 8 && hour < 12) {
+    timing_flow =
+      "朝の光の中で生まれた時間は、明るく活動的な流れを持っています。";
+    best_window = "午前中の充実した時間帯に、最も力を発揮しやすくなります。";
+    emotional_opening =
+      "前向きなエネルギーが自然に流れ、気持ちが整いやすい時間帯です。";
+  } else if (hour >= 12 && hour < 17) {
+    timing_flow =
+      "午後の安定した時間に生まれた流れは、バランスと調和を大切にします。";
+    best_window =
+      "午後のゆったりとした時間帯に、深い対話と創造が生まれやすくなります。";
+    emotional_opening =
+      "人とのつながりを大切にしながら、自分らしさを表現しやすい時間帯です。";
+  } else if (hour >= 17 && hour < 21) {
+    timing_flow =
+      "夕暮れ時に生まれた流れは、温かく、感情が豊かに動く時間帯です。";
+    best_window = "夕方から夜にかけて、心が最もやわらかく開きやすくなります。";
+    emotional_opening =
+      "感情の深さが増し、大切な人との絆が育ちやすい時間帯です。";
+  } else {
+    timing_flow =
+      "夜の静けさの中で生まれた流れは、深く、内省的な時間を大切にします。";
+    best_window = "夜の静かな時間帯に、内側の声に耳を傾けやすくなります。";
+    emotional_opening =
+      "深い感受性と直感が冴え、心の奥にある思いが浮かびやすい時間帯です。";
+  }
+
+  return {
+    time: timeStr,
+    timing_flow,
+    best_window,
+    emotional_opening,
+    communication_flow:
+      "この時間帯は、あなたの言葉が相手に届きやすくなる流れがあります。",
+  };
+}
+
+// Japan 3-Box Synthesis — blends all 3 modules (30/40/30 weighting)
+function buildJapan3BoxSynthesis(bloodTypeOut, dobOut, destinyTimeOut) {
+  const hasBlood = !!bloodTypeOut;
+  const hasDOB = !!dobOut;
+  const hasTime = !!destinyTimeOut;
+
+  const parts = [];
+  if (hasBlood) parts.push(bloodTypeOut.atmosphere);
+  if (hasDOB) parts.push(dobOut.day_atmosphere);
+  if (hasTime) parts.push(destinyTimeOut.timing_flow);
+
+  const overall_atmosphere =
+    parts.length > 0
+      ? parts.join(" ") +
+        " これらの流れが静かに重なり合って、あなただけの空気感を作り出しています。"
+      : "あなたの内側に、静かで温かな流れが宿っています。";
+
+  return {
+    overall_atmosphere,
+    emotional_flow:
+      "心の流れがやわらかく整い、自然と安心感が広がっていきます。",
+    timing_alignment: hasTime
+      ? destinyTimeOut.best_window
+      : "自分のペースで、静かに進んでいける流れがあります。",
+    quiet_guidance:
+      "焦らず、静かなペースで自分の心に寄り添うと、より深い安心が育ちます。",
+    summary: "全体として、穏やかで、無理のない、やわらかな流れがあります。",
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JAPAN COMPATIBILITY SYNTHESIS (Self + Partner 3-Box)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BLOOD_TYPE_COMPATIBILITY = {
+  "A-A": {
+    harmony: "soft",
+    desc: "同じ丁寧さで寄り添い合う、穏やかな調和があります。",
+  },
+  "A-B": {
+    harmony: "warm",
+    desc: "違いが補い合い、温かいバランスが生まれます。",
+  },
+  "A-O": {
+    harmony: "stable",
+    desc: "安定した流れの中で、自然なつながりが育ちます。",
+  },
+  "A-AB": {
+    harmony: "complement",
+    desc: "静かに補い合う、深みのある相性です。",
+  },
+  "B-B": {
+    harmony: "lively",
+    desc: "生き生きとした流れが重なり、明るい雰囲気が生まれます。",
+  },
+  "B-O": {
+    harmony: "easy",
+    desc: "自然体で向き合える、心地よい流れがあります。",
+  },
+  "B-AB": {
+    harmony: "open",
+    desc: "感情が豊かに交わり、開かれた相性があります。",
+  },
+  "O-O": {
+    harmony: "grounded",
+    desc: "大らかに寄り添い合う、安心感のある相性です。",
+  },
+  "O-AB": {
+    harmony: "balance",
+    desc: "やわらかなバランスが自然に保たれる相性です。",
+  },
+  "AB-AB": {
+    harmony: "resonance",
+    desc: "静かな共鳴が深まる、独特の相性があります。",
+  },
+};
+
+function getBloodTypeCompatibility(typeA, typeB) {
+  if (!typeA || !typeB) return null;
+  const a = String(typeA).toUpperCase().trim();
+  const b = String(typeB).toUpperCase().trim();
+  const key1 = `${a}-${b}`;
+  const key2 = `${b}-${a}`;
+  return (
+    BLOOD_TYPE_COMPATIBILITY[key1] ||
+    BLOOD_TYPE_COMPATIBILITY[key2] || {
+      harmony: "quiet",
+      desc: "静かに寄り添い合う、やわらかな相性があります。",
+    }
+  );
+}
+
+function buildJapanCompatibility3BoxResult(
+  selfData,
+  partnerData,
+  selfChart,
+  partnerChart,
+) {
+  const btCompat = getBloodTypeCompatibility(
+    selfData.blood_type,
+    partnerData.blood_type,
+  );
+
+  const harmony_atmosphere = [
+    btCompat
+      ? btCompat.desc
+      : "お二人の雰囲気は、静かに寄り添っていく相性です。",
+    "言葉や気持ちが自然に届きやすい空気があります。",
+  ].join(" ");
+
+  const timing_alignment = (() => {
+    const selfHour = selfData.destiny_time
+      ? +String(selfData.destiny_time).split(":")[0]
+      : null;
+    const partnerHour = partnerData.destiny_time
+      ? +String(partnerData.destiny_time).split(":")[0]
+      : null;
+    if (selfHour !== null && partnerHour !== null) {
+      const diff = Math.abs(selfHour - partnerHour);
+      if (diff <= 3)
+        return "お二人の時間の流れが重なり、自然なリズムが生まれています。";
+      if (diff <= 8)
+        return "お二人のリズムは異なりながらも、補い合う流れがあります。";
+      return "異なるリズムが出会うことで、新鮮な気づきが生まれる相性です。";
+    }
+    return "時間の流れが静かに重なり、自然なリズムが生まれています。";
+  })();
+
+  const emotional_distance = (() => {
+    if (selfData.dob && partnerData.dob) {
+      return "心の距離が、やわらかく近づいていく気配があります。無理をしなくても、自然と安心感が育つ相性です。";
+    }
+    return "心の距離が、穏やかに縮まっていく流れがあります。";
+  })();
+
+  const quiet_guidance =
+    "焦らず、静かなペースで向き合うことで、より深い安心が育ちます。言葉よりも、雰囲気や気配を大切にすると良い時期です。";
+
+  const summary =
+    "全体として、お二人の流れは穏やかで、無理のない相性です。自然体でいられる関係として、静かに育っていく雰囲気があります。";
+
+  return {
+    harmony_atmosphere,
+    timing_alignment,
+    emotional_distance,
+    quiet_guidance,
+    summary,
+    blood_type_harmony: btCompat ? btCompat.harmony : "quiet",
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPATIBILITY PROMPT BUILDER — WITH 3-BOX DATA
+// ─────────────────────────────────────────────────────────────────────────────
+function buildCompatibilityJPWith3BoxPrompt({
+  dbPrompt,
+  langName,
+  birthChart,
+  birthChartB,
+  selfData,
+  partnerData,
+  compatResult,
+}) {
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_SUBCATEGORY_PROMPTS.compatibility;
+
+  const chartBlockA = formatChartBlockJP(birthChart, "relationship");
+  const chartBlockB = birthChartB
+    ? formatChartBlockJP(birthChartB, "relationship")
+    : null;
+
+  const isJP = langName === "Japanese";
+  const labelA = isJP ? "Aさん（ユーザー）" : "Person A (the user)";
+  const labelB = isJP ? "Bさん（パートナー）" : "Person B (their partner)";
+
+  const selfBlock = selfData
+    ? `
+━━━ USER's 3 DESTINY KEYS ━━━
+Blood Type: ${selfData.blood_type || "not set"}
+Date of Birth: ${selfData.dob || "not set"}
+Destiny Time: ${selfData.destiny_time || "not set"}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : "";
+
+  const partnerBlock = partnerData
+    ? `
+━━━ PARTNER's 3 DESTINY KEYS ━━━
+Blood Type: ${partnerData.blood_type || "not set"}
+Date of Birth: ${partnerData.dob || "not set"}
+Destiny Time: ${partnerData.destiny_time || "not set"}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : "";
+
+  const compatBlock = compatResult
+    ? `
+━━━ PRE-COMPUTED COMPATIBILITY LAYER ━━━
+Harmony Atmosphere: ${compatResult.harmony_atmosphere}
+Timing Alignment: ${compatResult.timing_alignment}
+Emotional Distance: ${compatResult.emotional_distance}
+Quiet Guidance: ${compatResult.quiet_guidance}
+Summary: ${compatResult.summary}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : "";
+
+  const chartsSection =
+    chartBlockA && chartBlockB
+      ? `${labelA}:\n${chartBlockA}\n\n${labelB}:\n${chartBlockB}`
+      : chartBlockA
+        ? `USER'S BIRTH CHART:\n${chartBlockA}`
+        : "";
+
+  return `You are Astria Japan — a soft, polite, and quietly warm astrology guide for the Japan lane.
+YOUR FOCUS: Japan 3-Box Compatibility — a gentle, atmospheric reading of how two energies quietly connect through Blood Type, Birth-Day Atmosphere, and Destiny Time Flow.
+This is not scoring or prediction. It is an emotional atmosphere reading in Japan-soft tone.
+
+━━━ SUBCATEGORY CONTENT (tone, chemistry types, output format) ━━━
+${subcategoryContent}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${selfBlock}
+${partnerBlock}
+${compatBlock}
+${chartsSection}
+
+RESPONSE STRUCTURE (5 sections — Japan-soft tone only):
+1. 雰囲気の相性 (Harmony Atmosphere) — describe the overall emotional atmosphere between them, softly
+2. 時間の流れの相性 (Timing Alignment) — describe how their time flows harmonize
+3. 心の距離感 (Emotional Distance) — describe the quiet closeness and space between them
+4. 静かなアドバイス (Quiet Guidance) — one soft, non-prescriptive suggestion
+5. やわらかなまとめ (Soft Summary) — a gentle closing
+
+RULES:
+- No scores, no ranking, no "perfect match" or "incompatible"
+- No horoscope predictions, no western fate language
+- Every sentence must feel: soft, quiet, atmospheric, polite
+- Use the pre-computed compatibility layer above as grounding data
+- Reply in ${langName} only. Every word in ${langName}.`.trim();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
 function buildAstriaJapanContext({
@@ -1086,10 +1488,47 @@ function buildAstriaJapanContext({
   userMessage,
   birthChart,
   birthChartB,
+  japan3BoxSelf,
+  japan3BoxPartner,
 }) {
   const langName = LANG_NAME_MAP[target] || "English";
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
   const params = { userMessage, dbPrompt, langName, birthChart, birthChartB };
+
+  // Japan 3-Box compatibility mode — used when frontend sends structured 3-box data
+  if (
+    isCompatibilitySubcategoryJP(subCategoryName) &&
+    japan3BoxSelf &&
+    japan3BoxPartner
+  ) {
+    const selfData = {
+      blood_type: japan3BoxSelf.blood_type || null,
+      dob: japan3BoxSelf.dob || null,
+      destiny_time: japan3BoxSelf.destiny_time || null,
+    };
+    const partnerData = {
+      blood_type: japan3BoxPartner.blood_type || null,
+      dob: japan3BoxPartner.dob || null,
+      destiny_time: japan3BoxPartner.destiny_time || null,
+    };
+
+    const compatResult = buildJapanCompatibility3BoxResult(
+      selfData,
+      partnerData,
+      birthChart,
+      birthChartB,
+    );
+
+    return buildCompatibilityJPWith3BoxPrompt({
+      dbPrompt,
+      langName,
+      birthChart,
+      birthChartB,
+      selfData,
+      partnerData,
+      compatResult,
+    });
+  }
 
   const builder = resolveJPSubcategoryBuilder(subCategoryName);
   if (builder) return builder(params);
@@ -1104,4 +1543,10 @@ module.exports = {
   buildEnergyMatchMissingQuestionJP,
   isCompatibilitySubcategoryJP,
   DEFAULT_JP_SUBCATEGORY_PROMPTS,
+  // Japan 3-Box engine exports
+  buildBloodTypeAtmosphere,
+  buildDOBAtmosphere,
+  buildDestinyTimeFlow,
+  buildJapan3BoxSynthesis,
+  buildJapanCompatibility3BoxResult,
 };

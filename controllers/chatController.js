@@ -840,6 +840,22 @@ function parseVivahPartners(userMessage, storedDob, storedTime, storedPlace) {
   return { partnerA, partnerB, intention, requestedPeriod, missingFields };
 }
 
+// function buildVivahMissingFieldsQuestion(missingFields, hasStoredDob, target) {
+//   if (!missingFields || missingFields.length === 0) return null;
+//   const bothMissing = missingFields.length >= 2;
+//   const enMsg = bothMissing
+//     ? `To calculate the Vivah Muhurat, I need birth details for both the Bride and Groom. Please share them in this format:\n\nBride: DD/MM/YYYY | HH:MM AM/PM | City\nGroom: DD/MM/YYYY | HH:MM AM/PM | City\n\n*(Birth time and city are optional — even just the dates of birth are a great place to start.)*`
+//     : hasStoredDob
+//       ? `To calculate the Vivah Muhurat, I have your birth date on file. Could you share your partner's details in this format?\n\nPartner: DD/MM/YYYY | HH:MM AM/PM | City\n\n*(Birth time and city are optional.)*`
+//       : `To calculate the Vivah Muhurat, could you share the ${missingFields.map((f) => `${f.who}'s details`).join(" and ")} in this format?\n\n${missingFields.map((f) => `${f.who}: DD/MM/YYYY | HH:MM AM/PM | City`).join("\n")}\n\n*(Birth time and city are optional — even just the date of birth is a good start.)*`;
+//   const hiMsg = bothMissing
+//     ? `Vivah Muhurat ke liye mujhe Dulhan aur Dulhe — dono ki janam jaankari chahiye. Kripya is format mein share karein:\n\nDulhan: DD/MM/YYYY | HH:MM AM/PM | Shahar\nDulha: DD/MM/YYYY | HH:MM AM/PM | Shahar\n\n*(Janam samay aur shahar optional hain — sirf janam tithi bhi kafi hai shuruat ke liye.)*`
+//     : hasStoredDob
+//       ? `Vivah Muhurat ke liye aapki janam tithi mere paas hai. Kya aap apne saathi ki details is format mein share kar sakte hain?\n\nSaathi: DD/MM/YYYY | HH:MM AM/PM | Shahar\n\n*(Janam samay aur shahar optional hain.)*`
+//       : `Vivah Muhurat ke liye kya aap ${missingFields.map((f) => `${f.who === "Bride" ? "Dulhan" : "Dulhe"} ki janam tithi`).join(" aur ")} is format mein share kar sakte hain?\n\n${missingFields.map((f) => `${f.who === "Bride" ? "Dulhan" : "Dulha"}: DD/MM/YYYY | HH:MM AM/PM | Shahar`).join("\n")}\n\n*(Janam samay aur shahar optional hain.)*`;
+//   const templates = { en: enMsg, hi: hiMsg };
+//   return templates[target] || templates.en;
+// }
 function buildVivahMissingFieldsQuestion(missingFields, hasStoredDob, target) {
   if (!missingFields || missingFields.length === 0) return null;
   const bothMissing = missingFields.length >= 2;
@@ -1665,6 +1681,8 @@ const chatController = {
         memory,
         userPersona,
         spanishTone,
+        japan3BoxSelf,
+        japan3BoxPartner,
       } = req.body;
 
       //console.log("spanishTone:", spanishTone);
@@ -1784,6 +1802,12 @@ const chatController = {
           }
         }
       }
+      // console.log(
+      //   "Subcategory Name:",
+      //   subCategoryName,
+      //   "Prompt: ",
+      //   subCategoryPrompt,
+      // );
 
       const HEALJAI_ACTIVE_CATEGORIES = new Set([
         "HealJai Talk",
@@ -2897,43 +2921,44 @@ RULES:
       let energyMatchMissingQuestionJP = null;
       if (isAstriaJapan) {
         if (isCompatibilitySubcategoryJP(subCategoryName)) {
-          // Compatibility: needs two birth charts — parse both from message + DB
-          const emPartnersJP = parseEnergyMatchPartnersJP(
-            userMessage,
-            dob0,
-            dob_time0,
-            dob_place0,
-          );
+          // Japan 3-Box path: frontend sends structured self + partner 3-box data
+          const has3BoxSelf =
+            japan3BoxSelf &&
+            (japan3BoxSelf.blood_type ||
+              japan3BoxSelf.dob ||
+              japan3BoxSelf.destiny_time);
+          const has3BoxPartner =
+            japan3BoxPartner &&
+            (japan3BoxPartner.blood_type ||
+              japan3BoxPartner.dob ||
+              japan3BoxPartner.destiny_time);
 
-          if (emPartnersJP.missingFields.length > 0) {
-            energyMatchMissingQuestionJP = buildEnergyMatchMissingQuestionJP(
-              emPartnersJP.missingFields,
-              !!(dob0 && String(dob0).trim()),
-            );
-          } else {
+          if (has3BoxSelf && has3BoxPartner) {
+            // Both parties have 3-box data — compute charts from DOB if available and run synthesis
             let chartAJP = null;
             let chartBJP = null;
             try {
-              if (emPartnersJP.personA.dob) {
+              const selfDob = japan3BoxSelf.dob || dob0;
+              if (selfDob) {
                 chartAJP = computeWesternBirthChartJP({
-                  dob: emPartnersJP.personA.dob,
-                  dob_time: emPartnersJP.personA.time || null,
-                  dob_place: emPartnersJP.personA.place || null,
+                  dob: String(selfDob).trim(),
+                  dob_time: japan3BoxSelf.birth_time || dob_time0 || null,
+                  dob_place: japan3BoxSelf.birth_city || dob_place0 || null,
                 });
               }
             } catch (err) {
-              logger.error("Astria Japan Compatibility - chartA error:", err);
+              logger.error("Astria Japan 3-Box chartA error:", err);
             }
             try {
-              if (emPartnersJP.personB.dob) {
+              if (japan3BoxPartner.dob) {
                 chartBJP = computeWesternBirthChartJP({
-                  dob: emPartnersJP.personB.dob,
-                  dob_time: emPartnersJP.personB.time || null,
-                  dob_place: emPartnersJP.personB.place || null,
+                  dob: String(japan3BoxPartner.dob).trim(),
+                  dob_time: japan3BoxPartner.birth_time || null,
+                  dob_place: japan3BoxPartner.birth_city || null,
                 });
               }
             } catch (err) {
-              logger.error("Astria Japan Compatibility - chartB error:", err);
+              logger.error("Astria Japan 3-Box chartB error:", err);
             }
 
             systemPrompt = buildAstriaJapanContext({
@@ -2944,7 +2969,59 @@ RULES:
               userMessage,
               birthChart: chartAJP,
               birthChartB: chartBJP,
+              japan3BoxSelf,
+              japan3BoxPartner,
             });
+          } else {
+            // Fallback: text-based compatibility parsing (original flow)
+            const emPartnersJP = parseEnergyMatchPartnersJP(
+              userMessage,
+              dob0,
+              dob_time0,
+              dob_place0,
+            );
+
+            if (emPartnersJP.missingFields.length > 0) {
+              energyMatchMissingQuestionJP = buildEnergyMatchMissingQuestionJP(
+                emPartnersJP.missingFields,
+                !!(dob0 && String(dob0).trim()),
+              );
+            } else {
+              let chartAJP = null;
+              let chartBJP = null;
+              try {
+                if (emPartnersJP.personA.dob) {
+                  chartAJP = computeWesternBirthChartJP({
+                    dob: emPartnersJP.personA.dob,
+                    dob_time: emPartnersJP.personA.time || null,
+                    dob_place: emPartnersJP.personA.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria Japan Compatibility - chartA error:", err);
+              }
+              try {
+                if (emPartnersJP.personB.dob) {
+                  chartBJP = computeWesternBirthChartJP({
+                    dob: emPartnersJP.personB.dob,
+                    dob_time: emPartnersJP.personB.time || null,
+                    dob_place: emPartnersJP.personB.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria Japan Compatibility - chartB error:", err);
+              }
+
+              systemPrompt = buildAstriaJapanContext({
+                subCategoryName: subCategoryName || null,
+                categoryPrompt: categoryPrompt || null,
+                subCategoryPrompt: subCategoryPrompt || null,
+                target,
+                userMessage,
+                birthChart: chartAJP,
+                birthChartB: chartBJP,
+              });
+            }
           }
         } else {
           // All other Astria Japan subcategories — single user chart
@@ -3370,7 +3447,7 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
-      // console.log("System Prompt:", systemPrompt);
+      console.log("System Prompt:", systemPrompt);
       // console.log("subCategoryPrompt:", subCategoryPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -3855,20 +3932,27 @@ RULES:
             ),
           };
 
-          if (!isNewChat) {
-            chat.chats.push(chatMessage);
-            await chat.save();
-          } else {
-            chat = await ChatHistory.create({
-              userId,
-              categoryId,
-              subCategoryId,
-              sessionTitle: userMessage.substring(0, 30),
-              chats: [chatMessage],
-              promptSource,
-              selectedCaseId: selectedCaseId || null,
-              chatLang,
-            });
+          // Save chat to history - use try/finally to ensure it saves even on error
+          let chatSaved = false;
+          try {
+            if (!isNewChat) {
+              chat.chats.push(chatMessage);
+              await chat.save();
+            } else {
+              chat = await ChatHistory.create({
+                userId,
+                categoryId,
+                subCategoryId,
+                sessionTitle: userMessage.substring(0, 30),
+                chats: [chatMessage],
+                promptSource,
+                selectedCaseId: selectedCaseId || null,
+                chatLang,
+              });
+            }
+            chatSaved = true;
+          } catch (saveErr) {
+            logger.error("Chat save error:", saveErr);
           }
 
           await upsertUserMusicMemory({
@@ -3880,7 +3964,7 @@ RULES:
             res.write(
               `data: ${JSON.stringify({
                 done: true,
-                chatId: chat._id,
+                chatId: chat?._id,
                 promptSource,
                 selectedCaseId: selectedCaseId || null,
                 musicRecommendation,
@@ -4071,20 +4155,25 @@ RULES:
       const bhavnaDrishtiData = isBhavnaDrishti ? bhavnaDrishtiJsonData : null;
       const vivahMuhuratData = isVivahMuhurat ? vivahMuhuratJsonData : null;
 
-      if (!isNewChat) {
-        chat.chats.push(chatMessage);
-        await chat.save();
-      } else {
-        chat = await ChatHistory.create({
-          userId,
-          categoryId,
-          subCategoryId,
-          sessionTitle: userMessage.substring(0, 30),
-          chats: [chatMessage],
-          promptSource,
-          selectedCaseId: selectedCaseId || null,
-          chatLang,
-        });
+      // Save chat to history - use try/finally to ensure it saves even on error
+      try {
+        if (!isNewChat) {
+          chat.chats.push(chatMessage);
+          await chat.save();
+        } else {
+          chat = await ChatHistory.create({
+            userId,
+            categoryId,
+            subCategoryId,
+            sessionTitle: userMessage.substring(0, 30),
+            chats: [chatMessage],
+            promptSource,
+            selectedCaseId: selectedCaseId || null,
+            chatLang,
+          });
+        }
+      } catch (saveErr) {
+        logger.error("Chat save error:", saveErr);
       }
 
       await upsertUserMusicMemory({

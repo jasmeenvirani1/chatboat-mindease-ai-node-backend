@@ -1,41 +1,52 @@
-// controllers/chatHistoryController.js
+// controllers/EnergyMatchController.js
 
 const { generateGeminiResponse } = require("../helper/geminiService.js");
-const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 const CategoryModel = require("../models/CategoryModel.js");
 const EnergyMatchModel = require("../models/EnergyMatchModel.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
-const LifeGraphCategoryModel = require("../models/LifeGraphCategoryModel.js");
-const SubCategory = require("../models/SubCategoryModel.js");
-const TarotCategoryModel = require("../models/TarotCategoryModel.js");
-const UranianCategoryModel = require("../models/UranianCategoryModel.js");
 const UserModel = require("../models/UserModel.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
-
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(now);
-
   const y = parts.find((p) => p.type === "year").value;
   const m = parts.find((p) => p.type === "month").value;
   const d = parts.find((p) => p.type === "day").value;
-
   return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
 }
 
-// @desc    Create a new tarot chat history
-// @route   POST /api/chat-history/tarot
-// @access  Private/Public
+function detectLang(text = "") {
+  const s = String(text || "");
+  if (/[ก-๙]/.test(s)) return "th";
+  if (/[一-鿿]/.test(s) && !/[ぁ-んァ-ン]/.test(s)) return "zh";
+  if (/[ぁ-んァ-ン]/.test(s)) return "ja";
+  if (/[가-힯]/.test(s)) return "ko";
+  if (/[ñáéíóúü¿¡]/i.test(s)) return "es";
+  return "en";
+}
+
+function langInstruction(lang) {
+  const map = {
+    th: "You MUST respond in Thai language only.",
+    zh: "You MUST respond in Chinese (Simplified) only.",
+    ja: "You MUST respond in Japanese only.",
+    ko: "You MUST respond in Korean only.",
+    es: "You MUST respond in Spanish only.",
+    en: "You MUST respond in English only.",
+  };
+  return map[lang] || map.en;
+}
+
 const createEnergyMatchHistory = async (req, res) => {
   try {
     const {
       userId,
-      CategoryId, // Add subCategoryId to get the specific tarot prompt
+      CategoryId,
       name,
       dob,
       dob_time,
@@ -49,300 +60,216 @@ const createEnergyMatchHistory = async (req, res) => {
       chatId,
     } = req.body;
 
-    const isEmpty = (v) => !v || String(v).trim().length === 0;
-
-    const detectLangFromMessage = (message) => {
-      const text = String(message || "");
-      const thaiPattern = /[ก-๙]/;
-      const chinesePattern = /[\u4e00-\u9fff]/;
-      const japanesePattern = /[ぁ-んァ-ン]/;
-      const englishPattern = /[a-zA-Z]/;
-
-      if (thaiPattern.test(text)) return "th";
-      if (chinesePattern.test(text)) return "zh";
-      if (japanesePattern.test(text)) return "ja";
-      if (englishPattern.test(text)) return "en";
-
-      return "th";
-    };
-
-    const langInstruction = (lang) => {
-      switch (lang) {
-        case "th":
-          return "You MUST respond in Thai language only. IMPORTANT: Respond entirely in Thai, no matter what language the user writes in.";
-        case "zh":
-          return "You MUST respond in Chinese (Simplified) only. IMPORTANT: Respond entirely in Chinese, no matter what language the user writes in.";
-        case "ja":
-          return "You MUST respond in Japanese only. IMPORTANT: Respond entirely in Japanese, no matter what language the user writes in.";
-        default:
-          return "You MUST respond in English only. IMPORTANT: Respond entirely in English, no matter what language the user writes in.";
-      }
-    };
-
+    // ── load optional category prompt ──────────────────────────────────────
     let subCategoryPrompt = null;
     let subCategoryName = null;
-
-    /** 📥 LOAD SUBCATEGORY PROMPT IF PROVIDED */
     if (CategoryId) {
-      const subCategory = await CategoryModel.findById(CategoryId)
+      const cat = await CategoryModel.findById(CategoryId)
         .select("name prompt")
         .lean();
-
-      // console.log("Loaded subcategory for energy match:", subCategory);
-
-      if (subCategory) {
-        subCategoryName = subCategory.name;
-        subCategoryPrompt = subCategory.prompt?.trim() || null;
-        // console.log(
-        //   `✅ Loaded energy match category prompt for: ${subCategoryName}`,
-        // );
+      if (cat) {
+        subCategoryName = cat.name;
+        subCategoryPrompt = cat.prompt?.trim() || null;
       }
     }
 
-    const userName = await UserModel.findById(userId);
+    // ── load optional user record (guests are fine without it) ─────────────
+    let preferredLanguage = "en";
+    if (userId) {
+      const user = await UserModel.findById(userId)
+        .select("preferredLanguage")
+        .lean();
+      if (user?.preferredLanguage) preferredLanguage = user.preferredLanguage;
+    }
 
-    // console.log("User:", userName);
+    const lang = preferredLanguage;
+    const langRule = langInstruction(lang);
 
-    // Calculate real planet positions
-    // const realPlanets = await calculateUranianPlanets({
-    //   dateOfBirth: userName.dob,
-    //   timeOfBirth: userName.dob_time || "6:00",
-    //   timezoneOffsetMinutes: 330, // India timezone
-    //   dateFormat: "DMY", // IMPORTANT because date is 19/12/2003
-    // });
-
-    const dateKey = getKolkataMidnightDate();
-    const headlineData = await HeadlineModel.findOne({ date: dateKey }).lean();
-
-    // const questionText = String(question || "").trim();
-    // console.log("Question:", questionText);
-    // const targetLang = isEmpty(questionText)
-    //   ? "th"
-    //   : detectLangFromMessage(questionText);
-
-    // console.log("Lang:", targetLang);
-
-    /** 🧠 BUILD SYSTEM PROMPT FOR TAROT */
-    // Base tarot prompt (used if no subcategory prompt)
-    const baseTarotPrompt = `
-You are an expert Vedic astrologer and life coach. Based on the birth details provided, generate a personalized life journey analysis with key milestones and their significance scores (1-10).
-
-USER BIRTH DETAILS:
-- Full Name: ${userName.username}
-
-PLANETS:
-- Please don't modify given planet positions and any other things.
-- Events is not rendom it is based on planets positions.
-
-LANGUAGE RULE:
-- ${langInstruction(userName.preferredLanguage)}
-- Use soft language: "may", "seems", "tends to", "likely"
-- Never use absolute claims
-`.trim();
-
-    // Priority: Use subcategory prompt if available, otherwise use base prompt
-    let systemPrompt = subCategoryPrompt || baseTarotPrompt;
-    let promptSource = subCategoryPrompt ? "subcategory" : "base";
-    let messages = [];
-
+    // ── load chat session ──────────────────────────────────────────────────
+    let chat = null;
     if (chatId) {
       chat = await EnergyMatchModel.findById(chatId);
       if (!chat) {
-        return res.status(404).json({
-          success: false,
-          message: "Chat session not found",
-        });
+        return res
+          .status(404)
+          .json({ success: false, message: "Chat session not found" });
       }
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // FOLLOW-UP QUESTION PATH
+    // ══════════════════════════════════════════════════════════════════════
     if (question) {
-      chat.chats.slice(-1).forEach((c) => {
-        messages.push({ role: "user", content: c.userMessage });
-        messages.push({ role: "assistant", content: c.aiResponse });
-      });
+      if (!chat) {
+        return res.status(400).json({
+          success: false,
+          message: "chatId is required when asking a follow-up question",
+        });
+      }
 
-      // console.log("Previous messages loaded for context:", messages);
+      // Build history context (last 4 exchanges)
+      const historyLines = chat.chats
+        .slice(-4)
+        .map((c) => `User: ${c.userMessage}\nAI: ${c.aiResponse}`)
+        .join("\n\n");
 
-      systemPrompt = `
+      const systemPrompt = `
+You are Healjai — a warm, insightful energy & astrology guide.
 
-INPUT:
-- User Question: ${question}
+CONTEXT — ORIGINAL ENERGY MATCH:
+- Person 1: ${name || "Unknown"} (DOB: ${dob || "—"}, Time: ${dob_time || "—"}, Place: ${dob_place || "—"})
+- Person 2: ${name_p || "Unknown"} (DOB: ${dob_p || "—"}, Time: ${dob_time_p || "—"}, Place: ${dob_place_p || "—"}, Relation: ${relation_p || "—"})
 
-HISTORY:
-${messages
-  .map((m) => `${m.role === "user" ? "User" : "AI"}: ${m.content}`)
-  .join("\n")}
+CONVERSATION HISTORY:
+${historyLines || "No previous messages."}
 
-MY BIRTH DETAILS(INPUT):
-- My Full Name: ${name}
-- My Date of Birth: ${dob}
-- My Time of Birth: ${dob_time}
-- My Place of Birth: ${dob_place}
-- My Relation with Partner: ${relation_p}
+USER QUESTION: ${question}
 
-PARTNER BIRTH DETAILS(INPUT):
-- Partner's Full Name: ${name_p}
-- Partner's Date of Birth: ${dob_p}
-- Partner's Time of Birth: ${dob_time_p}
-- Partner's Place of Birth: ${dob_place_p}
+ANSWER RULES:
+- Answer only what the user asked.
+- Refer to the energy match analysis and the conversation history when relevant.
+- Keep the tone warm, grounded, and human.
+- Give response in plain text (no JSON for follow-ups).
 
-ANSWER RULE:
-- Only give answer of user question.
-- Give answer in plain text.
-- Give answer using given history not based on birth deatils.
-
-LANGUAGE RULE:
-- ${langInstruction(userName.preferredLanguage)}
-
-IMPORTANT RULE:
-- If user not provide both person birth details then process with available birth details and give answer based on that.
-- Give response in plain text.
-- Use these birth details to personalize the astrological aspects of the reading.
-- If Birth Time or Birth Place is missing, proceed with available information.
-
+LANGUAGE RULE: ${langRule}
 `.trim();
 
-      messages = [{ role: "system", content: systemPrompt.trim() }];
-      messages.push({ role: "user", content: question });
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: question },
+      ];
 
       const aiResponse = await generateGeminiResponse(messages);
-      const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
+      const cleanedResponse = aiResponse?.trim() || "Please try again.";
 
-      const newMessage = {
+      chat.chats.push({
         userMessage: question,
         aiResponse: cleanedResponse,
         messageTime: new Date(),
-      };
-
-      const chatHistory = await EnergyMatchModel.create({
-        userId: userId || null,
-        isConversion: true,
-        //   tarotCategoryName: tarotCategoryName || null,
-        chats: [newMessage],
       });
+      chat.isConversion = true;
+      await chat.save();
 
-      return res.status(201).json({
+      return res.status(200).json({
         success: true,
-        message: "New LifeGraph reading session created",
-        data: chatHistory,
-        promptSource,
-        historyId: chatHistory._id,
+        message: "Follow-up answer added to session",
+        data: chat,
+        historyId: chat._id,
         aiResponse: cleanedResponse,
-        //   planets: realPlanets,
         subCategoryUsed: subCategoryName || null,
       });
     }
 
-    /** 🧠 ADD USER BIRTH DETAILS */
-    if (true) {
-      systemPrompt = `
-
-INPUT_JSON:
-{
-  "person1_birth_details": {
-    "name": "${name}",
-    "dob": "${dob}",
-    "time": "${dob_time || "6:00 AM"}",
-    "place": "${dob_place || "Thailand"}",
-    "relation": "${relation_p}"
-  },
-  "person2_birth_details": {
-    "name": "${name_p}",
-    "dob": "${dob_p}",
-    "time": "${dob_time_p || "6:00 AM"}",
-    "place": "${dob_place_p || "Thailand"}"
-  }
-}
-
-LANGUAGE RULE:
-- ${langInstruction(userName.preferredLanguage)}
-
-IMPORTANT RULE:
-- Give response in only json format.
-- Use these birth details to personalize the astrological aspects of the reading.
-- If Birth Time or Birth Place is missing, proceed with available information.
-
-${systemPrompt}
-`.trim();
+    // ══════════════════════════════════════════════════════════════════════
+    // INITIAL ENERGY MATCH READING
+    // ══════════════════════════════════════════════════════════════════════
+    if (!name || !dob || !name_p || !dob_p) {
+      return res.status(400).json({
+        success: false,
+        message: "Name and Date of Birth are required for both people.",
+      });
     }
 
-    systemPrompt = `${systemPrompt}`;
+    const clientInstructions = subCategoryPrompt
+      ? `\nCLIENT INSTRUCTIONS:\n${subCategoryPrompt}`
+      : "";
 
-    // console.log("Planets:", systemPrompt);
+    const systemPrompt = `
+You are Healjai — an expert in energy compatibility, astrology, and relationship dynamics.
 
-    /** 🌍 DETECT LANGUAGE */
-    // const detectLangFromMessage = (message) => {
-    //   // Simple language detection - you can enhance this
-    //   const thaiPattern = /[ก-๙]/;
-    //   const chinesePattern = /[\u4e00-\u9fff]/;
-    //   const japanesePattern = /[ぁ-んァ-ン]/;
+BIRTH DETAILS:
+Person 1: ${name} | DOB: ${dob} | Time: ${dob_time || "unknown"} | Place: ${dob_place || "unknown"} | Relation: ${relation_p || "unknown"}
+Person 2: ${name_p} | DOB: ${dob_p} | Time: ${dob_time_p || "unknown"} | Place: ${dob_place_p || "unknown"}
 
-    //   if (thaiPattern.test(message)) return "th";
-    //   if (chinesePattern.test(message)) return "zh";
-    //   if (japanesePattern.test(message)) return "ja";
-    //   return "en";
-    // };
+LANGUAGE RULE: ${langRule}
+${clientInstructions}
 
-    // const chatLang = detectLangFromMessage(userMessage);
+IMPORTANT RULE:
+- Give response ONLY in valid JSON format matching the exact schema below.
+- If Birth Time or Birth Place is missing, proceed with available information.
+- Do NOT include any text outside the JSON.
 
-    const userMessage = `${userName?.dob}`;
+OUTPUT SCHEMA (return EXACTLY this structure):
+{
+  "pages": [
+    {
+      "pageId": "P2_Prediction",
+      "title": "Energy Compatibility",
+      "components": {
+        "scoreGauge": {
+          "value": <integer 0-100>,
+          "label": "<short label like 'Strong Alignment'>"
+        },
+        "lifeGraph": {
+          "type": "radar",
+          "categories": ["Emotional Flow", "Mental Rhythm", "Action Drive", "Harmony Field", "Communication Energy"],
+          "value": [<int>, <int>, <int>, <int>, <int>]
+        },
+        "summary": [
+          { "type": "positive", "title": "<title>", "text": "<1-2 sentences>" },
+          { "type": "adjustment", "title": "<title>", "text": "<1-2 sentences>" }
+        ]
+      }
+    },
+    {
+      "pageId": "P3_Insights",
+      "title": "Energy Insights",
+      "cards": [
+        { "id": "energy_flow", "title": "Energy Flow", "icon": "wave", "description": "<2-3 sentences>" },
+        { "id": "emotional", "title": "Emotional Connection", "icon": "heart", "description": "<2-3 sentences>" },
+        { "id": "action", "title": "Action & Timing", "icon": "clock", "description": "<2-3 sentences>" },
+        { "id": "communication", "title": "Communication Tips", "icon": "chat", "description": "<2-3 sentences>" }
+      ]
+    },
+    {
+      "pageId": "P4_ChatWithHealjai",
+      "title": "Chat with Healjai",
+      "chatHistory": [
+        { "sender": "Healjai", "text": "<warm opening message about their energy match in 1-2 sentences>" }
+      ],
+      "quickReplies": [
+        "<short question about their match>",
+        "<short question about their match>",
+        "<short question about their match>"
+      ]
+    }
+  ]
+}
+`.trim();
 
-    /** 🎯 BUILD MESSAGES FOR AI */
-    messages = [{ role: "system", content: systemPrompt.trim() }];
-    messages.push({ role: "user", content: userMessage });
-
-    /** 🤖 GENERATE AI RESPONSE */
-    // console.log("📊 LifeGraph Request Summary:", {
-    //   //   cardCount: selectedCards.length,
-    //   //   category: tarotCategoryName,
-    //   subCategory: subCategoryName || "none",
-    //   promptSource,
-    // });
-
-    // console.log("System Prompt:", systemPrompt);
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Analyze energy compatibility for ${name} and ${name_p}.` },
+    ];
 
     const aiResponse = await generateGeminiResponse(messages);
-    const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
-
-    // console.log("✅ Energy Match AI Response received:", cleanedResponse);
+    const cleanedResponse = aiResponse?.trim() || "{}";
 
     const newMessage = {
-      userMessage,
+      userMessage: `Energy match: ${name} & ${name_p}`,
       aiResponse: cleanedResponse,
       messageTime: new Date(),
     };
 
-    /** 💾 CREATE NEW CHAT HISTORY */
-    const sessionTitle =
-      userMessage.length > 50
-        ? userMessage.substring(0, 47) + "..."
-        : userMessage;
-
     const chatHistory = await EnergyMatchModel.create({
       userId: userId || null,
-      //   tarotCategoryName: tarotCategoryName || null,
       chats: [newMessage],
     });
 
-    // console.log("✅ New Energy Match history created with ID:", chatHistory);
-
     return res.status(201).json({
       success: true,
-      message: "New LifeGraph reading session created",
+      message: "Energy match reading created",
       data: chatHistory,
-      promptSource,
+      promptSource: subCategoryPrompt ? "subcategory" : "base",
       historyId: chatHistory._id,
       aiResponse: cleanedResponse,
-      //   planets: realPlanets,
       subCategoryUsed: subCategoryName || null,
     });
   } catch (error) {
-    console.error("❌ Error in createTarotHistory:", error);
+    console.error("❌ Error in createEnergyMatchHistory:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to create tarot reading",
-      fallbackResponse:
-        "The cards are momentarily clouded. Please try again. 🔮",
+      message: "Failed to create energy match reading",
       error: error.message,
     });
   }
