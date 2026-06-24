@@ -91,6 +91,13 @@ const {
   isCompatibilitySubcategoryPSM,
   resolveCountry,
 } = require("../helper/astriaPSMService");
+const {
+  buildAstriaGCCContext,
+  computeWesternBirthChartGCC,
+  parseCompatibilityPartnersGCC,
+  buildCompatibilityMissingQuestionGCC,
+  isCompatibilitySubcategoryGCC,
+} = require("../helper/astriaGCCService");
 
 // ============================================
 // HELPER FUNCTIONS
@@ -1683,6 +1690,10 @@ const chatController = {
         spanishTone,
         japan3BoxSelf,
         japan3BoxPartner,
+        korea3BoxSelf,
+        korea3BoxPartner,
+        gcc3BoxSelf,
+        gcc3BoxPartner,
       } = req.body;
 
       //console.log("spanishTone:", spanishTone);
@@ -1885,8 +1896,14 @@ const chatController = {
       // ====== ASTRIA KOREA FLAG ======
       // ============================================
       // Astria Korea Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
+      // Also activate when korea3Box data is sent with required fields (blood_type or dob)
+      const hasKorea3BoxData =
+        korea3BoxSelf &&
+        korea3BoxPartner &&
+        (korea3BoxSelf.blood_type || korea3BoxSelf.dob) &&
+        (korea3BoxPartner.blood_type || korea3BoxPartner.dob);
       const isAstriaKorea =
-        categoryName === "Astria Korea" &&
+        (categoryName === "Astria Korea" || hasKorea3BoxData) &&
         !isAstriaUS &&
         !isAstriaIndiaCategory &&
         !isAstriaJapan;
@@ -1930,6 +1947,20 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaSpanish &&
         !isAstriaBrazil;
+
+      // ============================================
+      // ====== ASTRIA GCC FLAG ======
+      // ============================================
+      // Astria GCC Engine — Spiritual, elegant, respectful Western astrology (GCC lane)
+      const isAstriaGCC =
+        categoryName === "Astria GCC" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM;
 
       // ============================================
       // SPECIALIZED FEATURES (HealJai categories only)
@@ -2549,35 +2580,6 @@ Rules for the JSON:
 - Do NOT include the JSON block anywhere in the narrative`;
       }
 
-      // Samay Pravah — self-contained enforcement block (highest priority, end of prompt)
-      if (isSamayPravah) {
-        systemPrompt = `${systemPrompt}
-
-SAMAY PRAVAH — FINAL OUTPUT RULE (HIGHEST PRIORITY — OVERRIDES ALL LANGUAGE RULES):
-
-No matter what language the user writes in (Hindi, Thai, English, or any other), your response MUST end with the energy graph block written in English. The narrative sentences above the graph block should be in the user's language.
-
-VALID VALUES:
-- movement.type: "outward" | "inward" | "steady"
-- phase_weight.type: "light" | "medium" | "heavy"
-- flow_direction.type: "rising" | "settling" | "scattered"
-- intensity: integer 0–100
-
-CORRECT RESPONSE FORMAT (example for a Hindi-speaking user):
-[2–4 warm sentences in the user's language about their current energy and timing…]
-<<<SAMAY_PRAVAH_GRAPH>>>
-{"movement":{"type":"inward","intensity":72},"phase_weight":{"type":"heavy","intensity":80},"flow_direction":{"type":"settling","intensity":65}}
-<<<END_SAMAY_PRAVAH_GRAPH>>>
-
-MANDATORY RULES — CANNOT BE SKIPPED:
-1. The graph block (all three lines: marker, JSON, end marker) is ALWAYS in English — never translate or omit these lines.
-2. The JSON must be on a single line with no line breaks inside it.
-3. No text is allowed after <<<END_SAMAY_PRAVAH_GRAPH>>>.
-4. All three fields (movement, phase_weight, flow_direction) must always be present.
-5. This graph block is REQUIRED in every single response — never skip it regardless of the user's language.
-6. The narrative text above the graph block must be in the same language the user wrote in.`;
-      }
-
       // Bhavna Drishti Engine — emotional inner-weather JSON reading via Nakshatra + emotion context
       if (isBhavnaDrishti) {
         const bhavnaBasePrompt = await buildAstriaIndiaContext({
@@ -3057,48 +3059,50 @@ RULES:
       // ============================================
       let compatibilityMissingQuestionKR = null;
       if (isAstriaKorea) {
-        if (isCompatibilitySubcategoryKR(subCategoryName)) {
-          // Compatibility: needs two birth charts — parse both from message + DB
-          const compatPartnersKR = parseCompatibilityPartnersKR(
-            userMessage,
-            dob0,
-            dob_time0,
-            dob_place0,
-          );
+        // Detect Korean compatibility: either from subCategoryName OR from korea3Box data
+        const isKoreanCompat =
+          isCompatibilitySubcategoryKR(subCategoryName) || hasKorea3BoxData;
+        if (isKoreanCompat) {
+          // Korea 3-Box path: frontend sends structured self + partner 3-box data
+          const has3BoxSelf =
+            korea3BoxSelf &&
+            (korea3BoxSelf.blood_type ||
+              korea3BoxSelf.dob ||
+              korea3BoxSelf.destiny_time);
+          const has3BoxPartner =
+            korea3BoxPartner &&
+            (korea3BoxPartner.blood_type ||
+              korea3BoxPartner.dob ||
+              korea3BoxPartner.destiny_time);
 
-          if (compatPartnersKR.missingFields.length > 0) {
-            compatibilityMissingQuestionKR =
-              buildCompatibilityMissingQuestionKR(
-                compatPartnersKR.missingFields,
-                !!(dob0 && String(dob0).trim()),
-              );
-          } else {
+          if (has3BoxSelf && has3BoxPartner) {
+            // Both parties have 3-box data — compute charts from DOB if available
             let chartAKR = null;
             let chartBKR = null;
             try {
-              if (compatPartnersKR.personA.dob) {
+              const selfDob = korea3BoxSelf.dob || dob0;
+              if (selfDob) {
                 chartAKR = computeWesternBirthChartKR({
-                  dob: compatPartnersKR.personA.dob,
-                  dob_time: compatPartnersKR.personA.time || null,
-                  dob_place: compatPartnersKR.personA.place || null,
+                  dob: String(selfDob).trim(),
+                  dob_time: korea3BoxSelf.birth_time || dob_time0 || null,
+                  dob_place: korea3BoxSelf.birth_city || dob_place0 || null,
                 });
               }
             } catch (err) {
-              logger.error("Astria Korea Compatibility - chartA error:", err);
+              logger.error("Astria Korea 3-Box chartA error:", err);
             }
             try {
-              if (compatPartnersKR.personB.dob) {
+              if (korea3BoxPartner.dob) {
                 chartBKR = computeWesternBirthChartKR({
-                  dob: compatPartnersKR.personB.dob,
-                  dob_time: compatPartnersKR.personB.time || null,
-                  dob_place: compatPartnersKR.personB.place || null,
+                  dob: String(korea3BoxPartner.dob).trim(),
+                  dob_time: korea3BoxPartner.birth_time || null,
+                  dob_place: korea3BoxPartner.birth_city || null,
                 });
               }
             } catch (err) {
-              logger.error("Astria Korea Compatibility - chartB error:", err);
+              logger.error("Astria Korea 3-Box chartB error:", err);
             }
-
-            systemPrompt = buildAstriaKoreaContext({
+            const koreanContext = buildAstriaKoreaContext({
               subCategoryName: subCategoryName || null,
               categoryPrompt: categoryPrompt || null,
               subCategoryPrompt: subCategoryPrompt || null,
@@ -3106,7 +3110,63 @@ RULES:
               userMessage,
               birthChart: chartAKR,
               birthChartB: chartBKR,
+              selfBloodType: korea3BoxSelf.blood_type || null,
+              selfDestinyTime: korea3BoxSelf.destiny_time || null,
+              partnerBloodType: korea3BoxPartner.blood_type || null,
+              partnerDestinyTime: korea3BoxPartner.destiny_time || null,
             });
+            systemPrompt = koreanContext;
+          } else {
+            // Fallback: text-based compatibility parsing (original flow)
+            const compatPartnersKR = parseCompatibilityPartnersKR(
+              userMessage,
+              dob0,
+              dob_time0,
+              dob_place0,
+            );
+
+            if (compatPartnersKR.missingFields.length > 0) {
+              compatibilityMissingQuestionKR =
+                buildCompatibilityMissingQuestionKR(
+                  compatPartnersKR.missingFields,
+                  !!(dob0 && String(dob0).trim()),
+                );
+            } else {
+              let chartAKR = null;
+              let chartBKR = null;
+              try {
+                if (compatPartnersKR.personA.dob) {
+                  chartAKR = computeWesternBirthChartKR({
+                    dob: compatPartnersKR.personA.dob,
+                    dob_time: compatPartnersKR.personA.time || null,
+                    dob_place: compatPartnersKR.personA.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria Korea Compatibility - chartA error:", err);
+              }
+              try {
+                if (compatPartnersKR.personB.dob) {
+                  chartBKR = computeWesternBirthChartKR({
+                    dob: compatPartnersKR.personB.dob,
+                    dob_time: compatPartnersKR.personB.time || null,
+                    dob_place: compatPartnersKR.personB.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria Korea Compatibility - chartB error:", err);
+              }
+
+              systemPrompt = buildAstriaKoreaContext({
+                subCategoryName: subCategoryName || null,
+                categoryPrompt: categoryPrompt || null,
+                subCategoryPrompt: subCategoryPrompt || null,
+                target,
+                userMessage,
+                birthChart: chartAKR,
+                birthChartB: chartBKR,
+              });
+            }
           }
         } else {
           // All other Astria Korea subcategories — single user chart
@@ -3310,6 +3370,147 @@ RULES:
       // ====== END ASTRIA PSM PROCESSING ======
 
       // ============================================
+      // ASTRIA GCC ENGINE — Astria GCC category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let compatibilityMissingQuestionGCC = null;
+      if (isAstriaGCC) {
+        if (isCompatibilitySubcategoryGCC(subCategoryName)) {
+          // GCC 3-Box path: frontend sends structured self + partner 3-box data
+
+          const has3BoxSelfGCC =
+            gcc3BoxSelf &&
+            (gcc3BoxSelf.energy_signature ||
+              gcc3BoxSelf.dob ||
+              gcc3BoxSelf.destiny_time);
+          const has3BoxPartnerGCC =
+            gcc3BoxPartner &&
+            (gcc3BoxPartner.energy_signature ||
+              gcc3BoxPartner.dob ||
+              gcc3BoxPartner.destiny_time);
+
+          if (has3BoxSelfGCC && has3BoxPartnerGCC) {
+            // Both parties have 3-box data — compute charts from DOB if available
+            let chartAGCC = null;
+            let chartBGCC = null;
+            try {
+              const selfDobGCC = gcc3BoxSelf.dob || dob0;
+              if (selfDobGCC) {
+                chartAGCC = computeWesternBirthChartGCC({
+                  dob: String(selfDobGCC).trim(),
+                  dob_time: gcc3BoxSelf.birth_time || dob_time0 || null,
+                  dob_place: gcc3BoxSelf.birth_city || dob_place0 || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria GCC 3-Box chartA error:", err);
+            }
+            try {
+              if (gcc3BoxPartner.dob) {
+                chartBGCC = computeWesternBirthChartGCC({
+                  dob: String(gcc3BoxPartner.dob).trim(),
+                  dob_time: gcc3BoxPartner.birth_time || null,
+                  dob_place: gcc3BoxPartner.birth_city || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria GCC 3-Box chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaGCCContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartAGCC,
+              birthChartB: chartBGCC,
+              selfEnergySignature: gcc3BoxSelf.energy_signature || null,
+              selfDestinyTime: gcc3BoxSelf.destiny_time || null,
+              partnerEnergySignature: gcc3BoxPartner.energy_signature || null,
+              partnerDestinyTime: gcc3BoxPartner.destiny_time || null,
+            });
+          } else {
+            // Fallback: text-based compatibility parsing (original flow)
+            const compatPartnersGCC = parseCompatibilityPartnersGCC(
+              userMessage,
+              dob0,
+              dob_time0,
+              dob_place0,
+            );
+
+            if (compatPartnersGCC.missingFields.length > 0) {
+              compatibilityMissingQuestionGCC =
+                buildCompatibilityMissingQuestionGCC(
+                  compatPartnersGCC.missingFields,
+                  !!(dob0 && String(dob0).trim()),
+                );
+            } else {
+              let chartAGCC = null;
+              let chartBGCC = null;
+              try {
+                if (compatPartnersGCC.personA.dob) {
+                  chartAGCC = computeWesternBirthChartGCC({
+                    dob: compatPartnersGCC.personA.dob,
+                    dob_time: compatPartnersGCC.personA.time || null,
+                    dob_place: compatPartnersGCC.personA.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria GCC Compatibility - chartA error:", err);
+              }
+              try {
+                if (compatPartnersGCC.personB.dob) {
+                  chartBGCC = computeWesternBirthChartGCC({
+                    dob: compatPartnersGCC.personB.dob,
+                    dob_time: compatPartnersGCC.personB.time || null,
+                    dob_place: compatPartnersGCC.personB.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria GCC Compatibility - chartB error:", err);
+              }
+
+              systemPrompt = buildAstriaGCCContext({
+                subCategoryName: subCategoryName || null,
+                categoryPrompt: categoryPrompt || null,
+                subCategoryPrompt: subCategoryPrompt || null,
+                target,
+                userMessage,
+                birthChart: chartAGCC,
+                birthChartB: chartBGCC,
+              });
+            }
+          }
+        } else {
+          // All other Astria GCC subcategories — single user chart
+          let astriaGCCBirthChart = null;
+          if (dob0) {
+            try {
+              astriaGCCBirthChart = computeWesternBirthChartGCC({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria GCC birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaGCCContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaGCCBirthChart,
+          });
+        }
+      }
+      // ====== END ASTRIA GCC PROCESSING ======
+
+      // ============================================
       // ASTRIA INDIA CATEGORY ENGINE — "Astria India" category ONLY
       // Fully overrides systemPrompt for this category.
       // Zero impact on any other category or subcategory.
@@ -3368,6 +3569,37 @@ RULES:
       }
       // ====== END ASTRIA INDIA CATEGORY PROCESSING ======
 
+      // Samay Pravah — self-contained enforcement block (highest priority, end of prompt)
+      // Placed AFTER Astria India category processing so it is not overwritten when Samay Pravah
+      // is used as a subcategory of "Astria India".
+      if (isSamayPravah) {
+        systemPrompt = `${systemPrompt}
+
+SAMAY PRAVAH — FINAL OUTPUT RULE (HIGHEST PRIORITY — OVERRIDES ALL LANGUAGE RULES):
+
+No matter what language the user writes in (Hindi, Thai, English, or any other), your response MUST end with the energy graph block written in English. The narrative sentences above the graph block should be in the user's language.
+
+VALID VALUES:
+- movement.type: "outward" | "inward" | "steady"
+- phase_weight.type: "light" | "medium" | "heavy"
+- flow_direction.type: "rising" | "settling" | "scattered"
+- intensity: integer 0–100
+
+CORRECT RESPONSE FORMAT (example for a Hindi-speaking user):
+[2–4 warm sentences in the user's language about their current energy and timing…]
+<<<SAMAY_PRAVAH_GRAPH>>>
+{"movement":{"type":"inward","intensity":72},"phase_weight":{"type":"heavy","intensity":80},"flow_direction":{"type":"settling","intensity":65}}
+<<<END_SAMAY_PRAVAH_GRAPH>>>
+
+MANDATORY RULES — CANNOT BE SKIPPED:
+1. The graph block (all three lines: marker, JSON, end marker) is ALWAYS in English — never translate or omit these lines.
+2. The JSON must be on a single line with no line breaks inside it.
+3. No text is allowed after <<<END_SAMAY_PRAVAH_GRAPH>>>.
+4. All three fields (movement, phase_weight, flow_direction) must always be present.
+5. This graph block is REQUIRED in every single response — never skip it regardless of the user's language.
+6. The narrative text above the graph block must be in the same language the user wrote in.`;
+      }
+
       // Specialized Feature Context
       // isAstriaIndia / isAstriaIndiaCategory / isAstriaUS / isAstriaSpanish / isAstriaJapan / isAstriaKorea / isAstriaBrazil guard: prevent music/food blocks from overriding these prompts.
       if (
@@ -3378,6 +3610,7 @@ RULES:
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaBrazil &&
+        !isAstriaGCC &&
         musicRecommendation?.shouldRecommend
       ) {
         systemPrompt = `${musicRecommendation.promptBlock}
@@ -3390,6 +3623,7 @@ RULES:
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaBrazil &&
+        !isAstriaGCC &&
         foodRecommendation?.shouldRecommend
       ) {
         const isTeasing = foodRecommendation.isTeasing;
@@ -3447,7 +3681,6 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System Prompt:", systemPrompt);
       // console.log("subCategoryPrompt:", subCategoryPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -3791,6 +4024,55 @@ RULES:
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
+          } else if (isAstriaGCC && compatibilityMissingQuestionGCC) {
+            // Return structured response for frontend to show 3-Box form
+            const needsPartnerForm = {
+              done: true,
+              needsPartnerData: true,
+              module: "gcc_compatibility",
+              title: "Partner Details",
+              message:
+                "To read your connection with clarity and calm, please share your partner's details:",
+              fields: {
+                partner_dob: {
+                  label: "Partner's Date of Birth",
+                  type: "date",
+                  required: true,
+                  placeholder: "DD/MM/YYYY",
+                },
+                partner_birth_time: {
+                  label: "Partner's Birth Time",
+                  type: "time",
+                  required: false,
+                  placeholder: "HH:MM",
+                },
+                partner_birth_city: {
+                  label: "Partner's Birth Place",
+                  type: "text",
+                  required: false,
+                  placeholder: "City name",
+                },
+                partner_energy_signature: {
+                  label: "Partner's Energy Signature",
+                  type: "select",
+                  required: false,
+                  options: ["Soft", "Balanced", "Deep"],
+                },
+                partner_destiny_time: {
+                  label: "Partner's Destiny Time",
+                  type: "text",
+                  required: false,
+                  placeholder: "Birth hour (0-23)",
+                },
+              },
+              selfData: {
+                dob: dob0 || null,
+                birth_time: dob_time0 || null,
+                birth_city: dob_place0 || null,
+              },
+            };
+            res.write(`data: ${JSON.stringify(needsPartnerForm)}\n\n`);
+            if (res.flush) res.flush();
           } else if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
             finalAiResponse = sambandhMissingQuestionIN;
             const words = finalAiResponse.split(" ");
@@ -4090,6 +4372,10 @@ RULES:
         finalAiResponse = compatibilityMissingQuestionPSM;
       }
 
+      if (isAstriaGCC && compatibilityMissingQuestionGCC) {
+        finalAiResponse = compatibilityMissingQuestionGCC;
+      }
+
       if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
         finalAiResponse = sambandhMissingQuestionIN;
       }
@@ -4147,6 +4433,32 @@ RULES:
       }
       // ====== END SAMBANDH TAAL-MEL RESPONSE PROCESSING ======
 
+      // ============================================
+      // GCC COMPATIBILITY RESPONSE PROCESSING (NON-STREAMING)
+      // ============================================
+      let gccCompatibilityData = null;
+      if (isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)) {
+        try {
+          // Try to extract JSON from the AI response
+          const jsonMatch = finalAiResponse.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            gccCompatibilityData = JSON.parse(jsonMatch[0]);
+            // Format for display - keep the raw JSON for frontend rendering
+            finalAiResponse =
+              `■ COMPATIBILITY READING ■\n\n` +
+              `Connection Score: ${gccCompatibilityData?.pages?.[0]?.components?.scoreGauge?.value || "N/A"}/100\n\n` +
+              `━━━ Your Shared Journey ━━━\n\n` +
+              (gccCompatibilityData?.pages?.[1]?.cards || [])
+                .map((card) => `【${card.title}】\n${card.description}`)
+                .join("\n\n");
+          }
+        } catch (err) {
+          logger.error("GCC Compatibility JSON parse error:", err);
+          // Keep original response if parsing fails
+        }
+      }
+      // ====== END GCC COMPATIBILITY RESPONSE PROCESSING ======
+
       const chatMessage = {
         userMessage,
         aiResponse: applyPurpleDotBranding(finalAiResponse),
@@ -4197,6 +4509,10 @@ RULES:
         vivahMuhuratData,
         upayMargData: isUpayMarg ? upayMargParsed : null,
         sambandhTaalMelData: isSambandhTaalMel ? sambandhTaalMelData : null,
+        gccCompatibilityData:
+          isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
+            ? gccCompatibilityData
+            : null,
       });
     } catch (error) {
       logger.error("Chat Error:", error);
