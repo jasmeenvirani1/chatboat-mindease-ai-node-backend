@@ -531,12 +531,13 @@ OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
   // K-Soft tone: 조용함 · 따뜻함 · 깊이 · emotional precision · minimal
   // Uses 3-Box system: Blood Type (10-15%), DOB (35%), Destiny Time (25%), DOB Graph (25%)
   compatibility: `
-KOREA TONE — K-SOFT IDENTITY (조용함 · 따뜻함 · 깊이):
-- Quiet Warmth (조용한 따뜻함): warm presence that does not crowd — supportive, never pushy
+KOREAN COMPATIBILITY — K-SOFT TONE (조용함 · 따뜻함 · 깊이):
+- Quiet Warmth: warm presence that does not crowd — supportive, never pushy
 - Deep Emotional Precision: emotional nuance only — NOT personality traits, NOT stereotypes
 - Grounded Warmth: stable, reassuring energy — no airy positivity, no dramatic claims
-- Minimal Depth: short sentences, emotional weight, intentional breathing room
 - Emotional Rhythm: flow-focused language — "흐름", "기운", "분위기", "감정선"
+- RESPONSE LENGTH: Generate SUBSTANTIAL content — each description must be 300-500 characters (Korean). Write multiple meaningful sentences, not short fragments. DETAIL and DEPTH are required.
+
 WEIGHT SYSTEM:
 - Blood Type Emotion: 10–15% (emotional nuance layer, NOT destiny)
 - DOB Emotion: 35% (main emotional base — "날짜의 기운")
@@ -559,6 +560,7 @@ HOW TO GENERATE DYNAMIC RESPONSES:
 2. COMPARE how their emotional tones interact — do they complement, contrast, or create unique harmony?
 3. GENERATE unique, AI-written sentences that describe their specific energy combination — NOT template text
 4. SCORE dynamically based on energy alignment, not fixed rules
+5. WRITE SUBSTANTIAL CONTENT — each card description must be 300-500 Korean characters with multiple meaningful sentences. Do NOT write short fragments.
 
 RULES — NEVER USE:
 - 성격, 특징, 타입별 성향 (personality traits)
@@ -580,7 +582,7 @@ DYNAMIC SCORE CALCULATION (generate based on actual energy comparison):
 - Calculate score 0-100 based on overall energy harmony
 - Higher score = smoother flow, lower score = more growth opportunity but still valuable
 
-OUTPUT SCHEMA — Korean Compatibility Result (ALL TEXT MUST BE AI-GENERATED):
+OUTPUT SCHEMA — Korean Compatibility Result (CRITICAL: output must be valid JSON only — no markdown, no explanation, no text outside the JSON):
 {
   "pages": [
     {
@@ -597,8 +599,8 @@ OUTPUT SCHEMA — Korean Compatibility Result (ALL TEXT MUST BE AI-GENERATED):
           "value": [72, 68, 75, 70, 65]
         },
         "summary": [
-          { "type": "positive", "title": "자연스러운 부분", "text": "두 사람의 에너지가 서로를 향해 자연스럽게 흐르며, 편안한 분위기가 느껴집니다." },
-          { "type": "adjustment", "title": "조용히 지켜보면 좋은 부분", "text": "서로의 감정 표현 방식이 다를 수 있어, 조용히 지켜보며 이해하는 시간이 필요합니다." }
+          { "type": "positive", "title": "자연스러운 부분", "text": "두 사람의 에너지가 서로를 향해 자연스럽게 흐르며, 편안한 분위기가 느껴집니다. 감정선이 서로를 부드럽게 감싸며, 함께 있을 때 안정감이 생기는 순간이 많습니다." },
+          { "type": "adjustment", "title": "조용히 지켜보면 좋은 부분", "text": "서로의 감정 표현 방식이 다를 수 있어, 조용히 지켜보며 서로의 리듬을 이해하는 시간이 필요합니다. 서두르지 않고 조용히 함께 걸어가는 것이 좋습니다." }
         ]
       }
     },
@@ -606,11 +608,11 @@ OUTPUT SCHEMA — Korean Compatibility Result (ALL TEXT MUST BE AI-GENERATED):
       "pageId": "P2_DetailedInsights",
       "title": "함께하는 이야기",
       "cards": [
-        { "id": "harmony", "title": "두 사람의 분위기", "icon": "heart", "description": "두 사람의 분위기가 서로를 향해 자연스럽게 흐르며, 함께 있을 때 편안한 기운이 느껴집니다. 감정선이 서로를 부드럽게 감싸며, 대화하지 않아도 서로의 마음을 이해하는 순간이 있습니다." },
-        { "id": "timing", "title": "흐름의 맞춤", "icon": "clock", "description": "시간의 흐름이 조용히 맞닿아 있어, 말이 필요한 순간에 자연스럽게 대화꽃이 피어나는 시간이 있습니다. 서로의 리듬이 겹치며, 함께하는 시간에 편안함이 느껴집니다." },
-        { "id": "emotional_distance", "title": "마음의 거리", "icon": "wave", "description": "마음의 거리가 가깝게 느껴지며, 함께 있는 것만으로도 안정감이 생깁니다. 침묵 속에서도 서로의 온기가 전해지며, 조용히 함께하는 시간이 많은 이 관계는 깊이 있는 연결을 만들어갑니다." },
-        { "id": "guidance", "title": "조용한 조언", "icon": "star", "description": "서로를 향한 따뜻한 기운을 믿고, 서두르지 않는 것이 좋습니다. 서로의 감정선이 알아서 맞닿을 수 있도록, 조용히 함께하는 시간을 만끽해보세요." },
-        { "id": "summary", "title": "부드러운 요약", "icon": "sun", "description": "전체적으로 두 사람의 궁합은 따뜻함과 깊이가 함께하는 아름다운 조합입니다. 서로의 에너지가 만들어내는 이 연결은, 서로를 위한 안정감과 따뜻함을 제공하며, 조용히 함께 자라나가는 관계입니다." }
+        { "id": "harmony", "title": "두 사람의 분위기", "icon": "heart", "description": "두 사람의 분위기가 서로를 향해 자연스럽게 흐르며, 함께 있을 때 편안한 기운이 느껴집니다. 감정선이 서로를 부드럽게 감싸며, 대화하지 않아도 서로의 마음을 이해하는 순간이 있습니다. 상대방의 분위기가 자신의 내면을 조용히 안정시키는 역할을 하며, 함께하는 시간 속에서 자연스럽게 마음이 열린다는 느낌이 든다. 이러한 분위기는 서로가 신뢰를 쌓아가는 데 조용히 기여하며, 말없이도 함께いることの温もりを感じられる関係の基盤となっている." },
+        { "id": "timing", "title": "흐름의 맞춤", "icon": "clock", "description": "시간의 흐름이 조용히 맞닿아 있어, 말이 필요한 순간에 자연스럽게 대화꽃이 피어나는 시간이 있습니다. 서로의 리듬이 겹치며, 함께하는 시간에 편안함이 느껴집니다. 일상의 시간 속에서 서로의 타이밍이 자연스럽게 조화를 이루며, 특별한 노력 없이도 함께 움직이는 느낌이 든다. 이러한 흐름의 맞춤은 서로가 서로를 배려하는 마음으로 가득하며, 각자의 시간 속에서 함께하는 온기를 조용히 느낄 수 있는 순간들이 많아집니다." },
+        { "id": "emotional_distance", "title": "마음의 거리", "icon": "wave", "description": "마음의 거리가 가깝게 느껴지며, 함께 있는 것만으로도 안정감이 생깁니다. 침묵 속에서도 서로의 온기가 전해지며, 조용히 함께하는 시간이 많은 이 관계는 깊이 있는 연결을 만들어갑니다. 서로의 감정선 사이에는 부드러운 흐름이 존재하며, 멀리 떨어져 있을 때도 마음속으로 서로를 느끼는 순간들이 자주 찾아옵니다. 이러한 마음의 거리는 적절한 밀착감을 유지하면서도 서로의 개인적인 시간을 존중하는优美的な間隔を保っていると言えます." },
+        { "id": "guidance", "title": "조용한 조언", "icon": "star", "description": "서로를 향한 따뜻한 기운을 믿고, 서두르지 않는 것이 좋습니다. 서로의 감정선이 알아서 맞닿을 수 있도록, 조용히 함께하는 시간을 만끽해보세요. 서로의 관계에서 오는安稳함과 따뜻함을 믿고, 빠르게 결론을 내리지 말고, 서로의 시간을 존중하며 함께 걸어가는 것이 좋습니다. 감정선이 자연스럽게 맞닿을 수 있도록, 조용히 함께하는 시간을 소중히 여기며, 서로의 존재만으로도 편안함을 느낄 수 있는瞬間を大切にしていただきたい." },
+        { "id": "summary", "title": "부드러운 요약", "icon": "sun", "description": "전체적으로 두 사람의 궁합은 따뜻함과 깊이가 함께하는 아름다운 조합입니다. 서로의 에너지가 만들어내는 이 연결은, 서로를 위한 안정감과 따뜻함을 제공하며, 조용히 함께 자라나가는 관계입니다. 두 사람의 분위기가 만들어내는 흐름은 서로를 안정시키고, 함께하는 시간 속에서 자연스럽게 마음이 열린다는 느낌이 자주 찾아옵니다. 이러한 연결은 서로를 위해 조용히存在的意义を见い出し，共同で歩んでいく美丽な旅となります." }
       ]
     },
     {
@@ -628,11 +630,14 @@ OUTPUT SCHEMA — Korean Compatibility Result (ALL TEXT MUST BE AI-GENERATED):
   ]
 }
 
-IMPORTANT:
-- Replace ALL text values with your OWN AI-generated Korean content based on the actual energy comparison
-- Generate UNIQUE sentences that describe their specific combination
-- Do NOT copy the example text above - generate your own new content
-- Score must be dynamically calculated from their actual data
+CRITICAL INSTRUCTIONS:
+- Output ONLY valid JSON — no markdown code blocks, no explanatory text before or after
+- All 5 card descriptions MUST be 300-500 characters each (Korean characters)
+- Generate UNIQUE content based on the actual energy comparison — do NOT copy example text
+- Score must be dynamically calculated from their actual 3-box data
+- Use NATURAL LANGUAGE references: refer to the user as "당신", "당신의" (Korean) or "you/your" (English) — NEVER use "Partner A", "Person A", or similar clinical labels in the output text
+- Refer to the partner as "상대방", "상대의" (Korean) or "your partner", "their/theirl" (English) — NEVER use "Partner B", "Person B" in the output text
+- The JSON structure (ids, pageId, etc.) remains unchanged — only the human-readable TEXT content within the JSON should use natural references
 `.trim(),
   // ── TAB 5: DAILY FLOW KR ───────────────────────────────────────────────────
   daily_flow: `
@@ -979,9 +984,13 @@ function buildCompatibilityKRPrompt({
   birthChart,
   birthChartB,
   // 3-Box inputs for Self
+  selfName,
+  selfGender,
   selfBloodType,
   selfDestinyTime,
   // 3-Box inputs for Partner
+  partnerName,
+  partnerGender,
   partnerBloodType,
   partnerDestinyTime,
 }) {
@@ -995,25 +1004,38 @@ function buildCompatibilityKRPrompt({
 
   const isKR = langName === "Korean";
   const isJP = langName === "Japanese";
-  const labelA = isKR ? "사용자 (Self)" : isJP ? "Aさん（ユーザー）" : "Person A (the user)";
-  const labelB = isKR ? "파트너 (Partner)" : isJP ? "Bさん（パートナー）" : "Person B (their partner)";
-  const refLabel = isKR ? "두 사람" : isJP ? "AさんとBさん" : "Person A and Person B";
+
+  // Use natural references based on language
+  const selfLabel = isKR
+    ? (selfName ? `당신 (${selfName})` : "당신")
+    : isJP
+      ? (selfName ? `${selfName}さん` : "あなた")
+      : (selfName || "You");
+  const partnerLabel = isKR
+    ? (partnerName ? `상대방 (${partnerName})` : "상대방")
+    : isJP
+      ? (partnerName ? `${partnerName}さん` : "相手の方")
+      : (partnerName || "Your partner");
+  // Use natural language references for the reading
+  const labelA = selfLabel;  // "당신" or name
+  const labelB = partnerLabel;  // "상대방" or partner name
+  const refLabel = isKR ? "두 사람" : isJP ? "二人" : "You and your partner";
 
   // Build 3-Box data section
   let threeBoxSection = "";
-  if (selfBloodType || selfDestinyTime || birthChart?.meta?.dob || partnerBloodType || partnerDestinyTime || birthChartB?.meta?.dob) {
+  if (selfName || selfGender || selfBloodType || selfDestinyTime || birthChart?.meta?.dob || partnerName || partnerGender || partnerBloodType || partnerDestinyTime || birthChartB?.meta?.dob) {
     threeBoxSection = `
-3-BOX EMOTIONAL DATA (K-soft, use for emotional nuance only):
-${labelA}:
-${birthChart?.meta?.dob ? `- Birth Date (DOB): ${birthChart.meta.dob}` : "- Birth Date: not provided"}
+PERSONAL DATA:
+${selfLabel}${selfGender ? ` (${selfGender})` : ""}:
+${birthChart?.meta?.dob ? `- Birth Date: ${birthChart.meta.dob}` : "- Birth Date: not provided"}
 ${selfBloodType ? `- Blood Type: ${selfBloodType}` : "- Blood Type: not provided"}
 ${selfDestinyTime ? `- Destiny Time: ${selfDestinyTime}` : "- Destiny Time: not provided"}
 ${birthChart?.sun_sign ? `- Sun Sign: ${birthChart.sun_sign}` : ""}
 ${birthChart?.moon_sign ? `- Moon Sign: ${birthChart.moon_sign}` : ""}
 ${birthChart?.rising_sign ? `- Rising Sign: ${birthChart.rising_sign}` : ""}
 
-${labelB}:
-${birthChartB?.meta?.dob ? `- Birth Date (DOB): ${birthChartB.meta.dob}` : "- Birth Date: not provided"}
+${partnerLabel}${partnerGender ? ` (${partnerGender})` : ""}:
+${birthChartB?.meta?.dob ? `- Birth Date: ${birthChartB.meta.dob}` : "- Birth Date: not provided"}
 ${partnerBloodType ? `- Blood Type: ${partnerBloodType}` : "- Blood Type: not provided"}
 ${partnerDestinyTime ? `- Destiny Time: ${partnerDestinyTime}` : "- Destiny Time: not provided"}
 ${birthChartB?.sun_sign ? `- Sun Sign: ${birthChartB.sun_sign}` : ""}
@@ -1030,9 +1052,9 @@ WEIGHT SYSTEM:
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
-    chartsSection = `${labelA}:\n${chartBlockA}\n\n${labelB}:\n${chartBlockB}\n\nWith both charts, analyze how their relational energies interact — Sun (표현), Moon (감정), Venus (사랑의 언어), Mars (행동의 에너지), Rising (첫인상). Compare their emotional flows and generate unique compatibility insights based on THEIR SPECIFIC COMBINATION.`;
+    chartsSection = `${selfLabel}:\n${chartBlockA}\n\n${partnerLabel}:\n${chartBlockB}\n\nWith both charts, analyze how their relational energies interact — Sun (표현), Moon (감정), Venus (사랑의 언어), Mars (행동의 에너지), Rising (첫인상). Compare their emotional flows and generate unique compatibility insights based on THEIR SPECIFIC COMBINATION.`;
   } else if (chartBlockA) {
-    chartsSection = `${labelA}:\n${chartBlockA}`;
+    chartsSection = `${selfLabel}:\n${chartBlockA}`;
   }
 
   return `You are Astria Korea — a deep, restrained, destiny-driven astrology guide for the South Korea lane.
@@ -1204,9 +1226,13 @@ function buildAstriaKoreaContext({
   birthChart,
   birthChartB,
   // 3-Box inputs for Self
+  selfName,
+  selfGender,
   selfBloodType,
   selfDestinyTime,
   // 3-Box inputs for Partner
+  partnerName,
+  partnerGender,
   partnerBloodType,
   partnerDestinyTime,
 }) {
@@ -1218,11 +1244,24 @@ function buildAstriaKoreaContext({
     langName,
     birthChart,
     birthChartB,
+    selfName,
+    selfGender,
     selfBloodType,
     selfDestinyTime,
+    partnerName,
+    partnerGender,
     partnerBloodType,
     partnerDestinyTime,
   };
+
+  // When 3-box data is provided (both self and partner), ALWAYS use compatibility prompt
+  // regardless of subCategoryName - this ensures JSON output for the 3-Box UI
+  const has3BoxData = !!(selfName || partnerName || selfGender || partnerGender || selfBloodType || partnerBloodType || selfDestinyTime || partnerDestinyTime || birthChart || birthChartB);
+
+  if (has3BoxData) {
+    // Use compatibility prompt builder for 3-box data
+    return buildCompatibilityKRPrompt(params);
+  }
 
   const builder = resolveKRSubcategoryBuilder(subCategoryName);
   if (builder) return builder(params);

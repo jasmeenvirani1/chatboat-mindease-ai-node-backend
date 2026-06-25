@@ -97,7 +97,16 @@ const {
   parseCompatibilityPartnersGCC,
   buildCompatibilityMissingQuestionGCC,
   isCompatibilitySubcategoryGCC,
+  calculateCompatibilityScore,
+  getCompatibilityScoreLabel,
 } = require("../helper/astriaGCCService");
+const {
+  buildAstriaUKCanadaContext,
+  computeWesternBirthChart: computeWesternBirthChartUKCanada,
+  parseEnergyMatchPartners: parseEnergyMatchPartnersUKCanada,
+  buildEnergyMatchMissingQuestion: buildEnergyMatchMissingQuestionUKCanada,
+  isEnergyMatchSubcategory: isEnergyMatchSubcategoryUKCanada,
+} = require("../helper/astriaUKCanadaService");
 
 // ============================================
 // HELPER FUNCTIONS
@@ -1694,6 +1703,7 @@ const chatController = {
         korea3BoxPartner,
         gcc3BoxSelf,
         gcc3BoxPartner,
+        saveChat,
       } = req.body;
 
       //console.log("spanishTone:", spanishTone);
@@ -1961,6 +1971,38 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM;
+      //console.log("Astria GCC:", isAstriaGCC);
+
+      // ============================================
+      // ====== ASTRIA UK FLAG ======
+      // ============================================
+      // Astria UK Engine — Calm, understated, warm-polite Western astrology (UK lane)
+      const isAstriaUK =
+        categoryName === "Astria UK" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC;
+
+      // ============================================
+      // ====== ASTRIA CANADA FLAG ======
+      // ============================================
+      // Astria Canada Engine — Calm, understated, warm-polite Western astrology (Canada lane)
+      const isAstriaCanada =
+        categoryName === "Astria Canada" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaUK;
 
       // ============================================
       // SPECIALIZED FEATURES (HealJai categories only)
@@ -3110,8 +3152,12 @@ RULES:
               userMessage,
               birthChart: chartAKR,
               birthChartB: chartBKR,
+              selfName: korea3BoxSelf.name || null,
+              selfGender: korea3BoxSelf.gender || null,
               selfBloodType: korea3BoxSelf.blood_type || null,
               selfDestinyTime: korea3BoxSelf.destiny_time || null,
+              partnerName: korea3BoxPartner.name || null,
+              partnerGender: korea3BoxPartner.gender || null,
               partnerBloodType: korea3BoxPartner.blood_type || null,
               partnerDestinyTime: korea3BoxPartner.destiny_time || null,
             });
@@ -3418,6 +3464,15 @@ RULES:
               logger.error("Astria GCC 3-Box chartB error:", err);
             }
 
+            // Calculate compatibility score BEFORE building prompt
+            const { score: calculatedScore, breakdown: scoreBreakdown } =
+              calculateCompatibilityScore(
+                chartAGCC,
+                chartBGCC,
+                gcc3BoxSelf.energy_signature || null,
+                gcc3BoxPartner.energy_signature || null,
+              );
+            const scoreLabel = getCompatibilityScoreLabel(calculatedScore);
             systemPrompt = buildAstriaGCCContext({
               subCategoryName: subCategoryName || null,
               categoryPrompt: categoryPrompt || null,
@@ -3430,6 +3485,8 @@ RULES:
               selfDestinyTime: gcc3BoxSelf.destiny_time || null,
               partnerEnergySignature: gcc3BoxPartner.energy_signature || null,
               partnerDestinyTime: gcc3BoxPartner.destiny_time || null,
+              calculatedScore,
+              scoreLabel,
             });
           } else {
             // Fallback: text-based compatibility parsing (original flow)
@@ -3509,6 +3566,176 @@ RULES:
         }
       }
       // ====== END ASTRIA GCC PROCESSING ======
+
+      // ============================================
+      // ASTRIA UK ENGINE — Astria UK category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let energyMatchMissingQuestionUK = null;
+      if (isAstriaUK) {
+        if (isEnergyMatchSubcategoryUKCanada(subCategoryName)) {
+          const emPartnersUK = parseEnergyMatchPartnersUKCanada(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (emPartnersUK.missingFields.length > 0) {
+            energyMatchMissingQuestionUK =
+              buildEnergyMatchMissingQuestionUKCanada(
+                emPartnersUK.missingFields,
+                !!(dob0 && String(dob0).trim()),
+                target,
+              );
+          } else {
+            let chartAUK = null;
+            let chartBUK = null;
+            try {
+              if (emPartnersUK.personA.dob) {
+                chartAUK = computeWesternBirthChartUKCanada({
+                  dob: emPartnersUK.personA.dob,
+                  dob_time: emPartnersUK.personA.time || null,
+                  dob_place: emPartnersUK.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria UK Energy Match - chartA error:", err);
+            }
+            try {
+              if (emPartnersUK.personB.dob) {
+                chartBUK = computeWesternBirthChartUKCanada({
+                  dob: emPartnersUK.personB.dob,
+                  dob_time: emPartnersUK.personB.time || null,
+                  dob_place: emPartnersUK.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria UK Energy Match - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaUKCanadaContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartAUK,
+              birthChartB: chartBUK,
+            });
+          }
+        } else {
+          // All other Astria UK subcategories — single user chart
+          let astriaUKBirthChart = null;
+          if (dob0) {
+            try {
+              astriaUKBirthChart = computeWesternBirthChartUKCanada({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria UK birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaUKCanadaContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaUKBirthChart,
+          });
+        }
+      }
+      // ====== END ASTRIA UK PROCESSING ======
+
+      // ============================================
+      // ASTRIA CANADA ENGINE — Astria Canada category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let energyMatchMissingQuestionCanada = null;
+      if (isAstriaCanada) {
+        if (isEnergyMatchSubcategoryUKCanada(subCategoryName)) {
+          const emPartnersCanada = parseEnergyMatchPartnersUKCanada(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (emPartnersCanada.missingFields.length > 0) {
+            energyMatchMissingQuestionCanada =
+              buildEnergyMatchMissingQuestionUKCanada(
+                emPartnersCanada.missingFields,
+                !!(dob0 && String(dob0).trim()),
+                target,
+              );
+          } else {
+            let chartACanada = null;
+            let chartBCanada = null;
+            try {
+              if (emPartnersCanada.personA.dob) {
+                chartACanada = computeWesternBirthChartUKCanada({
+                  dob: emPartnersCanada.personA.dob,
+                  dob_time: emPartnersCanada.personA.time || null,
+                  dob_place: emPartnersCanada.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Canada Energy Match - chartA error:", err);
+            }
+            try {
+              if (emPartnersCanada.personB.dob) {
+                chartBCanada = computeWesternBirthChartUKCanada({
+                  dob: emPartnersCanada.personB.dob,
+                  dob_time: emPartnersCanada.personB.time || null,
+                  dob_place: emPartnersCanada.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Canada Energy Match - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaUKCanadaContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartACanada,
+              birthChartB: chartBCanada,
+            });
+          }
+        } else {
+          // All other Astria Canada subcategories — single user chart
+          let astriaCanadaBirthChart = null;
+          if (dob0) {
+            try {
+              astriaCanadaBirthChart = computeWesternBirthChartUKCanada({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Canada birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaUKCanadaContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaCanadaBirthChart,
+          });
+        }
+      }
+      // ====== END ASTRIA CANADA PROCESSING ======
 
       // ============================================
       // ASTRIA INDIA CATEGORY ENGINE — "Astria India" category ONLY
@@ -3681,7 +3908,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           content: systemPrompt.trim(),
         },
       ];
-      // console.log("subCategoryPrompt:", subCategoryPrompt);
+      // console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -4073,6 +4300,24 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             };
             res.write(`data: ${JSON.stringify(needsPartnerForm)}\n\n`);
             if (res.flush) res.flush();
+          } else if (isAstriaUK && energyMatchMissingQuestionUK) {
+            finalAiResponse = energyMatchMissingQuestionUK;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (isAstriaCanada && energyMatchMissingQuestionCanada) {
+            finalAiResponse = energyMatchMissingQuestionCanada;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
           } else if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
             finalAiResponse = sambandhMissingQuestionIN;
             const words = finalAiResponse.split(" ");
@@ -4162,14 +4407,20 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 if (res.flush) res.flush();
               }
             } else {
+              // GCC Compatibility returns JSON — suppress raw stream, parse after
+              const suppressStream =
+                isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName);
+
               for await (const chunk of stream) {
                 if (clientClosed) break;
                 const text = chunk?.text || "";
                 if (!text) continue;
 
                 finalAiResponse += text;
-                res.write(`data: ${JSON.stringify({ text })}\n\n`);
-                if (res.flush) res.flush();
+                if (!suppressStream) {
+                  res.write(`data: ${JSON.stringify({ text })}\n\n`);
+                  if (res.flush) res.flush();
+                }
               }
             }
           }
@@ -4215,24 +4466,27 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           };
 
           // Save chat to history - use try/finally to ensure it saves even on error
+          // Skip saving if saveChat is explicitly false (e.g., Korea Compatibility standalone mode)
           let chatSaved = false;
           try {
-            if (!isNewChat) {
-              chat.chats.push(chatMessage);
-              await chat.save();
-            } else {
-              chat = await ChatHistory.create({
-                userId,
-                categoryId,
-                subCategoryId,
-                sessionTitle: userMessage.substring(0, 30),
-                chats: [chatMessage],
-                promptSource,
-                selectedCaseId: selectedCaseId || null,
-                chatLang,
-              });
+            if (saveChat !== false) {
+              if (!isNewChat) {
+                chat.chats.push(chatMessage);
+                await chat.save();
+              } else {
+                chat = await ChatHistory.create({
+                  userId,
+                  categoryId,
+                  subCategoryId,
+                  sessionTitle: userMessage.substring(0, 30),
+                  chats: [chatMessage],
+                  promptSource,
+                  selectedCaseId: selectedCaseId || null,
+                  chatLang,
+                });
+              }
+              chatSaved = true;
             }
-            chatSaved = true;
           } catch (saveErr) {
             logger.error("Chat save error:", saveErr);
           }
@@ -4241,6 +4495,19 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             userId,
             recommendation: musicRecommendation,
           });
+
+          // GCC COMPATIBILITY PARSING (shared by both streaming and non-streaming)
+          let gccCompatibilityDataStream = null;
+          if (isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)) {
+            try {
+              const jsonMatch = finalAiResponse.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                gccCompatibilityDataStream = JSON.parse(jsonMatch[0]);
+              }
+            } catch (err) {
+              logger.error("GCC Compatibility JSON parse error:", err);
+            }
+          }
 
           if (!clientClosed) {
             res.write(
@@ -4263,6 +4530,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 sambandhTaalMelData: isSambandhTaalMel
                   ? sambandhTaalMelData
                   : null,
+                gccCompatibilityData:
+                  isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
+                    ? gccCompatibilityDataStream
+                    : null,
               })}\n\n`,
             );
             res.end();
@@ -4376,6 +4647,14 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         finalAiResponse = compatibilityMissingQuestionGCC;
       }
 
+      if (isAstriaUK && energyMatchMissingQuestionUK) {
+        finalAiResponse = energyMatchMissingQuestionUK;
+      }
+
+      if (isAstriaCanada && energyMatchMissingQuestionCanada) {
+        finalAiResponse = energyMatchMissingQuestionCanada;
+      }
+
       if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
         finalAiResponse = sambandhMissingQuestionIN;
       }
@@ -4468,21 +4747,24 @@ MANDATORY RULES — CANNOT BE SKIPPED:
       const vivahMuhuratData = isVivahMuhurat ? vivahMuhuratJsonData : null;
 
       // Save chat to history - use try/finally to ensure it saves even on error
+      // Skip saving if saveChat is explicitly false (e.g., Korea Compatibility standalone mode)
       try {
-        if (!isNewChat) {
-          chat.chats.push(chatMessage);
-          await chat.save();
-        } else {
-          chat = await ChatHistory.create({
-            userId,
-            categoryId,
-            subCategoryId,
-            sessionTitle: userMessage.substring(0, 30),
-            chats: [chatMessage],
-            promptSource,
-            selectedCaseId: selectedCaseId || null,
-            chatLang,
-          });
+        if (saveChat !== false) {
+          if (!isNewChat) {
+            chat.chats.push(chatMessage);
+            await chat.save();
+          } else {
+            chat = await ChatHistory.create({
+              userId,
+              categoryId,
+              subCategoryId,
+              sessionTitle: userMessage.substring(0, 30),
+              chats: [chatMessage],
+              promptSource,
+              selectedCaseId: selectedCaseId || null,
+              chatLang,
+            });
+          }
         }
       } catch (saveErr) {
         logger.error("Chat save error:", saveErr);
@@ -4495,7 +4777,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
 
       return res.status(201).json({
         success: true,
-        chatId: chat._id,
+        chatId: chat?._id || null,
         data: chat,
         promptSource,
         selectedCaseId: selectedCaseId || null,

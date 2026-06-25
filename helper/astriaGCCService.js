@@ -1013,12 +1013,186 @@ ${chartSummary}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPATIBILITY SCORING FUNCTION
+// ─────────────────────────────────────────────────────────────────────────────
+const ELEMENT_MAP = {
+  aries: "fire", leo: "fire", sagittarius: "fire",
+  taurus: "earth", virgo: "earth", capricorn: "earth",
+  gemini: "air", libra: "air", aquarius: "air",
+  cancer: "water", scorpio: "water", pisces: "water",
+};
+
+const MODALITY_MAP = {
+  aries: "cardinal", cancer: "cardinal", libra: "cardinal", capricorn: "cardinal",
+  taurus: "fixed", leo: "fixed", scorpio: "fixed", aquarius: "fixed",
+  gemini: "mutable", virgo: "mutable", sagittarius: "mutable", pisces: "mutable",
+};
+
+const SIGN_COMPATIBILITY = {
+  aries: { best: ["leo", "sagittarius", "gemini", "libra"], good: ["aries", "cancer", "virgo"], challenging: ["taurus", "scorpio", "capricorn"] },
+  taurus: { best: ["virgo", "capricorn", "cancer", "pisces"], good: ["taurus", "leo", "libra"], challenging: ["aries", "gemini", "aquarius"] },
+  gemini: { best: ["libra", "aquarius", "aries", "leo"], good: ["gemini", "sagittarius", "cancer"], challenging: ["taurus", "virgo", "scorpio"] },
+  cancer: { best: ["scorpio", "pisces", "taurus", "virgo"], good: ["cancer", "libra", "capricorn"], challenging: ["aries", "leo", "aquarius"] },
+  leo: { best: ["aries", "sagittarius", "gemini", "libra"], good: ["leo", "cancer", "virgo"], challenging: ["taurus", "scorpio", "capricorn"] },
+  virgo: { best: ["taurus", "capricorn", "cancer", "scorpio"], good: ["virgo", "pisces", "libra"], challenging: ["aries", "leo", "aquarius"] },
+  libra: { best: ["gemini", "aquarius", "leo", "sagittarius"], good: ["libra", "aries", "cancer"], challenging: ["taurus", "virgo", "scorpio"] },
+  scorpio: { best: ["cancer", "pisces", "virgo", "capricorn"], good: ["scorpio", "libra", "sagittarius"], challenging: ["aries", "leo", "aquarius"] },
+  sagittarius: { best: ["aries", "leo", "libra", "aquarius"], good: ["sagittarius", "gemini", "pisces"], challenging: ["taurus", "virgo", "scorpio"] },
+  capricorn: { best: ["taurus", "virgo", "scorpio", "pisces"], good: ["capricorn", "cancer", "libra"], challenging: ["aries", "leo", "aquarius"] },
+  aquarius: { best: ["gemini", "libra", "sagittarius", "leo"], good: ["aquarius", "aries", "scorpio"], challenging: ["taurus", "cancer", "capricorn"] },
+  pisces: { best: ["cancer", "scorpio", "taurus", "capricorn"], good: ["pisces", "virgo", "libra"], challenging: ["aries", "leo", "gemini"] },
+};
+
+function calculateCompatibilityScore(birthChart, birthChartB, selfEnergySignature, partnerEnergySignature) {
+  let score = 50; // Base score
+  let breakdown = [];
+
+  if (!birthChart || !birthChartB) {
+    return { score: 50, breakdown: ["Insufficient chart data for scoring"] };
+  }
+
+  const signA = (birthChart.sun_sign || "").toLowerCase();
+  const signB = (birthChartB.sun_sign || "").toLowerCase();
+
+  // 1. Sun Sign Element Compatibility (max +20)
+  const elemA = ELEMENT_MAP[signA];
+  const elemB = ELEMENT_MAP[signB];
+
+  if (elemA && elemB) {
+    if (elemA === elemB) {
+      score += 20;
+      breakdown.push(`Same element (${elemA}): +20`);
+    } else if ((elemA === "fire" && elemB === "air") || (elemA === "air" && elemB === "fire") ||
+                 (elemA === "earth" && elemB === "water") || (elemA === "water" && elemB === "earth")) {
+      score += 15;
+      breakdown.push(`Complementary elements (${elemA}/${elemB}): +15`);
+    } else {
+      score += 8;
+      breakdown.push(`Different elements (${elemA}/${elemB}): +8`);
+    }
+  }
+
+  // 2. Sun Sign Specific Compatibility (max +15)
+  const compat = SIGN_COMPATIBILITY[signA];
+  if (compat) {
+    if (compat.best.includes(signB)) {
+      score += 15;
+      breakdown.push(`Best match (${signA}/${signB}): +15`);
+    } else if (compat.good.includes(signB)) {
+      score += 8;
+      breakdown.push(`Good match (${signA}/${signB}): +8`);
+    } else if (compat.challenging.includes(signB)) {
+      score += 3;
+      breakdown.push(`Challenging (${signA}/${signB}): +3`);
+    }
+  }
+
+  // 3. Moon Sign Compatibility (max +15)
+  const moonA = (birthChart.moon_sign || "").toLowerCase();
+  const moonB = (birthChartB.moon_sign || "").toLowerCase();
+  const moonCompat = SIGN_COMPATIBILITY[moonA];
+  if (moonA && moonB && moonCompat) {
+    if (moonCompat.best.includes(moonB)) {
+      score += 15;
+      breakdown.push(`Moon harmony (${moonA}/${moonB}): +15`);
+    } else if (moonCompat.good.includes(moonB)) {
+      score += 8;
+      breakdown.push(`Moon good (${moonA}/${moonB}): +8`);
+    } else {
+      score += 3;
+      breakdown.push(`Moon tension (${moonA}/${moonB}): +3`);
+    }
+  }
+
+  // 4. Rising Sign Compatibility (max +10)
+  const risingA = (birthChart.rising_sign || "").toLowerCase();
+  const risingB = (birthChartB.rising_sign || "").toLowerCase();
+  const risingCompat = SIGN_COMPATIBILITY[risingA];
+  if (risingA && risingB && risingCompat) {
+    if (risingCompat.best.includes(risingB)) {
+      score += 10;
+      breakdown.push(`Rising harmony (${risingA}/${risingB}): +10`);
+    } else if (risingCompat.good.includes(risingB)) {
+      score += 5;
+      breakdown.push(`Rising okay (${risingA}/${risingB}): +5`);
+    }
+  }
+
+  // 5. Venus/Mars Relationship Indicators (max +15)
+  const venusA = (birthChart.venus_sign || "").toLowerCase();
+  const venusB = (birthChartB.venus_sign || "").toLowerCase();
+  const marsA = (birthChart.mars_sign || "").toLowerCase();
+  const marsB = (birthChartB.mars_sign || "").toLowerCase();
+
+  let planetaryBonus = 0;
+  // Venus to Venus (attraction)
+  if (venusA && venusB) {
+    const vCompat = SIGN_COMPATIBILITY[venusA];
+    if (vCompat?.best.includes(venusB)) planetaryBonus += 8;
+    else if (vCompat?.good.includes(venusB)) planetaryBonus += 4;
+    else planetaryBonus += 1;
+  }
+  // Mars to Mars (energy)
+  if (marsA && marsB) {
+    const mCompat = SIGN_COMPATIBILITY[marsA];
+    if (mCompat?.best.includes(marsB)) planetaryBonus += 7;
+    else if (mCompat?.good.includes(marsB)) planetaryBonus += 3;
+    else planetaryBonus += 1;
+  }
+  // Venus to Mars (chemistry)
+  if (venusA && marsB) {
+    const vmCompat = SIGN_COMPATIBILITY[venusA];
+    if (vmCompat?.best.includes(marsB)) planetaryBonus += 5;
+    else if (vmCompat?.good.includes(marsB)) planetaryBonus += 2;
+  }
+  score += Math.min(planetaryBonus, 15);
+  breakdown.push(`Planetary interactions: +${Math.min(planetaryBonus, 15)}`);
+
+  // 6. 3-Box Energy Signature (max +10)
+  if (selfEnergySignature && partnerEnergySignature) {
+    if (selfEnergySignature === partnerEnergySignature) {
+      score += 5;
+      breakdown.push(`Same energy signature (${selfEnergySignature}): +5`);
+    } else if (
+      (selfEnergySignature === "Soft" && partnerEnergySignature === "Balanced") ||
+      (selfEnergySignature === "Balanced" && partnerEnergySignature === "Soft") ||
+      (selfEnergySignature === "Deep" && partnerEnergySignature === "Balanced") ||
+      (selfEnergySignature === "Balanced" && partnerEnergySignature === "Deep")
+    ) {
+      score += 8;
+      breakdown.push(`Complementary energies (${selfEnergySignature}/${partnerEnergySignature}): +8`);
+    } else {
+      score += 3;
+      breakdown.push(`Different energies (${selfEnergySignature}/${partnerEnergySignature}): +3`);
+    }
+  }
+
+  // Clamp score to 0-100
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  return { score, breakdown };
+}
+
+function getCompatibilityScoreLabel(score) {
+  if (score >= 85) return "Deep Resonance";
+  if (score >= 75) return "Strong Harmony";
+  if (score >= 65) return "Gentle Alignment";
+  if (score >= 55) return "Steady Connection";
+  if (score >= 45) return "Growing Bond";
+  if (score >= 35) return "Gentle Distance";
+  return "Quiet Path";
+}
+
 function buildCompatibilityGCCPrompt({
   userMessage,
   dbPrompt,
   langName,
   birthChart,
   birthChartB,
+  // Pre-calculated score
+  calculatedScore,
+  scoreLabel,
   // 3-Box inputs for Self
   selfEnergySignature,
   selfDestinyTime,
@@ -1063,6 +1237,11 @@ Use Destiny Time for flow timing (25% weight) — NOT prediction.
     chartsSection = `${labelA}:\n${chartBlockA}`;
   }
 
+  // Score section - MUST be used in the response
+  const scoreSection = calculatedScore !== undefined
+    ? `\n━━━ COMPATIBILITY SCORE ━━━\n!!IMPORTANT!!: You MUST use the exact score value provided below in your JSON response.\nDO NOT calculate your own score — use this exact value: ${calculatedScore}\nScore Label: ${scoreLabel || "Compatibility Reading"}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+    : "";
+
   return `You are Astria GCC — a spiritual, elegant, respectful astrology guide for the GCC lane.
 YOUR FOCUS: Compatibility — GCC-style emotional compatibility using 3-Box system:
 - Energy Signature (Soft / Balanced / Deep) — emotional texture layer (10%)
@@ -1072,6 +1251,7 @@ YOUR FOCUS: Compatibility — GCC-style emotional compatibility using 3-Box syst
 Tone: spiritual, elegant, respectful, premium minimal
 This is NOT scoring. It is a sincere reading of emotional rhythm, timing alignment, and relational depth.
 
+${scoreSection}
 ━━━ 3-BOX SYSTEM ━━━
 ${threeBoxSection || "3-Box data not provided. Use birth chart data for compatibility reading."}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1261,6 +1441,9 @@ function buildAstriaGCCContext({
   // 3-Box inputs for Partner
   partnerEnergySignature,
   partnerDestinyTime,
+  // Pre-calculated score
+  calculatedScore,
+  scoreLabel,
 }) {
   const langName = LANG_NAME_MAP[target] || "English";
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
@@ -1274,6 +1457,8 @@ function buildAstriaGCCContext({
     selfDestinyTime,
     partnerEnergySignature,
     partnerDestinyTime,
+    calculatedScore,
+    scoreLabel,
   };
 
   const builder = resolveGCCSubcategoryBuilder(subCategoryName);
@@ -1288,5 +1473,7 @@ module.exports = {
   parseCompatibilityPartnersGCC,
   buildCompatibilityMissingQuestionGCC,
   isCompatibilitySubcategoryGCC,
+  calculateCompatibilityScore,
+  getCompatibilityScoreLabel,
   DEFAULT_GCC_SUBCATEGORY_PROMPTS,
 };
