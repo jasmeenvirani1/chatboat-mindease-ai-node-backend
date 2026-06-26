@@ -107,6 +107,14 @@ const {
   buildEnergyMatchMissingQuestion: buildEnergyMatchMissingQuestionUKCanada,
   isEnergyMatchSubcategory: isEnergyMatchSubcategoryUKCanada,
 } = require("../helper/astriaUKCanadaService");
+const {
+  buildAstriaIndonesiaContext,
+  computeWesternBirthChartID,
+  parseEnergyMatchPartnersID,
+  buildEnergyMatchMissingQuestionID,
+  isEnergyMatchSubcategoryID,
+} = require("../helper/astriaIndonesiaService");
+const { evaluateIndonesia3Box } = require("../helper/indonesia3BoxEngine");
 
 // ============================================
 // HELPER FUNCTIONS
@@ -1703,6 +1711,8 @@ const chatController = {
         korea3BoxPartner,
         gcc3BoxSelf,
         gcc3BoxPartner,
+        indonesia3BoxSelf,
+        indonesia3BoxPartner,
         saveChat,
       } = req.body;
 
@@ -2003,6 +2013,23 @@ const chatController = {
         !isAstriaPSM &&
         !isAstriaGCC &&
         !isAstriaUK;
+
+      // ============================================
+      // ====== ASTRIA INDONESIA FLAG ======
+      // ============================================
+      // Astria Indonesia Engine — Calm, gentle, respectful, soft-contained Western astrology (Indonesia lane)
+      const isAstriaIndonesia =
+        categoryName === "Astria Indonesia" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaUK &&
+        !isAstriaCanada;
 
       // ============================================
       // SPECIALIZED FEATURES (HealJai categories only)
@@ -3738,6 +3765,242 @@ RULES:
       // ====== END ASTRIA CANADA PROCESSING ======
 
       // ============================================
+      // ASTRIA INDONESIA ENGINE — Astria Indonesia category ONLY
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory.
+      // ============================================
+      let energyMatchMissingQuestionIndonesia = null;
+      if (isAstriaIndonesia) {
+        const isIndonesiaCompatibility =
+          subCategoryName && subCategoryName.toLowerCase().includes("compatibility");
+
+        // ── PATH A: Two-person Compatibility (indonesia3BoxSelf + indonesia3BoxPartner) ──
+        if (isIndonesiaCompatibility && indonesia3BoxSelf && indonesia3BoxPartner) {
+          const runBox = (boxData) => {
+            try {
+              const r = evaluateIndonesia3Box({
+                inner_calm_type: boxData.inner_calm_type,
+                dob: boxData.dob,
+                moment_state: boxData.moment_state,
+              });
+              return r && r.success ? r.data : null;
+            } catch (e) {
+              logger.error("Indonesia 3-Box eval error:", e);
+              return null;
+            }
+          };
+
+          const selfResult = runBox(indonesia3BoxSelf);
+          const partnerResult = runBox(indonesia3BoxPartner);
+
+          const formatProfile = (label, boxData, result) => result ? `
+[${label}]
+Dasar Ketenangan  : ${boxData.inner_calm_type}
+Tanggal Lahir     : ${boxData.dob}
+Keadaan Saat Ini  : ${boxData.moment_state}
+Dasar Emosi       : ${result.base_emotion}
+Ritme Emosi       : ${result.rhythm}
+Kondisi Sekarang  : ${result.current_state}
+Panduan           : ${result.guidance}
+Ringkasan         : ${result.summary}
+` : `
+[${label}]
+Dasar Ketenangan: ${boxData.inner_calm_type || "-"}
+Tanggal Lahir   : ${boxData.dob || "-"}
+Keadaan Saat Ini: ${boxData.moment_state || "-"}
+`;
+
+          const compatSection = `
+=== PROFIL KECOCOKAN EMOSIONAL INDONESIA (3-Box) ===
+${formatProfile("PERSON A — Pengguna", indonesia3BoxSelf, selfResult)}
+${formatProfile("PERSON B — Pasangan", indonesia3BoxPartner, partnerResult)}
+
+INSTRUKSI ANALISIS KECOCOKAN:
+Berdasarkan dua profil emosional di atas, analisis kecocokan ritme emosional antara Person A dan Person B.
+Gunakan gaya bahasa Indonesia: calm, gentle, respectful, emotionally soft.
+Jangan gunakan kata-kata keras, prediksi absolut, atau konten spiritual.
+
+CRITICAL — OUTPUT FORMAT: Respond ONLY with valid JSON. No markdown, no extra text. Follow this exact structure:
+{
+  "pages": [
+    {
+      "pageId": "P1_IndonesiaCompatibility",
+      "title": "Kecocokan Emosional",
+      "components": {
+        "scoreGauge": { "value": <0-100>, "label": "<one short label in Indonesian>" },
+        "lifeGraph": {
+          "categories": ["Ritme", "Ketenangan", "Komunikasi", "Empati", "Harmoni"],
+          "value": [<0-100>, <0-100>, <0-100>, <0-100>, <0-100>]
+        },
+        "summary": [
+          { "type": "positive", "title": "Kekuatan Bersama", "text": "<2-3 sentences>" },
+          { "type": "adjustment", "title": "Area Penyesuaian", "text": "<2-3 sentences>" }
+        ]
+      }
+    },
+    {
+      "pageId": "P2_DetailedInsights",
+      "title": "Wawasan Mendalam",
+      "cards": [
+        { "id": "dasar_emosi_a", "title": "Dasar Emosi Anda", "icon": "heart", "description": "<Person A emotional foundation, 3-4 sentences>" },
+        { "id": "dasar_emosi_b", "title": "Dasar Emosi Pasangan", "icon": "wave", "description": "<Person B emotional foundation, 3-4 sentences>" },
+        { "id": "kecocokan_ritme", "title": "Kecocokan Ritme", "icon": "star", "description": "<how their rhythms complement or need adjustment, 3-4 sentences>" },
+        { "id": "keadaan_hari_ini", "title": "Keadaan Hari Ini", "icon": "sun", "description": "<how their current moment states affect dynamics, 3-4 sentences>" },
+        { "id": "ringkasan", "title": "Ringkasan Kecocokan", "icon": "clock", "description": "<gentle grounded summary with soft guidance, 3-4 sentences>" }
+      ]
+    }
+  ]
+}
+=== AKHIR PROFIL KECOCOKAN ===
+`;
+
+          systemPrompt = buildAstriaIndonesiaContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: null,
+          }) + "\n" + compatSection;
+
+        // ── PATH B: Single-user 3-Box (all other tabs) ──
+        } else if (indonesia3BoxSelf && !isIndonesiaCompatibility) {
+          const selfResult = (() => {
+            try {
+              const r = evaluateIndonesia3Box({
+                inner_calm_type: indonesia3BoxSelf.inner_calm_type,
+                dob: indonesia3BoxSelf.dob,
+                moment_state: indonesia3BoxSelf.moment_state,
+              });
+              return r && r.success ? r.data : null;
+            } catch (e) {
+              logger.error("Indonesia single 3-Box eval error:", e);
+              return null;
+            }
+          })();
+
+          const profileSection = selfResult ? `
+=== PROFIL EMOSIONAL PENGGUNA (Indonesia 3-Box) ===
+Dasar Ketenangan (Box 1) : ${indonesia3BoxSelf.inner_calm_type}
+Tanggal Lahir (Box 2)    : ${indonesia3BoxSelf.dob}
+Keadaan Saat Ini (Box 3) : ${indonesia3BoxSelf.moment_state}
+
+Dasar Emosi    : ${selfResult.base_emotion}
+Ritme Emosi    : ${selfResult.rhythm}
+Kondisi Saat Ini: ${selfResult.current_state}
+Panduan        : ${selfResult.guidance}
+Ringkasan      : ${selfResult.summary}
+
+INSTRUKSI: Gunakan profil emosional di atas sebagai konteks utama. Berikan respons dalam bahasa Indonesia yang calm, gentle, dan respectful. Jangan beri prediksi absolut atau konten spiritual.
+=== AKHIR PROFIL ===
+` : `
+=== PROFIL EMOSIONAL PENGGUNA (Indonesia 3-Box) ===
+Dasar Ketenangan: ${indonesia3BoxSelf.inner_calm_type || "-"}
+Tanggal Lahir   : ${indonesia3BoxSelf.dob || "-"}
+Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
+=== AKHIR PROFIL ===
+`;
+
+          let astriaIndonesiaBirthChart = null;
+          if (indonesia3BoxSelf.dob) {
+            try {
+              astriaIndonesiaBirthChart = computeWesternBirthChartID({
+                dob: String(indonesia3BoxSelf.dob).trim(),
+                dob_time: null,
+                dob_place: null,
+              });
+            } catch (chartErr) {
+              logger.error("Indonesia 3-Box single birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaIndonesiaContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaIndonesiaBirthChart,
+          }) + "\n" + profileSection;
+
+        // ── PATH C: Existing Energy Match / chat flow (no 3-box data) ──
+        } else if (isEnergyMatchSubcategoryID(subCategoryName)) {
+          const emPartnersID = parseEnergyMatchPartnersID(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (emPartnersID.missingFields.length > 0) {
+            energyMatchMissingQuestionIndonesia = buildEnergyMatchMissingQuestionID(
+              emPartnersID.missingFields,
+              !!(dob0 && String(dob0).trim()),
+            );
+          } else {
+            let chartAID = null;
+            let chartBID = null;
+            try {
+              if (emPartnersID.personA.dob) {
+                chartAID = computeWesternBirthChartID({
+                  dob: emPartnersID.personA.dob,
+                  dob_time: emPartnersID.personA.time || null,
+                  dob_place: emPartnersID.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Indonesia Energy Match - chartA error:", err);
+            }
+            try {
+              if (emPartnersID.personB.dob) {
+                chartBID = computeWesternBirthChartID({
+                  dob: emPartnersID.personB.dob,
+                  dob_time: emPartnersID.personB.time || null,
+                  dob_place: emPartnersID.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Indonesia Energy Match - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaIndonesiaContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartAID,
+              birthChartB: chartBID,
+            });
+          }
+        } else {
+          // All other Astria Indonesia subcategories — single user chart
+          let astriaIndonesiaBirthChart = null;
+          if (dob0) {
+            try {
+              astriaIndonesiaBirthChart = computeWesternBirthChartID({
+                dob: String(dob0).trim(),
+                dob_time: dob_time0 || null,
+                dob_place: dob_place0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Indonesia birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaIndonesiaContext({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaIndonesiaBirthChart,
+          });
+        }
+      }
+      // ====== END ASTRIA INDONESIA PROCESSING ======
+
+      // ============================================
       // ASTRIA INDIA CATEGORY ENGINE — "Astria India" category ONLY
       // Fully overrides systemPrompt for this category.
       // Zero impact on any other category or subcategory.
@@ -3838,6 +4101,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         !isAstriaKorea &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
+        !isAstriaIndonesia &&
         musicRecommendation?.shouldRecommend
       ) {
         systemPrompt = `${musicRecommendation.promptBlock}
@@ -3851,6 +4115,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         !isAstriaKorea &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
+        !isAstriaIndonesia &&
         foodRecommendation?.shouldRecommend
       ) {
         const isTeasing = foodRecommendation.isTeasing;
@@ -4318,6 +4583,15 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
+          } else if (isAstriaIndonesia && energyMatchMissingQuestionIndonesia) {
+            finalAiResponse = energyMatchMissingQuestionIndonesia;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
           } else if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
             finalAiResponse = sambandhMissingQuestionIN;
             const words = finalAiResponse.split(" ");
@@ -4407,9 +4681,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 if (res.flush) res.flush();
               }
             } else {
-              // GCC Compatibility returns JSON — suppress raw stream, parse after
+              // GCC & Japan Compatibility return JSON — suppress raw stream, parse after
               const suppressStream =
-                isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName);
+                (isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)) ||
+                (isAstriaJapan && isCompatibilitySubcategoryJP(subCategoryName));
 
               for await (const chunk of stream) {
                 if (clientClosed) break;
@@ -4496,7 +4771,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             recommendation: musicRecommendation,
           });
 
-          // GCC COMPATIBILITY PARSING (shared by both streaming and non-streaming)
+          // GCC COMPATIBILITY PARSING (streaming)
           let gccCompatibilityDataStream = null;
           if (isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)) {
             try {
@@ -4506,6 +4781,74 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               }
             } catch (err) {
               logger.error("GCC Compatibility JSON parse error:", err);
+            }
+          }
+
+          // JAPAN COMPATIBILITY PARSING (streaming)
+          let japanCompatibilityDataStream = null;
+          if (isAstriaJapan && isCompatibilitySubcategoryJP(subCategoryName)) {
+            try {
+              // Strip markdown code fences before extracting JSON
+              const cleaned = finalAiResponse
+                .replace(/```json\n?/gi, "")
+                .replace(/```\n?/g, "")
+                .trim();
+              // Try direct parse first, then regex extraction
+              let parsed = null;
+              try {
+                parsed = JSON.parse(cleaned);
+              } catch {
+                const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  try {
+                    parsed = JSON.parse(jsonMatch[0]);
+                  } catch {
+                    // Attempt to fix common JSON issues (trailing commas)
+                    const fixed = jsonMatch[0].replace(/,\s*([}\]])/g, "$1");
+                    parsed = JSON.parse(fixed);
+                  }
+                }
+              }
+              japanCompatibilityDataStream = parsed;
+              if (!parsed) {
+                logger.error("Japan Compatibility: no valid JSON found in AI response. Raw (first 300 chars):", finalAiResponse.substring(0, 300));
+              }
+            } catch (err) {
+              logger.error("Japan Compatibility JSON parse error:", err.message, "Raw (first 300 chars):", finalAiResponse.substring(0, 300));
+            }
+          }
+
+          // INDONESIA COMPATIBILITY PARSING (streaming)
+          let indonesiaCompatibilityDataStream = null;
+          const isIndonesiaCompatStream = isAstriaIndonesia &&
+            subCategoryName && subCategoryName.toLowerCase().includes("compatibility") &&
+            indonesia3BoxSelf && indonesia3BoxPartner;
+          if (isIndonesiaCompatStream) {
+            try {
+              const cleaned = finalAiResponse
+                .replace(/```json\n?/gi, "")
+                .replace(/```\n?/g, "")
+                .trim();
+              let parsed = null;
+              try {
+                parsed = JSON.parse(cleaned);
+              } catch {
+                const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  try {
+                    parsed = JSON.parse(jsonMatch[0]);
+                  } catch {
+                    const fixed = jsonMatch[0].replace(/,\s*([}\]])/g, "$1");
+                    parsed = JSON.parse(fixed);
+                  }
+                }
+              }
+              indonesiaCompatibilityDataStream = parsed;
+              if (!parsed) {
+                logger.error("Indonesia Compatibility: no valid JSON found. Raw (first 300 chars):", finalAiResponse.substring(0, 300));
+              }
+            } catch (err) {
+              logger.error("Indonesia Compatibility JSON parse error:", err.message);
             }
           }
 
@@ -4534,6 +4877,13 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                   isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
                     ? gccCompatibilityDataStream
                     : null,
+                japanCompatibilityData:
+                  isAstriaJapan && isCompatibilitySubcategoryJP(subCategoryName)
+                    ? japanCompatibilityDataStream
+                    : null,
+                indonesiaCompatibilityData: isIndonesiaCompatStream
+                  ? indonesiaCompatibilityDataStream
+                  : null,
               })}\n\n`,
             );
             res.end();
@@ -4655,6 +5005,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         finalAiResponse = energyMatchMissingQuestionCanada;
       }
 
+      if (isAstriaIndonesia && energyMatchMissingQuestionIndonesia) {
+        finalAiResponse = energyMatchMissingQuestionIndonesia;
+      }
+
       if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
         finalAiResponse = sambandhMissingQuestionIN;
       }
@@ -4738,6 +5092,85 @@ MANDATORY RULES — CANNOT BE SKIPPED:
       }
       // ====== END GCC COMPATIBILITY RESPONSE PROCESSING ======
 
+      // ============================================
+      // JAPAN COMPATIBILITY RESPONSE PROCESSING (NON-STREAMING)
+      // ============================================
+      let japanCompatibilityData = null;
+      if (isAstriaJapan && isCompatibilitySubcategoryJP(subCategoryName)) {
+        try {
+          const cleaned = finalAiResponse
+            .replace(/```json\n?/gi, "")
+            .replace(/```\n?/g, "")
+            .trim();
+          let parsed = null;
+          try {
+            parsed = JSON.parse(cleaned);
+          } catch {
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                parsed = JSON.parse(jsonMatch[0]);
+              } catch {
+                const fixed = jsonMatch[0].replace(/,\s*([}\]])/g, "$1");
+                parsed = JSON.parse(fixed);
+              }
+            }
+          }
+          japanCompatibilityData = parsed;
+          if (parsed) {
+            finalAiResponse =
+              `✦ 相性の読み解き ✦\n\n` +
+              `Connection Score: ${parsed?.pages?.[0]?.components?.scoreGauge?.value || "N/A"}/100\n\n` +
+              (parsed?.pages?.[1]?.cards || [])
+                .map((card) => `【${card.title}】\n${card.description}`)
+                .join("\n\n");
+          }
+        } catch (err) {
+          logger.error("Japan Compatibility JSON parse error:", err.message);
+        }
+      }
+      // ====== END JAPAN COMPATIBILITY RESPONSE PROCESSING ======
+
+      // ====== INDONESIA COMPATIBILITY RESPONSE PROCESSING ======
+      let indonesiaCompatibilityData = null;
+      const isIndonesiaCompatNonStream = isAstriaIndonesia &&
+        subCategoryName && subCategoryName.toLowerCase().includes("compatibility") &&
+        indonesia3BoxSelf && indonesia3BoxPartner;
+      if (isIndonesiaCompatNonStream) {
+        try {
+          const cleaned = finalAiResponse
+            .replace(/```json\n?/gi, "")
+            .replace(/```\n?/g, "")
+            .trim();
+          let parsed = null;
+          try {
+            parsed = JSON.parse(cleaned);
+          } catch {
+            const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                parsed = JSON.parse(jsonMatch[0]);
+              } catch {
+                const fixed = jsonMatch[0].replace(/,\s*([}\]])/g, "$1");
+                parsed = JSON.parse(fixed);
+              }
+            }
+          }
+          indonesiaCompatibilityData = parsed;
+          if (parsed) {
+            finalAiResponse =
+              `✦ Kecocokan Emosional ✦\n\n` +
+              `Skor: ${parsed?.pages?.[0]?.components?.scoreGauge?.value || "N/A"}/100\n\n` +
+              (parsed?.pages?.[1]?.cards || [])
+                .map((card) => `【${card.title}】\n${card.description}`)
+                .join("\n\n");
+          }
+        } catch (err) {
+          logger.error("Indonesia Compatibility JSON parse error:", err.message);
+        }
+      }
+      // ====== END INDONESIA COMPATIBILITY RESPONSE PROCESSING ======
+
       const chatMessage = {
         userMessage,
         aiResponse: applyPurpleDotBranding(finalAiResponse),
@@ -4795,6 +5228,13 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
             ? gccCompatibilityData
             : null,
+        japanCompatibilityData:
+          isAstriaJapan && isCompatibilitySubcategoryJP(subCategoryName)
+            ? japanCompatibilityData
+            : null,
+        indonesiaCompatibilityData: isIndonesiaCompatNonStream
+          ? indonesiaCompatibilityData
+          : null,
       });
     } catch (error) {
       logger.error("Chat Error:", error);

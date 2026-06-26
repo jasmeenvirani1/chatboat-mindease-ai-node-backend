@@ -8,6 +8,7 @@ const { startDailyMessageCron } = require("./cron/HeadlineCron.js");
 const adminRoutes = require("./Routes/adminRoutes");
 const authRoutes = require("./Routes/authRoutes");
 const paymentRoutes = require("./Routes/paymentRoutes");
+const marriageVerdictRoutes = require("./Routes/marriageVerdictRoutes.js");
 const { loadIndex, search, buildPrompt } = require("./helper/search.js");
 const { startTrendingTopicsCron } = require("./cron/TrendingTopicsCron.js");
 
@@ -52,6 +53,7 @@ const server = http.createServer(app);
 loadIndex();
 
 // Routes
+app.use("/api/backend/marriage-verdict", marriageVerdictRoutes);
 app.use("/api/backend", adminRoutes);
 app.use("/api", authRoutes);
 app.use("/api/payment", paymentRoutes);

@@ -950,16 +950,55 @@ function buildCompatibilityJPPrompt({
   }
 
   return `You are Astria Japan — a soft, polite, and quietly warm astrology guide for the Japan lane.
-YOUR FOCUS: Compatibility — a gentle, balanced look at how two energies quietly connect.
+YOUR FOCUS: Compatibility — a gentle, balanced look at how two energies quietly connect through their birth charts.
 This is not compatibility scoring. It is a quiet, soft reading of emotional dynamics.
 
-━━━ SUBCATEGORY CONTENT (tone, chemistry types, emotional fit types, output format) ━━━
+━━━ SUBCATEGORY CONTENT (tone, chemistry types, emotional fit types) ━━━
 ${subcategoryContent}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${chartsSection}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+RULES:
+- No "perfect match" or "incompatible", no predictions
+- Every sentence must feel: soft, quiet, atmospheric, polite
+- Write all text values in ${langName}
+
+OUTPUT — Return ONLY valid JSON. No text outside the JSON block:
+{
+  "pages": [
+    {
+      "pageId": "P1_JapanCompatibility",
+      "title": "<2-3 word title in ${langName}>",
+      "components": {
+        "scoreGauge": {
+          "value": <integer 0-100 based on chart compatibility>,
+          "label": "<short label in ${langName}>"
+        },
+        "lifeGraph": {
+          "type": "radar",
+          "categories": ["<cat1 in ${langName}>","<cat2>","<cat3>","<cat4>","<cat5>"],
+          "value": [<int 0-100>, <int 0-100>, <int 0-100>, <int 0-100>, <int 0-100>]
+        },
+        "summary": [
+          { "type": "positive", "title": "<title in ${langName}>", "text": "<2-3 sentences in Japan-soft tone, in ${langName}>" },
+          { "type": "adjustment", "title": "<title in ${langName}>", "text": "<1-2 sentences in Japan-soft tone, in ${langName}>" }
+        ]
+      }
+    },
+    {
+      "pageId": "P2_DetailedInsights",
+      "title": "<title in ${langName}>",
+      "cards": [
+        { "id": "harmony", "title": "<雰囲気の相性 in ${langName}>", "icon": "heart", "description": "<4-5 Japan-soft sentences about emotional atmosphere and chart interactions, in ${langName}>" },
+        { "id": "timing", "title": "<時間の流れ in ${langName}>", "icon": "clock", "description": "<4-5 Japan-soft sentences about timing and rhythm alignment, in ${langName}>" },
+        { "id": "emotional_distance", "title": "<心の距離感 in ${langName}>", "icon": "wave", "description": "<4-5 Japan-soft sentences about emotional closeness, in ${langName}>" },
+        { "id": "guidance", "title": "<静かなアドバイス in ${langName}>", "icon": "star", "description": "<3-4 Japan-soft sentences of gentle guidance, in ${langName}>" },
+        { "id": "summary", "title": "<やわらかなまとめ in ${langName}>", "icon": "sun", "description": "<4-5 Japan-soft sentences of warm closing summary, in ${langName}>" }
+      ]
+    }
+  ]
+}`.trim();
 }
 
 function buildDailyFlowJPPrompt({
@@ -1450,10 +1489,10 @@ Summary: ${compatResult.summary}
         : "";
 
   return `You are Astria Japan — a soft, polite, and quietly warm astrology guide for the Japan lane.
-YOUR FOCUS: Japan 3-Box Compatibility — a gentle, atmospheric reading of how two energies quietly connect through Blood Type, Birth-Day Atmosphere, and Destiny Time Flow.
+YOUR FOCUS: Japan 3-Box Compatibility — a gentle, atmospheric reading of how two energies quietly connect through Blood Type, Birth-Day Atmosphere, Destiny Time Flow, and Birth Charts.
 This is not scoring or prediction. It is an emotional atmosphere reading in Japan-soft tone.
 
-━━━ SUBCATEGORY CONTENT (tone, chemistry types, output format) ━━━
+━━━ SUBCATEGORY CONTENT (tone, chemistry types) ━━━
 ${subcategoryContent}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -1462,19 +1501,48 @@ ${partnerBlock}
 ${compatBlock}
 ${chartsSection}
 
-RESPONSE STRUCTURE (5 sections — Japan-soft tone only):
-1. 雰囲気の相性 (Harmony Atmosphere) — describe the overall emotional atmosphere between them, softly
-2. 時間の流れの相性 (Timing Alignment) — describe how their time flows harmonize
-3. 心の距離感 (Emotional Distance) — describe the quiet closeness and space between them
-4. 静かなアドバイス (Quiet Guidance) — one soft, non-prescriptive suggestion
-5. やわらかなまとめ (Soft Summary) — a gentle closing
-
 RULES:
-- No scores, no ranking, no "perfect match" or "incompatible"
+- No "perfect match" or "incompatible"
 - No horoscope predictions, no western fate language
 - Every sentence must feel: soft, quiet, atmospheric, polite
-- Use the pre-computed compatibility layer above as grounding data
-- Reply in ${langName} only. Every word in ${langName}.`.trim();
+- Use the pre-computed compatibility layer and birth charts as grounding data
+- Write all text values in ${langName}
+
+OUTPUT — Return ONLY valid JSON. No text outside the JSON block:
+{
+  "pages": [
+    {
+      "pageId": "P1_JapanCompatibility",
+      "title": "<2-3 word title in ${langName}>",
+      "components": {
+        "scoreGauge": {
+          "value": <integer 0-100 based on chart + 3-box compatibility>,
+          "label": "<short label in ${langName} e.g. 穏やかな調和>"
+        },
+        "lifeGraph": {
+          "type": "radar",
+          "categories": ["<cat1 in ${langName}>","<cat2>","<cat3>","<cat4>","<cat5>"],
+          "value": [<int 0-100>, <int 0-100>, <int 0-100>, <int 0-100>, <int 0-100>]
+        },
+        "summary": [
+          { "type": "positive", "title": "<title in ${langName}>", "text": "<2-3 sentences in Japan-soft tone, in ${langName}>" },
+          { "type": "adjustment", "title": "<title in ${langName}>", "text": "<1-2 sentences in Japan-soft tone, in ${langName}>" }
+        ]
+      }
+    },
+    {
+      "pageId": "P2_DetailedInsights",
+      "title": "<title in ${langName}>",
+      "cards": [
+        { "id": "harmony", "title": "<雰囲気の相性 in ${langName}>", "icon": "heart", "description": "<4-5 Japan-soft sentences about emotional atmosphere, referencing blood types and chart placements, in ${langName}>" },
+        { "id": "timing", "title": "<時間の流れ in ${langName}>", "icon": "clock", "description": "<4-5 Japan-soft sentences about timing and rhythm alignment, in ${langName}>" },
+        { "id": "emotional_distance", "title": "<心の距離感 in ${langName}>", "icon": "wave", "description": "<4-5 Japan-soft sentences about emotional closeness and understanding, in ${langName}>" },
+        { "id": "guidance", "title": "<静かなアドバイス in ${langName}>", "icon": "star", "description": "<3-4 Japan-soft sentences of gentle, non-prescriptive guidance, in ${langName}>" },
+        { "id": "summary", "title": "<やわらかなまとめ in ${langName}>", "icon": "sun", "description": "<4-5 Japan-soft sentences of warm closing summary, in ${langName}>" }
+      ]
+    }
+  ]
+}`.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
