@@ -21,6 +21,16 @@ const ChatMessageSchema = new Schema(
   { _id: false },
 );
 
+const UserProfileMetadataSchema = new Schema(
+  {
+    interests: { type: [String], default: [] },
+    lifeEvents: { type: [String], default: [] },
+    emotionalPattern: { type: [String], default: [] },
+    lastExtractedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const ChatHistorySchema = new Schema(
   {
     userId: {
@@ -46,7 +56,7 @@ const ChatHistorySchema = new Schema(
       ref: "Case",
       default: null,
     },
-    chatLang: { type: String, enum: ["th", "en", "es"], default: "en" },
+    chatLang: { type: String, enum: ["th", "en", "es", "hi"], default: "en" },
 
     sessionTitle: {
       type: String,
@@ -56,6 +66,11 @@ const ChatHistorySchema = new Schema(
     chats: {
       type: [ChatMessageSchema],
       required: true,
+    },
+
+    userProfileMetadata: {
+      type: UserProfileMetadataSchema,
+      default: null,
     },
   },
   { timestamps: true },

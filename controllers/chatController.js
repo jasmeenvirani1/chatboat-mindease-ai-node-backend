@@ -115,6 +115,11 @@ const {
   isEnergyMatchSubcategoryID,
 } = require("../helper/astriaIndonesiaService");
 const { evaluateIndonesia3Box } = require("../helper/indonesia3BoxEngine");
+const { appendUserProfile } = require("../helper/healjaiProfileExtractor");
+const {
+  buildHealjaiTalkPrompt,
+  detectAstrologyIntent,
+} = require("../helper/healjaiPromptBuilder");
 
 // ============================================
 // HELPER FUNCTIONS
@@ -383,6 +388,13 @@ function detectLangFromMessage(text = "") {
     return "fr";
   if (/[äöüßÄÖÜ]/i.test(text)) return "de";
   if (/[àèéìíîòóùú]/i.test(text) && !/[ñ¿¡àâæçêëïœ]/i.test(text)) return "it";
+  if (
+    /\b(saya|aku|kamu|anda|dia|kami|kita|mereka|ini|itu|yang|dan|atau|tidak|bukan|iya|ya|halo|selamat|terima\s?kasih|tolong|ingin|mau|bisa|boleh|apa|siapa|mengapa|kenapa|bagaimana|dimana|lahir|hari|bulan|tahun|emosi|perasaan|tenang|hidup|cinta)\b/i.test(
+      text,
+    )
+  ) {
+    return "id";
+  }
   if (detectHinglish(text)) return "hinglish";
   if (detectSpanish(text)) return "es";
   return "en";
@@ -1849,6 +1861,29 @@ const chatController = {
         HEALJAI_ACTIVE_CATEGORIES.has(categoryName) ||
         HEALJAI_ACTIVE_CATEGORIES.has(subCategoryName);
 
+      // HealJai Talk session-scoped memory — fetch profile only from the current chat session
+      let healjaiUserProfile = null;
+      if (
+        categoryName === "HealJai Talk" &&
+        chatId &&
+        mongoose.Types.ObjectId.isValid(chatId)
+      ) {
+        try {
+          const profileDoc = await ChatHistory.findById(chatId)
+            .select("userProfileMetadata")
+            .lean();
+
+          healjaiUserProfile = profileDoc?.userProfileMetadata || null;
+          // console.log(
+          //   "[HealJai] Loaded user profile (session-scoped):",
+          //   JSON.stringify(healjaiUserProfile),
+          // );
+        } catch (e) {
+          console.error("[HealJai] Profile fetch error:", e.message);
+          healjaiUserProfile = null;
+        }
+      }
+
       // Astria India Engine — isolated flag for "รหัส Healjai V3"
       const isAstriaIndia =
         subCategoryName === "รหัส Healjai V3" ||
@@ -2286,6 +2321,9 @@ DAILY CHECK-IN (when natural):
         promptSource = "category";
       }
 
+      // Capture clean base prompt for HealJai Talk builder BEFORE the big assembly below
+      const healjaiBasePrompt = systemPrompt;
+
       // ============================================
       // HEADLINE DB QUERY (FIXED — range based + fallback)
       // ============================================
@@ -2313,7 +2351,8 @@ DAILY CHECK-IN (when natural):
       let matches2;
 
       if (!containsDate(userMessage)) {
-        const { prompt, matches } = await buildPrompt(userMessage, 40);
+        const fetchCount = engineState === "DEEP_HEALING" ? 10 : 5;
+        const { prompt, matches } = await buildPrompt(userMessage, fetchCount);
         matches2 = matches;
 
         if (engineState === "DEEP_HEALING") {
@@ -2360,7 +2399,7 @@ DAILY CHECK-IN (when natural):
       - ${categoryName === "HealJai Talk" || isSamayPravah ? "" : `User today's Energy level: ${userData?.energy_level}`}
       - ${categoryName === "HealJai Talk" || isSamayPravah ? "" : `User today's Golden Hour: ${userData?.golden_hour}`}
       - ${categoryName === "HealJai Talk" ? buildTrendingTopicContext(trendingTopicData, categoryName) : ""}
-      - User planets position: ${JSON.stringify(userProvidedPlanets)}
+      - ${categoryName !== "HealJai Talk" || detectAstrologyIntent(userMessage, translatedMessage) ? `User planets position: ${JSON.stringify(userProvidedPlanets)}` : ""}
       - User Message: ${userMessage}
 
       OUTPUT RULES:
@@ -2372,7 +2411,7 @@ DAILY CHECK-IN (when natural):
           ? `TONE AND EMOTION RULES:
       ${
         engineState === "DEEP_HEALING"
-          ? `- Emotional Guidance: ${sentences.join(" | ")}
+          ? `- Emotional Guidance: ${sentences.slice(0, 5).join(" | ")}
       - IMPORTANT: Use the above sentences ONLY as inspiration for the tone and vibe.
       - DO NOT copy them literally. ALWAYS prioritize and align your response with the user's specific message: "${userMessage}".`
           : `- Tone: Be a helpful, friendly companion. Match the user's casual energy — no emotional analysis.`
@@ -2411,12 +2450,36 @@ DAILY CHECK-IN (when natural):
         }
       }
 
-      // HealJai Talk deep healing engine
+      // HealJai Talk — unified prompt builder (replaces scattered inline assembly)
+      // All layers: persona, memory, empathy RAG, calculation, trending, tone, language
       if (
+        categoryName === "HealJai Talk" &&
+        !musicRecommendation?.shouldRecommend
+      ) {
+        const empathySentences = (matches2 || []).map((m) => m.sentence);
+        systemPrompt = buildHealjaiTalkPrompt({
+          tone_mode,
+          currentTone,
+          ageInfo,
+          target,
+          engineState,
+          userProfile: healjaiUserProfile,
+          empathySentences,
+          planetData: userProvidedPlanets,
+          userMessage,
+          translatedMessage,
+          trendingContext: buildTrendingTopicContext(
+            trendingTopicData,
+            categoryName,
+          ),
+          basePrompt: healjaiBasePrompt,
+        });
+      } else if (
         categoryName === "HealJai Talk" &&
         !musicRecommendation?.shouldRecommend &&
         engineState === "DEEP_HEALING"
       ) {
+        // Fallback: keep legacy deep healing prefix when music recommendation is active
         systemPrompt = `${healjaiEnginePrompt}\n\n${systemPrompt}`;
       }
 
@@ -3772,10 +3835,15 @@ RULES:
       let energyMatchMissingQuestionIndonesia = null;
       if (isAstriaIndonesia) {
         const isIndonesiaCompatibility =
-          subCategoryName && subCategoryName.toLowerCase().includes("compatibility");
+          subCategoryName &&
+          subCategoryName.toLowerCase().includes("compatibility");
 
         // ── PATH A: Two-person Compatibility (indonesia3BoxSelf + indonesia3BoxPartner) ──
-        if (isIndonesiaCompatibility && indonesia3BoxSelf && indonesia3BoxPartner) {
+        if (
+          isIndonesiaCompatibility &&
+          indonesia3BoxSelf &&
+          indonesia3BoxPartner
+        ) {
           const runBox = (boxData) => {
             try {
               const r = evaluateIndonesia3Box({
@@ -3793,7 +3861,9 @@ RULES:
           const selfResult = runBox(indonesia3BoxSelf);
           const partnerResult = runBox(indonesia3BoxPartner);
 
-          const formatProfile = (label, boxData, result) => result ? `
+          const formatProfile = (label, boxData, result) =>
+            result
+              ? `
 [${label}]
 Dasar Ketenangan  : ${boxData.inner_calm_type}
 Tanggal Lahir     : ${boxData.dob}
@@ -3803,7 +3873,8 @@ Ritme Emosi       : ${result.rhythm}
 Kondisi Sekarang  : ${result.current_state}
 Panduan           : ${result.guidance}
 Ringkasan         : ${result.summary}
-` : `
+`
+              : `
 [${label}]
 Dasar Ketenangan: ${boxData.inner_calm_type || "-"}
 Tanggal Lahir   : ${boxData.dob || "-"}
@@ -3854,16 +3925,19 @@ CRITICAL — OUTPUT FORMAT: Respond ONLY with valid JSON. No markdown, no extra 
 === AKHIR PROFIL KECOCOKAN ===
 `;
 
-          systemPrompt = buildAstriaIndonesiaContext({
-            subCategoryName: subCategoryName || null,
-            categoryPrompt: categoryPrompt || null,
-            subCategoryPrompt: subCategoryPrompt || null,
-            target,
-            userMessage,
-            birthChart: null,
-          }) + "\n" + compatSection;
+          systemPrompt =
+            buildAstriaIndonesiaContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: null,
+            }) +
+            "\n" +
+            compatSection;
 
-        // ── PATH B: Single-user 3-Box (all other tabs) ──
+          // ── PATH B: Single-user 3-Box (all other tabs) ──
         } else if (indonesia3BoxSelf && !isIndonesiaCompatibility) {
           const selfResult = (() => {
             try {
@@ -3879,7 +3953,8 @@ CRITICAL — OUTPUT FORMAT: Respond ONLY with valid JSON. No markdown, no extra 
             }
           })();
 
-          const profileSection = selfResult ? `
+          const profileSection = selfResult
+            ? `
 === PROFIL EMOSIONAL PENGGUNA (Indonesia 3-Box) ===
 Dasar Ketenangan (Box 1) : ${indonesia3BoxSelf.inner_calm_type}
 Tanggal Lahir (Box 2)    : ${indonesia3BoxSelf.dob}
@@ -3893,7 +3968,8 @@ Ringkasan      : ${selfResult.summary}
 
 INSTRUKSI: Gunakan profil emosional di atas sebagai konteks utama. Berikan respons dalam bahasa Indonesia yang calm, gentle, dan respectful. Jangan beri prediksi absolut atau konten spiritual.
 === AKHIR PROFIL ===
-` : `
+`
+            : `
 === PROFIL EMOSIONAL PENGGUNA (Indonesia 3-Box) ===
 Dasar Ketenangan: ${indonesia3BoxSelf.inner_calm_type || "-"}
 Tanggal Lahir   : ${indonesia3BoxSelf.dob || "-"}
@@ -3910,20 +3986,26 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
                 dob_place: null,
               });
             } catch (chartErr) {
-              logger.error("Indonesia 3-Box single birth chart error:", chartErr);
+              logger.error(
+                "Indonesia 3-Box single birth chart error:",
+                chartErr,
+              );
             }
           }
 
-          systemPrompt = buildAstriaIndonesiaContext({
-            subCategoryName: subCategoryName || null,
-            categoryPrompt: categoryPrompt || null,
-            subCategoryPrompt: subCategoryPrompt || null,
-            target,
-            userMessage,
-            birthChart: astriaIndonesiaBirthChart,
-          }) + "\n" + profileSection;
+          systemPrompt =
+            buildAstriaIndonesiaContext({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: astriaIndonesiaBirthChart,
+            }) +
+            "\n" +
+            profileSection;
 
-        // ── PATH C: Existing Energy Match / chat flow (no 3-box data) ──
+          // ── PATH C: Existing Energy Match / chat flow (no 3-box data) ──
         } else if (isEnergyMatchSubcategoryID(subCategoryName)) {
           const emPartnersID = parseEnergyMatchPartnersID(
             userMessage,
@@ -3933,10 +4015,11 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
           );
 
           if (emPartnersID.missingFields.length > 0) {
-            energyMatchMissingQuestionIndonesia = buildEnergyMatchMissingQuestionID(
-              emPartnersID.missingFields,
-              !!(dob0 && String(dob0).trim()),
-            );
+            energyMatchMissingQuestionIndonesia =
+              buildEnergyMatchMissingQuestionID(
+                emPartnersID.missingFields,
+                !!(dob0 && String(dob0).trim()),
+              );
           } else {
             let chartAID = null;
             let chartBID = null;
@@ -3949,7 +4032,10 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
                 });
               }
             } catch (err) {
-              logger.error("Astria Indonesia Energy Match - chartA error:", err);
+              logger.error(
+                "Astria Indonesia Energy Match - chartA error:",
+                err,
+              );
             }
             try {
               if (emPartnersID.personB.dob) {
@@ -3960,7 +4046,10 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
                 });
               }
             } catch (err) {
-              logger.error("Astria Indonesia Energy Match - chartB error:", err);
+              logger.error(
+                "Astria Indonesia Energy Match - chartB error:",
+                err,
+              );
             }
 
             systemPrompt = buildAstriaIndonesiaContext({
@@ -4173,7 +4262,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           content: systemPrompt.trim(),
         },
       ];
-      // console.log("System Prompt:", systemPrompt);
+      console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -4683,8 +4772,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             } else {
               // GCC & Japan Compatibility return JSON — suppress raw stream, parse after
               const suppressStream =
-                (isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)) ||
-                (isAstriaJapan && isCompatibilitySubcategoryJP(subCategoryName));
+                (isAstriaGCC &&
+                  isCompatibilitySubcategoryGCC(subCategoryName)) ||
+                (isAstriaJapan &&
+                  isCompatibilitySubcategoryJP(subCategoryName));
 
               for await (const chunk of stream) {
                 if (clientClosed) break;
@@ -4766,6 +4857,35 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             logger.error("Chat save error:", saveErr);
           }
 
+          // HealJai Talk — fire profile extractor every 3 messages on streaming path (fire and forget)
+          if (
+            categoryName === "HealJai Talk" &&
+            userId &&
+            chatSaved &&
+            chat?._id
+          ) {
+            const chatMessageCount = (chat?.chats || []).length;
+            if (chatMessageCount > 0 && chatMessageCount % 3 === 0) {
+              const recentMsgs = (chat?.chats || [])
+                .slice(-5)
+                .map((c) => c.userMessage)
+                .filter(Boolean);
+              if (recentMsgs.length > 0) {
+                appendUserProfile(
+                  userId,
+                  categoryId,
+                  chat._id,
+                  recentMsgs,
+                ).catch((err) =>
+                  logger.error(
+                    "[HealJai Profile Extractor] Stream path failed:",
+                    err?.message || err,
+                  ),
+                );
+              }
+            }
+          }
+
           await upsertUserMusicMemory({
             userId,
             recommendation: musicRecommendation,
@@ -4811,18 +4931,29 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               }
               japanCompatibilityDataStream = parsed;
               if (!parsed) {
-                logger.error("Japan Compatibility: no valid JSON found in AI response. Raw (first 300 chars):", finalAiResponse.substring(0, 300));
+                logger.error(
+                  "Japan Compatibility: no valid JSON found in AI response. Raw (first 300 chars):",
+                  finalAiResponse.substring(0, 300),
+                );
               }
             } catch (err) {
-              logger.error("Japan Compatibility JSON parse error:", err.message, "Raw (first 300 chars):", finalAiResponse.substring(0, 300));
+              logger.error(
+                "Japan Compatibility JSON parse error:",
+                err.message,
+                "Raw (first 300 chars):",
+                finalAiResponse.substring(0, 300),
+              );
             }
           }
 
           // INDONESIA COMPATIBILITY PARSING (streaming)
           let indonesiaCompatibilityDataStream = null;
-          const isIndonesiaCompatStream = isAstriaIndonesia &&
-            subCategoryName && subCategoryName.toLowerCase().includes("compatibility") &&
-            indonesia3BoxSelf && indonesia3BoxPartner;
+          const isIndonesiaCompatStream =
+            isAstriaIndonesia &&
+            subCategoryName &&
+            subCategoryName.toLowerCase().includes("compatibility") &&
+            indonesia3BoxSelf &&
+            indonesia3BoxPartner;
           if (isIndonesiaCompatStream) {
             try {
               const cleaned = finalAiResponse
@@ -4845,10 +4976,16 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               }
               indonesiaCompatibilityDataStream = parsed;
               if (!parsed) {
-                logger.error("Indonesia Compatibility: no valid JSON found. Raw (first 300 chars):", finalAiResponse.substring(0, 300));
+                logger.error(
+                  "Indonesia Compatibility: no valid JSON found. Raw (first 300 chars):",
+                  finalAiResponse.substring(0, 300),
+                );
               }
             } catch (err) {
-              logger.error("Indonesia Compatibility JSON parse error:", err.message);
+              logger.error(
+                "Indonesia Compatibility JSON parse error:",
+                err.message,
+              );
             }
           }
 
@@ -5133,9 +5270,12 @@ MANDATORY RULES — CANNOT BE SKIPPED:
 
       // ====== INDONESIA COMPATIBILITY RESPONSE PROCESSING ======
       let indonesiaCompatibilityData = null;
-      const isIndonesiaCompatNonStream = isAstriaIndonesia &&
-        subCategoryName && subCategoryName.toLowerCase().includes("compatibility") &&
-        indonesia3BoxSelf && indonesia3BoxPartner;
+      const isIndonesiaCompatNonStream =
+        isAstriaIndonesia &&
+        subCategoryName &&
+        subCategoryName.toLowerCase().includes("compatibility") &&
+        indonesia3BoxSelf &&
+        indonesia3BoxPartner;
       if (isIndonesiaCompatNonStream) {
         try {
           const cleaned = finalAiResponse
@@ -5166,7 +5306,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 .join("\n\n");
           }
         } catch (err) {
-          logger.error("Indonesia Compatibility JSON parse error:", err.message);
+          logger.error(
+            "Indonesia Compatibility JSON parse error:",
+            err.message,
+          );
         }
       }
       // ====== END INDONESIA COMPATIBILITY RESPONSE PROCESSING ======
@@ -5201,6 +5344,32 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         }
       } catch (saveErr) {
         logger.error("Chat save error:", saveErr);
+      }
+
+      // HealJai Talk — fire background profile extractor every 3 messages (fire and forget)
+      if (
+        categoryName === "HealJai Talk" &&
+        userId &&
+        categoryId &&
+        saveChat !== false
+      ) {
+        const chatMessageCount = (chat?.chats || []).length;
+        if (chatMessageCount > 0 && chatMessageCount % 3 === 0) {
+          const recentMsgs = (chat?.chats || [])
+            .slice(-5)
+            .map((c) => c.userMessage)
+            .filter(Boolean);
+          if (recentMsgs.length > 0) {
+            appendUserProfile(userId, categoryId, chat?._id, recentMsgs).catch(
+              (err) => {
+                logger.error(
+                  "[HealJai Profile Extractor] Failed:",
+                  err?.message || err,
+                );
+              },
+            );
+          }
+        }
       }
 
       await upsertUserMusicMemory({
