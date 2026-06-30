@@ -129,6 +129,9 @@ const userController = {
           subscriptionStartDate: user.subscriptionStartDate,
           subscriptionEndDate: user.subscriptionEndDate,
           subscriptionStatus: user.subscriptionStatus,
+          region: user.region || "healjai",
+          allRegionsApproved: user.allRegionsApproved || false,
+          allRegionsPending: user.allRegionsPending || false,
         },
         migratedChats: migratedChats, // Send back which chats were migrated
       });
@@ -142,7 +145,7 @@ const userController = {
   },
 
   register: async (req, res) => {
-    const { roleId, email, username, password, mobileNo, preferredLanguage } =
+    const { roleId, email, username, password, mobileNo, preferredLanguage, region } =
       req.body;
 
     logger.log(`Registration attempt for ${email}`);
@@ -183,6 +186,7 @@ const userController = {
         password: hashedPassword,
         preferredLanguage,
         mobileNo,
+        region: region || "healjai",
       });
 
       await newUser.save();
@@ -290,6 +294,9 @@ const userController = {
           subscriptionStartDate: user.subscriptionStartDate,
           subscriptionEndDate: user.subscriptionEndDate,
           subscriptionStatus: user.subscriptionStatus,
+          region: user.region || "healjai",
+          allRegionsApproved: user.allRegionsApproved || false,
+          allRegionsPending: user.allRegionsPending || false,
         },
       });
     } catch (error) {
@@ -395,6 +402,9 @@ const userController = {
           subscriptionStartDate: user.subscriptionStartDate,
           subscriptionEndDate: user.subscriptionEndDate,
           subscriptionStatus: user.subscriptionStatus,
+          region: user.region || "healjai",
+          allRegionsApproved: user.allRegionsApproved || false,
+          allRegionsPending: user.allRegionsPending || false,
         },
       });
     } catch (error) {
@@ -650,6 +660,26 @@ const userController = {
         delete updateData.newPassword; // remove it from update data
       }
 
+      // 🔹 "All Regions" requires admin approval — set pending instead of granting immediately
+      if (updateData.region === "all") {
+        // Only admins (roleId === 1) can directly grant allRegionsApproved
+        const requestingUser = await User.findById(req.params.id);
+        const isAdmin = requestingUser?.roleId === 1;
+        if (!isAdmin) {
+          updateData.region = requestingUser?.region || "healjai"; // revert region change
+          updateData.allRegionsPending = true;
+          delete updateData.allRegionsApproved; // never self-approve
+        }
+      }
+
+      // 🔹 Admins can explicitly approve allRegions for a user
+      if (updateData.approveAllRegions === true) {
+        updateData.allRegionsApproved = true;
+        updateData.allRegionsPending = false;
+        updateData.region = "all";
+        delete updateData.approveAllRegions;
+      }
+
       const updatedUser = await User.findByIdAndUpdate(
         req.params.id,
         updateData,
@@ -666,7 +696,15 @@ const userController = {
       logger.log(
         `Updated user: ${updatedUser.username} (ID: ${req.params.id})`,
       );
-      res.status(200).json({ success: true, updatedUser });
+      res.status(200).json({
+        success: true,
+        updatedUser: {
+          ...updatedUser.toObject(),
+          region: updatedUser.region || "healjai",
+          allRegionsApproved: updatedUser.allRegionsApproved || false,
+          allRegionsPending: updatedUser.allRegionsPending || false,
+        },
+      });
     } catch (err) {
       logger.error(`Error updating user ID ${req.params.id}`, err);
       res.status(500).json({ error: err.message });

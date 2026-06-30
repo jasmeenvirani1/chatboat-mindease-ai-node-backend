@@ -1856,6 +1856,7 @@ const chatController = {
         "HealJai Talk",
         "Astria Talk",
         "Emotions",
+        "Companion Talk",
       ]);
       const isHealJaiCategory =
         HEALJAI_ACTIVE_CATEGORIES.has(categoryName) ||
@@ -4262,7 +4263,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System Prompt:", systemPrompt);
+      //console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -4697,7 +4698,8 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               subCategoryName === "รหัส Healjai V3" ||
               subCategoryName === "Uranian V3" ||
               categoryName === "Astria Talk" ||
-              categoryName === "รหัส Healjai V3"
+              categoryName === "รหัส Healjai V3" ||
+              categoryName === "Companion Talk"
             ) {
               // stream = await generateClaudeResponseStream(messages);
               stream = await generateGeminiResponseStream(messages);
