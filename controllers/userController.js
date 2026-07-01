@@ -204,6 +204,69 @@ const userController = {
     }
   },
 
+  // Create User from Admin Panel (includes Admin, User, and Tester roles)
+  createUserFromAdmin: async (req, res) => {
+    const {
+      roleId, email, username, password, mobileNo,
+      preferredLanguage, dob, dob_time, dob_place, region
+    } = req.body;
+
+    logger.log(`Creating user from admin panel: ${email}, roleId: ${roleId}`);
+
+    try {
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      if (!password) {
+        return res.status(400).json({ error: "Password is required" });
+      }
+
+      if (!roleId) {
+        return res.status(400).json({ error: "Role is required" });
+      }
+
+      // Check if email already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        logger.log(`User creation failed: Email already exists - ${email}`);
+        return res.status(400).json({
+          error: "Email is already registered",
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const newUser = new User({
+        roleId: Number(roleId),
+        email,
+        username: username || makeUsernameFromEmail(email),
+        password: hashedPassword,
+        mobileNo: mobileNo || "",
+        preferredLanguage: preferredLanguage || "en",
+        dob: dob || "",
+        dob_time: dob_time || "",
+        dob_place: dob_place || "",
+        region: region || "healjai",
+        isActive: true,
+        isDeleted: false,
+      });
+
+      await newUser.save();
+
+      logger.log(`User created from admin panel: ${email}, roleId: ${roleId}`);
+
+      return res.status(201).json({
+        message: "User created successfully",
+        userId: newUser._id,
+        roleId: newUser.roleId,
+      });
+    } catch (error) {
+      logger.error(`User creation error from admin for ${email}`, error);
+      return res.status(500).json({ error: error.message });
+    }
+  },
+
   googleLogin: async (req, res) => {
     try {
       const { idToken, roleId } = req.body;

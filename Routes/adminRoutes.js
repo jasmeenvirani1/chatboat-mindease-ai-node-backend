@@ -100,6 +100,7 @@ router.get("/users", userController.getAllUsers);
 router.get("/user/:id", userController.getUserById);
 router.put("/user/:id", userController.updateUser);
 router.delete("/user/:id", userController.deleteUser);
+router.post("/user/create", userController.createUserFromAdmin);
 
 //Chat History Routes
 router.get("/chats", ChatHistory.getChats);

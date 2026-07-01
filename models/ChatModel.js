@@ -56,7 +56,7 @@ const ChatHistorySchema = new Schema(
       ref: "Case",
       default: null,
     },
-    chatLang: { type: String, enum: ["th", "en", "es", "hi"], default: "en" },
+    chatLang: { type: String, enum: ["th", "en", "es", "hi", "hinglish", "pt", "ja", "ko", "zh", "ru", "ar", "vi", "fr", "de", "it", "id"], default: "en" },
 
     sessionTitle: {
       type: String,
