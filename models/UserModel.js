@@ -13,6 +13,11 @@ const userSchema = new Schema(
     email: { type: String, required: true, unique: true },
     mobileNo: { type: String, required: false },
     password: { type: String, required: false },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      required: false,
+    },
     dob: { type: String, required: false },
     dob_time: { type: String, required: false },
     dob_place: { type: String, required: false },

@@ -1742,11 +1742,12 @@ const chatController = {
       let userName;
       let subscriptionId;
       let subscriptionStatus;
+      let roleId;
       let userMusicMemory = null;
 
       if (userId) {
         const user = await User.findById(userId).select(
-          "dob dob_time dob_place username subscriptionId subscriptionStatus",
+          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId",
         );
         if (user) {
           dob0 = user.dob;
@@ -1755,15 +1756,17 @@ const chatController = {
           userName = user.username;
           subscriptionId = user.subscriptionId;
           subscriptionStatus = user.subscriptionStatus;
+          roleId = user.roleId;
         }
         userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
 
-      // Daily chat limit: 10 chats/day for free users, unlimited for subscribers
+      // Daily chat limit: 10 chats/day for free users, unlimited for subscribers and testers (roleId 3)
       if (userId) {
         const isSubscribed = subscriptionId && subscriptionStatus === "Active";
+        const isTester = roleId === 3;
 
-        if (!isSubscribed) {
+        if (!isSubscribed && !isTester) {
           const startOfDay = getKolkataMidnightDate();
           const [limitCheck] = await ChatHistory.aggregate([
             { $match: { userId: new mongoose.Types.ObjectId(userId) } },
