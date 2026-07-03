@@ -27,6 +27,7 @@ const SettingSchema = new Schema(
     gemini_model: { type: String, required: false },
     gemini_api_key2: { type: String, required: false },
     gemini_model2: { type: String, required: false },
+    testDomain: { type: String, required: false },
   },
   { timestamps: true },
 );

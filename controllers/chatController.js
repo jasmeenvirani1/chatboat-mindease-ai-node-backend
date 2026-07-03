@@ -1761,6 +1761,32 @@ const chatController = {
         userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
 
+      // ============================================
+      // SELF DOB RESOLUTION — message-provided DOB overrides stored DOB
+      // Used by all single-person birth-chart flows across every category
+      // module (HealJai, Astria US/Spanish/Japan/Korea/Brazil/PSM/GCC/
+      // UK/Canada/Indonesia/India, Upay Marg, etc.). If the user's message
+      // contains a date of birth, use it (and any birth time/place given
+      // alongside it) for this request; otherwise fall back to the DOB
+      // stored on the user's profile.
+      // NOTE: dual-partner flows (Vivah Muhurat, Energy Match, Sambandh
+      // Match) intentionally keep using the raw dob0/dob_time0/dob_place0
+      // — they already do their own message-vs-stored resolution per
+      // partner, and substituting a message DOB there would incorrectly
+      // collapse both partners onto the same date.
+      const dobFromMessage =
+        extractThaiDateTime(userMessage)?.dateOfBirth ||
+        extractDOBFromText(userMessage);
+      const selfDob0 = dobFromMessage || dob0;
+      const selfDobTime0 = dobFromMessage
+        ? extractBirthTimeFromText(userMessage) ||
+          extractThaiDateTime(userMessage)?.timeOfBirth ||
+          dob_time0
+        : dob_time0;
+      const selfDobPlace0 = dobFromMessage
+        ? extractBirthPlaceFromText(userMessage) || dob_place0
+        : dob_place0;
+
       // Daily chat limit: 10 chats/day for free users, unlimited for subscribers and testers (roleId 3)
       if (userId) {
         const isSubscribed = subscriptionId && subscriptionStatus === "Active";
@@ -2662,9 +2688,9 @@ DAILY CHECK-IN (when natural):
       // ============================================
       if (isAstriaIndia) {
         systemPrompt = await buildAstriaIndiaContext({
-          dob: dob0,
-          dob_time: dob_time0,
-          dob_place: dob_place0,
+          dob: selfDob0,
+          dob_time: selfDobTime0,
+          dob_place: selfDobPlace0,
           emotionType,
           emotionIntensity,
           userMessage,
@@ -2687,9 +2713,9 @@ DAILY CHECK-IN (when natural):
                 : target;
 
         const vyaktivaBasePrompt = await buildAstriaIndiaContext({
-          dob: dob0,
-          dob_time: dob_time0,
-          dob_place: dob_place0,
+          dob: selfDob0,
+          dob_time: selfDobTime0,
+          dob_place: selfDobPlace0,
           timezoneOffsetMinutes: 330,
           emotionType,
           emotionIntensity,
@@ -2719,9 +2745,9 @@ Rules for the JSON:
       // Bhavna Drishti Engine — emotional inner-weather JSON reading via Nakshatra + emotion context
       if (isBhavnaDrishti) {
         const bhavnaBasePrompt = await buildAstriaIndiaContext({
-          dob: dob0,
-          dob_time: dob_time0,
-          dob_place: dob_place0,
+          dob: selfDob0,
+          dob_time: selfDobTime0,
+          dob_place: selfDobPlace0,
           timezoneOffsetMinutes: 330,
           emotionType,
           emotionIntensity,
@@ -2798,12 +2824,12 @@ RULES:
       if (isUpayMarg) {
         // Get nakshatra context from existing birth data
         let nakshatraContext = null;
-        if (dob0) {
+        if (selfDob0) {
           try {
             // Reuse existing astrological calculation
             const astroData = await calculateUranianPlanets({
-              dateOfBirth: dob0,
-              timeOfBirth: dob_time0 || "6:00 AM",
+              dateOfBirth: selfDob0,
+              timeOfBirth: selfDobTime0 || "6:00 AM",
               timezoneOffsetMinutes: 330,
               dateFormat: "DMY",
             });
@@ -2828,9 +2854,9 @@ RULES:
           emotionIntensity,
           ageInfo,
           target,
-          dob: dob0,
-          dob_time: dob_time0,
-          dob_place: dob_place0,
+          dob: selfDob0,
+          dob_time: selfDobTime0,
+          dob_place: selfDobPlace0,
           clientPromptOverride: subCategoryPrompt || categoryPrompt || null,
           nakshatraContext: nakshatraContext
             ? JSON.stringify(nakshatraContext)
@@ -2941,12 +2967,12 @@ RULES:
         } else {
           // All other Astria US subcategories — single user chart
           let astriaUSBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaUSBirthChart = computeWesternBirthChart({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria US birth chart error:", chartErr);
@@ -3026,12 +3052,12 @@ RULES:
         } else {
           // All other Astria Spanish subcategories — single user chart
           let astriaSpanishBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaSpanishBirthChart = computeWesternBirthChartES({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria Spanish birth chart error:", chartErr);
@@ -3076,12 +3102,12 @@ RULES:
             let chartAJP = null;
             let chartBJP = null;
             try {
-              const selfDob = japan3BoxSelf.dob || dob0;
+              const selfDob = japan3BoxSelf.dob || selfDob0;
               if (selfDob) {
                 chartAJP = computeWesternBirthChartJP({
                   dob: String(selfDob).trim(),
-                  dob_time: japan3BoxSelf.birth_time || dob_time0 || null,
-                  dob_place: japan3BoxSelf.birth_city || dob_place0 || null,
+                  dob_time: japan3BoxSelf.birth_time || selfDobTime0 || null,
+                  dob_place: japan3BoxSelf.birth_city || selfDobPlace0 || null,
                 });
               }
             } catch (err) {
@@ -3164,12 +3190,12 @@ RULES:
         } else {
           // All other Astria Japan subcategories — single user chart
           let astriaJapanBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaJapanBirthChart = computeWesternBirthChartJP({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria Japan birth chart error:", chartErr);
@@ -3216,12 +3242,12 @@ RULES:
             let chartAKR = null;
             let chartBKR = null;
             try {
-              const selfDob = korea3BoxSelf.dob || dob0;
+              const selfDob = korea3BoxSelf.dob || selfDob0;
               if (selfDob) {
                 chartAKR = computeWesternBirthChartKR({
                   dob: String(selfDob).trim(),
-                  dob_time: korea3BoxSelf.birth_time || dob_time0 || null,
-                  dob_place: korea3BoxSelf.birth_city || dob_place0 || null,
+                  dob_time: korea3BoxSelf.birth_time || selfDobTime0 || null,
+                  dob_place: korea3BoxSelf.birth_city || selfDobPlace0 || null,
                 });
               }
             } catch (err) {
@@ -3311,12 +3337,12 @@ RULES:
         } else {
           // All other Astria Korea subcategories — single user chart
           let astriaKoreaBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaKoreaBirthChart = computeWesternBirthChartKR({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria Korea birth chart error:", chartErr);
@@ -3397,12 +3423,12 @@ RULES:
         } else {
           // All other Astria Brazil subcategories — single user chart
           let astriaBrazilBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaBrazilBirthChart = computeWesternBirthChartBR({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria Brazil birth chart error:", chartErr);
@@ -3484,12 +3510,12 @@ RULES:
         } else {
           // All other PSM subcategories — single user chart
           let astriaPSMBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaPSMBirthChart = computeWesternBirthChartPSM({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria PSM birth chart error:", chartErr);
@@ -3535,12 +3561,12 @@ RULES:
             let chartAGCC = null;
             let chartBGCC = null;
             try {
-              const selfDobGCC = gcc3BoxSelf.dob || dob0;
+              const selfDobGCC = gcc3BoxSelf.dob || selfDob0;
               if (selfDobGCC) {
                 chartAGCC = computeWesternBirthChartGCC({
                   dob: String(selfDobGCC).trim(),
-                  dob_time: gcc3BoxSelf.birth_time || dob_time0 || null,
-                  dob_place: gcc3BoxSelf.birth_city || dob_place0 || null,
+                  dob_time: gcc3BoxSelf.birth_time || selfDobTime0 || null,
+                  dob_place: gcc3BoxSelf.birth_city || selfDobPlace0 || null,
                 });
               }
             } catch (err) {
@@ -3637,12 +3663,12 @@ RULES:
         } else {
           // All other Astria GCC subcategories — single user chart
           let astriaGCCBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaGCCBirthChart = computeWesternBirthChartGCC({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria GCC birth chart error:", chartErr);
@@ -3722,12 +3748,12 @@ RULES:
         } else {
           // All other Astria UK subcategories — single user chart
           let astriaUKBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaUKBirthChart = computeWesternBirthChartUKCanada({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria UK birth chart error:", chartErr);
@@ -3807,12 +3833,12 @@ RULES:
         } else {
           // All other Astria Canada subcategories — single user chart
           let astriaCanadaBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaCanadaBirthChart = computeWesternBirthChartUKCanada({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria Canada birth chart error:", chartErr);
@@ -4069,12 +4095,12 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
         } else {
           // All other Astria Indonesia subcategories — single user chart
           let astriaIndonesiaBirthChart = null;
-          if (dob0) {
+          if (selfDob0) {
             try {
               astriaIndonesiaBirthChart = computeWesternBirthChartID({
-                dob: String(dob0).trim(),
-                dob_time: dob_time0 || null,
-                dob_place: dob_place0 || null,
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
               logger.error("Astria Indonesia birth chart error:", chartErr);
@@ -4141,9 +4167,9 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
             subCategoryPrompt: subCategoryPrompt || null,
             target,
             userMessage,
-            dob: dob0,
-            dob_time: dob_time0,
-            dob_place: dob_place0,
+            dob: selfDob0,
+            dob_time: selfDobTime0,
+            dob_place: selfDobPlace0,
             emotionType,
             emotionIntensity,
             ageInfo,
@@ -4266,7 +4292,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           content: systemPrompt.trim(),
         },
       ];
-      //console.log("System Prompt:", systemPrompt);
+      console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });

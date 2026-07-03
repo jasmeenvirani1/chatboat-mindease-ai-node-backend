@@ -14,6 +14,16 @@ const SettingController = {
     }
   },
 
+  // Public: fetch only the tester domain (no auth required, used pre-login)
+  getPublicTestDomain: async (req, res) => {
+    try {
+      const settings = await Setting.findOne().sort({ createdAt: -1 });
+      res.json({ testDomain: settings?.testDomain || "" });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
   // Store new settings
   store: async (req, res) => {
     try {

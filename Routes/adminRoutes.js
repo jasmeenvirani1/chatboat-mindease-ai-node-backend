@@ -40,6 +40,9 @@ router.post("/uranian/create", createUranianHistory);
 router.post("/lifeGraph/create", createLifeGraphHistory);
 router.post("/energyMatch/create", createEnergyMatchHistory);
 
+// Public: tester domain used by the frontend before login
+router.get("/settings/public-test-domain", SettingController.getPublicTestDomain);
+
 // NEW: Public route for sharing images (no authentication required)
 router.post(
   "/share-image",
