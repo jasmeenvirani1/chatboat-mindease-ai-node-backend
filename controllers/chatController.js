@@ -125,6 +125,20 @@ const {
 // HELPER FUNCTIONS
 // ============================================
 
+// Appends the user's resolved Date of Birth and latest message to the end of
+// an Astria-lane system prompt. Applied identically across every "Astria
+// <Country>" category (US, Spanish, Japan, Korea, Brazil, PSM, GCC, UK,
+// Canada, Indonesia, India) so the model always has this as trailing,
+// highest-recency context regardless of which lane built the prompt.
+function appendAstriaDobAndMessageContext(systemPrompt, dob, userMessage) {
+  return `${systemPrompt}
+
+━━━ USER CONTEXT (attached last — use as primary grounding) ━━━
+Date of Birth: ${dob ? String(dob).trim() : "unknown"}
+Latest User Message: "${String(userMessage || "").trim()}"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+}
+
 function getKolkataMidnightDate() {
   const now = new Date();
 
@@ -474,6 +488,11 @@ function extractThaiDateTime(text = "") {
 
 function containsDate(text = "") {
   const source = String(text || "");
+  // Delegates to the same multi-language/multi-format detectors used for DOB
+  // resolution so this gate never disagrees with what extraction can find.
+  if (extractThaiDateTime(source)) return true;
+  if (extractDOBFromText(source)) return true;
+
   const monthNamesPattern =
     "ม\\.?ค\\.?|ก\\.?พ\\.?|มี\\.?ค\\.?|เม\\.?ย\\.?|พ\\.?ค\\.?|มิ\\.?ย\\.?|ก\\.?ค\\.?|ส\\.?ค\\.?|ก\\.?ย\\.?|ต\\.?ค\\.?|พ\\.?ย\\.?|ธ\\.?ค\\.?|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
 
@@ -720,71 +739,268 @@ function detectVivahIntention(text = "") {
   return "Wedding Ceremony (Vivah)";
 }
 
+// Month-name vocab across languages we support, all mapped to numeric month.
+// Where a word is shared across languages (e.g. "mai"/"juli"/"november") it is
+// listed once — the numeric month is identical regardless of source language.
+const MONTH_NAME_MAP = {
+  // English
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  juli: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  oktober: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+  // Spanish
+  enero: 1,
+  febrero: 2,
+  marzo: 3,
+  abril: 4,
+  mayo: 5,
+  junio: 6,
+  julio: 7,
+  agosto: 8,
+  septiembre: 9,
+  setiembre: 9,
+  octubre: 10,
+  noviembre: 11,
+  diciembre: 12,
+  // French
+  janvier: 1,
+  février: 2,
+  fevrier: 2,
+  mars: 3,
+  avril: 4,
+  mai: 5,
+  juin: 6,
+  juillet: 7,
+  août: 8,
+  aout: 8,
+  septembre: 9,
+  octobre: 10,
+  novembre: 11,
+  décembre: 12,
+  decembre: 12,
+  // German (unique words only — overlaps with above already covered)
+  januar: 1,
+  märz: 3,
+  marz: 3,
+  dezember: 12,
+  // Portuguese (unique words only)
+  janeiro: 1,
+  fevereiro: 2,
+  março: 3,
+  marco: 3,
+  maio: 5,
+  junho: 6,
+  julho: 7,
+  setembro: 9,
+  outubro: 10,
+  novembro: 11,
+  dezembro: 12,
+  // Indonesian (unique words only)
+  januari: 1,
+  februari: 2,
+  maret: 3,
+  mei: 5,
+  agustus: 8,
+  desember: 12,
+  // Hindi (romanized + Devanagari)
+  janvari: 1,
+  जनवरी: 1,
+  फ़रवरी: 2,
+  फरवरी: 2,
+  मार्च: 3,
+  अप्रैल: 4,
+  मई: 5,
+  जून: 6,
+  जुलाई: 7,
+  अगस्त: 8,
+  सितंबर: 9,
+  सितम्बर: 9,
+  अक्टूबर: 10,
+  नवंबर: 11,
+  नवम्बर: 11,
+  दिसंबर: 12,
+  दिसम्बर: 12,
+};
+
+const MONTH_NAME_PATTERN = Object.keys(MONTH_NAME_MAP)
+  .sort((a, b) => b.length - a.length)
+  .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  .join("|");
+
+function monthNameToNumber(raw) {
+  const key = String(raw || "")
+    .toLowerCase()
+    .trim();
+  return MONTH_NAME_MAP[key] || null;
+}
+
+/**
+ * Detects a date-of-birth in free text across numeric, textual, and
+ * CJK/Devanagari formats and languages, normalizing the result to DD/MM/YYYY.
+ */
 function extractDOBFromText(text = "") {
-  const src = String(text || "");
-  const numericMatch = src.match(
-    /\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})\b/,
+  const src = String(text || "").trim();
+  if (!src) return null;
+
+  // CJK-style "YYYY年 M月 D日" / Korean "YYYY년 M월 D일" (also accepts 년/月 mixed)
+  const cjkMatch = src.match(
+    /(\d{4})\s*[년年]\s*(\d{1,2})\s*[월月]\s*(\d{1,2})\s*[일日]/,
   );
-  if (numericMatch) {
-    const [, d, m, y] = numericMatch;
-    return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+  if (cjkMatch) {
+    const [, y, m, d] = cjkMatch;
+    return `${String(+d).padStart(2, "0")}/${String(+m).padStart(2, "0")}/${y}`;
   }
-  const monthAbbr = {
-    jan: "01",
-    feb: "02",
-    mar: "03",
-    apr: "04",
-    may: "05",
-    jun: "06",
-    jul: "07",
-    aug: "08",
-    sep: "09",
-    oct: "10",
-    nov: "11",
-    dec: "12",
-  };
-  const monthRx =
-    "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+
+  // ISO-like YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD
+  const ymd = src.match(/\b(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/);
+  if (ymd) {
+    const [, y, m, d] = ymd;
+    if (+m <= 12 && +d <= 31) {
+      return `${String(+d).padStart(2, "0")}/${String(+m).padStart(2, "0")}/${y}`;
+    }
+  }
+
+  // Numeric DD/MM/YYYY or MM/DD/YYYY (with -, ., or / separators), disambiguated
+  // by whichever slot can't possibly be a month (i.e. is > 12).
+  const numericMatch = src.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\b/);
+  if (numericMatch) {
+    let [, a, b, y] = numericMatch;
+    a = +a;
+    b = +b;
+    let day = a;
+    let month = b;
+    if (a > 12 && b <= 12) {
+      day = a;
+      month = b;
+    } else if (b > 12 && a <= 12) {
+      day = b;
+      month = a;
+    }
+    // else ambiguous (both <=12): keep DMY convention used across the app
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${y}`;
+    }
+  }
+
+  // Textual "D Month YYYY" / "D. Month YYYY" / "D de Month de YYYY" (Spanish/French/Portuguese
+  // connector words "de"/"del"/"of" optionally sit between the parts; also covers
+  // Devanagari/other-script month names)
   const dmy = src.match(
-    new RegExp(`\\b(\\d{1,2})\\s+${monthRx}\\s+(\\d{4})\\b`, "i"),
+    new RegExp(
+      `\\b(\\d{1,2})(?:st|nd|rd|th)?\\.?\\s+(?:de\\s+|del\\s+|of\\s+)?(${MONTH_NAME_PATTERN})\\.?,?\\s+(?:de\\s+|del\\s+|of\\s+)?(\\d{4})\\b`,
+      "iu",
+    ),
   );
   if (dmy) {
     const [, d, mStr, y] = dmy;
-    const m = monthAbbr[mStr.toLowerCase().slice(0, 3)];
-    return `${String(Number(d)).padStart(2, "0")}/${m}/${y}`;
+    const m = monthNameToNumber(mStr);
+    if (m) {
+      return `${String(Number(d)).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+    }
   }
+
+  // Textual "Month D, YYYY" / "Month D YYYY" (English/Spanish/etc. MDY style)
   const mdy = src.match(
     new RegExp(
-      `\\b${monthRx}\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,)?\\s+(\\d{4})\\b`,
-      "i",
+      `\\b(${MONTH_NAME_PATTERN})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(?:de\\s+|del\\s+|of\\s+)?(\\d{4})\\b`,
+      "iu",
     ),
   );
   if (mdy) {
     const [, mStr, d, y] = mdy;
-    const m = monthAbbr[mStr.toLowerCase().slice(0, 3)];
-    return `${String(Number(d)).padStart(2, "0")}/${m}/${y}`;
+    const m = monthNameToNumber(mStr);
+    if (m) {
+      return `${String(Number(d)).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+    }
   }
+
   return null;
 }
 
+/**
+ * Detects a birth time in free text across 12h/24h numeric formats plus
+ * Korean (시/분, 오전/오후) and Hindi (बजे) spoken-time phrasing.
+ */
 function extractBirthTimeFromText(text = "") {
   const src = String(text || "");
-  const match = src.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i);
-  if (match) {
-    const h = match[1];
-    const min = match[2] || "00";
-    return `${h}:${min} ${match[3].toUpperCase()}`;
+
+  // 12-hour with AM/PM, e.g. "10:30 PM", "10 pm"
+  const ampm = src.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)\b/i);
+  if (ampm) {
+    const h = ampm[1];
+    const min = ampm[2] || "00";
+    return `${h}:${min} ${ampm[3].toUpperCase()}`;
   }
-  const h24 = src.match(/\b(\d{1,2}):(\d{2})\b/);
+
+  // Korean: 오전 10시 30분 / 오후 2시 / 10시 30분
+  const krAM = src.match(/오전\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/);
+  if (krAM) return `${krAM[1]}:${String(krAM[2] || "0").padStart(2, "0")}`;
+  const krPM = src.match(/오후\s*(\d{1,2})시(?:\s*(\d{1,2})분)?/);
+  if (krPM) {
+    const h = +krPM[1] < 12 ? +krPM[1] + 12 : +krPM[1];
+    return `${h}:${String(krPM[2] || "0").padStart(2, "0")}`;
+  }
+  const krTime = src.match(/(\d{1,2})시(?:\s*(\d{1,2})분)?/);
+  if (krTime)
+    return `${krTime[1]}:${String(krTime[2] || "0").padStart(2, "0")}`;
+
+  // Hindi spoken time: "सुबह 10 बजे", "शाम 5 बजकर 30 मिनट", "रात 9 बजे"
+  const hiTime = src.match(
+    /(सुबह|दोपहर|शाम|रात)?\s*(\d{1,2})\s*बज(?:े|कर)(?:\s*(\d{1,2})\s*मिनट)?/,
+  );
+  if (hiTime) {
+    let h = +hiTime[2];
+    const period = hiTime[1];
+    if ((period === "शाम" || period === "रात") && h < 12) h += 12;
+    const min = hiTime[3] || "0";
+    return `${h}:${String(min).padStart(2, "0")}`;
+  }
+
+  // 24-hour HH:MM (avoid matching a YYYY:MM-like false positive by requiring <=2 digit hour)
+  const h24 = src.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
   if (h24) return `${h24[1]}:${h24[2]}`;
+
   return null;
 }
 
+/**
+ * Detects a birth place in free text using English, Hindi, and Korean cue
+ * phrases (e.g. "born in X", "X में जन्म", "X에서 태어").
+ */
 function extractBirthPlaceFromText(text = "") {
   const src = String(text || "");
   const patterns = [
-    /born\s+in\s+([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|$)/i,
-    /(?:from|place|city|location)\s*[:\-]\s*([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|$)/i,
+    // English
+    /born\s+in\s+([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|\s+(?:on|at|in|during)\b|$)/i,
+    /(?:from|place|city|location)\s*[:\-]\s*([A-Za-z][A-Za-z\s]{2,24}?)(?:\s*[,.]|\s+(?:on|at|in|during)\b|$)/i,
+    // Korean: 출생지: 서울 / 태어난 곳: 부산 / 서울에서 태어났 / 부산 출신
+    /(?:출생지|태어난\s*곳|출신지|도시|장소)\s*[：:]\s*([가-힯A-Za-z][^\s,.\n]{1,20})/,
+    /([가-힯]{1,6})(?:에서\s*태어|출신)/,
+    // Hindi: "मुंबई में जन्म", "जन्म स्थान: दिल्ली"
+    /जन्म\s*स्थान\s*[：:]\s*([ऀ-ॿA-Za-z][^\s,.\n]{1,24})/,
+    /([ऀ-ॿ]{2,20})\s*में\s*(?:जन्म|पैदा)/,
   ];
   for (const pat of patterns) {
     const m = src.match(pat);
@@ -1762,13 +1978,14 @@ const chatController = {
       }
 
       // ============================================
-      // SELF DOB RESOLUTION — message-provided DOB overrides stored DOB
+      // SELF DOB RESOLUTION — message-provided birth details override stored ones
       // Used by all single-person birth-chart flows across every category
       // module (HealJai, Astria US/Spanish/Japan/Korea/Brazil/PSM/GCC/
-      // UK/Canada/Indonesia/India, Upay Marg, etc.). If the user's message
-      // contains a date of birth, use it (and any birth time/place given
-      // alongside it) for this request; otherwise fall back to the DOB
-      // stored on the user's profile.
+      // UK/Canada/Indonesia/India, Upay Marg, etc.). Date, time, and place are
+      // each resolved independently: if the current message contains that
+      // field, it is used for this request; otherwise it falls back to the
+      // value stored on the user's profile. This holds even if only one of
+      // the three (e.g. just a birth place) is mentioned without the others.
       // NOTE: dual-partner flows (Vivah Muhurat, Energy Match, Sambandh
       // Match) intentionally keep using the raw dob0/dob_time0/dob_place0
       // — they already do their own message-vs-stored resolution per
@@ -1777,15 +1994,13 @@ const chatController = {
       const dobFromMessage =
         extractThaiDateTime(userMessage)?.dateOfBirth ||
         extractDOBFromText(userMessage);
+      const timeFromMessage =
+        extractThaiDateTime(userMessage)?.timeOfBirth ||
+        extractBirthTimeFromText(userMessage);
+      const placeFromMessage = extractBirthPlaceFromText(userMessage);
       const selfDob0 = dobFromMessage || dob0;
-      const selfDobTime0 = dobFromMessage
-        ? extractBirthTimeFromText(userMessage) ||
-          extractThaiDateTime(userMessage)?.timeOfBirth ||
-          dob_time0
-        : dob_time0;
-      const selfDobPlace0 = dobFromMessage
-        ? extractBirthPlaceFromText(userMessage) || dob_place0
-        : dob_place0;
+      const selfDobTime0 = timeFromMessage || dob_time0;
+      const selfDobPlace0 = placeFromMessage || dob_place0;
 
       // Daily chat limit: 10 chats/day for free users, unlimited for subscribers and testers (roleId 3)
       if (userId) {
@@ -2988,6 +3203,11 @@ RULES:
             birthChart: astriaUSBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA US PROCESSING ======
 
@@ -3074,6 +3294,11 @@ RULES:
             spanishTone: resolvedSpanishTone,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA SPANISH PROCESSING ======
 
@@ -3211,6 +3436,11 @@ RULES:
             birthChart: astriaJapanBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA JAPAN PROCESSING ======
 
@@ -3358,6 +3588,11 @@ RULES:
             birthChart: astriaKoreaBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA KOREA PROCESSING ======
 
@@ -3444,6 +3679,11 @@ RULES:
             birthChart: astriaBrazilBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA BRAZIL PROCESSING ======
 
@@ -3532,6 +3772,11 @@ RULES:
             birthChart: astriaPSMBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA PSM PROCESSING ======
 
@@ -3684,6 +3929,11 @@ RULES:
             birthChart: astriaGCCBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA GCC PROCESSING ======
 
@@ -3769,6 +4019,11 @@ RULES:
             birthChart: astriaUKBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA UK PROCESSING ======
 
@@ -3854,6 +4109,11 @@ RULES:
             birthChart: astriaCanadaBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA CANADA PROCESSING ======
 
@@ -4116,6 +4376,11 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
             birthChart: astriaIndonesiaBirthChart,
           });
         }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+        );
       }
       // ====== END ASTRIA INDONESIA PROCESSING ======
 
@@ -4292,7 +4557,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System Prompt:", systemPrompt);
+      //console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });

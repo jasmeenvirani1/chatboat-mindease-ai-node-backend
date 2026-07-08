@@ -5,6 +5,7 @@ const CategoryModel = require("../models/CategoryModel.js");
 const EnergyMatchModel = require("../models/EnergyMatchModel.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const UserModel = require("../models/UserModel.js");
+const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -40,6 +41,41 @@ function langInstruction(lang) {
     en: "You MUST respond in English only.",
   };
   return map[lang] || map.en;
+}
+//Uraniun concept
+function angularDiff(a, b) {
+  let diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
+const ASPECTS = [
+  { name: "Conjunction", angle: 0, orb: 8 },
+  { name: "Sextile", angle: 60, orb: 6 },
+  { name: "Square", angle: 90, orb: 8 },
+  { name: "Trine", angle: 120, orb: 8 },
+  { name: "Opposition", angle: 180, orb: 8 },
+];
+
+function calculateSynastryAspects(planetsA, planetsB) {
+  const aspects = [];
+  for (const pa of planetsA) {
+    for (const pb of planetsB) {
+      const diff = angularDiff(pa.degree, pb.degree);
+      for (const asp of ASPECTS) {
+        if (Math.abs(diff - asp.angle) <= asp.orb) {
+          aspects.push({
+            personA: pa.name,
+            personB: pb.name,
+            aspect: asp.name,
+            exactness: Number(
+              (asp.orb - Math.abs(diff - asp.angle)).toFixed(2),
+            ),
+          });
+        }
+      }
+    }
+  }
+  return aspects;
 }
 
 const createEnergyMatchHistory = async (req, res) => {
@@ -96,6 +132,33 @@ const createEnergyMatchHistory = async (req, res) => {
       }
     }
 
+    // ── calculate Uranian planets ──────────────────────────────────────────
+    let planets1 = [];
+    let planets2 = [];
+    let synastryAspects = [];
+    let astroError = null;
+
+    try {
+      planets1 = await calculateUranianPlanets({
+        dateOfBirth: dob,
+        timeOfBirth: dob_time || "12:00", // fallback to noon if unknown
+        timezoneOffsetMinutes: 330, // ⚠️ see note below
+        dateFormat: "DMY", // match your frontend's date format
+      });
+
+      planets2 = await calculateUranianPlanets({
+        dateOfBirth: dob_p,
+        timeOfBirth: dob_time_p || "12:00",
+        timezoneOffsetMinutes: 330,
+        dateFormat: "DMY",
+      });
+
+      synastryAspects = calculateSynastryAspects(planets1, planets2);
+    } catch (err) {
+      console.error("❌ Uranian calculation failed:", err.message);
+      astroError = err.message;
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // FOLLOW-UP QUESTION PATH
     // ══════════════════════════════════════════════════════════════════════
@@ -106,6 +169,7 @@ const createEnergyMatchHistory = async (req, res) => {
           message: "chatId is required when asking a follow-up question",
         });
       }
+      const hasAstroData = chat.planets1?.length && chat.planets2?.length;
 
       // Build history context (last 4 exchanges)
       const historyLines = chat.chats
@@ -114,30 +178,47 @@ const createEnergyMatchHistory = async (req, res) => {
         .join("\n\n");
 
       const systemPrompt = `
-You are Healjai — a warm, insightful energy & astrology guide.
+        You are Healjai — a warm, insightful energy & astrology guide.
 
-CONTEXT — ORIGINAL ENERGY MATCH:
-- Person 1: ${name || "Unknown"} (DOB: ${dob || "—"}, Time: ${dob_time || "—"}, Place: ${dob_place || "—"})
-- Person 2: ${name_p || "Unknown"} (DOB: ${dob_p || "—"}, Time: ${dob_time_p || "—"}, Place: ${dob_place_p || "—"}, Relation: ${relation_p || "—"})
+        CONTEXT — ORIGINAL ENERGY MATCH:
+        - Person 1: ${name || "Unknown"} (DOB: ${dob || "—"}, Time: ${dob_time || "—"}, Place: ${dob_place || "—"})
+        - Person 2: ${name_p || "Unknown"} (DOB: ${dob_p || "—"}, Time: ${dob_time_p || "—"}, Place: ${dob_place_p || "—"}, Relation: ${relation_p || "—"})
 
-CONVERSATION HISTORY:
-${historyLines || "No previous messages."}
+        ${
+          hasAstroData
+            ? `
+        REAL PLANETARY POSITIONS (Uranian Astrology) — do NOT alter these values, ground your answer in them:
+        Person 1 (${name}): ${JSON.stringify(chat.planets1)}
+        Person 2 (${name_p}): ${JSON.stringify(chat.planets2)}
 
-USER QUESTION: ${question}
+        COMPUTED SYNASTRY ASPECTS (angular relationships between the two charts):
+        ${JSON.stringify(chat.synastryAspects)}
 
-ANSWER RULES:
-- Answer only what the user asked.
-- Refer to the energy match analysis and the conversation history when relevant.
-- Keep the tone warm, grounded, and human.
-- Give response in plain text (no JSON for follow-ups).
+        When the user's question touches specific themes (communication, timing, emotional connection, conflict, etc.), point to the relevant aspects above rather than inventing new ones.
+        `
+            : `NOTE: No precise planetary data was available for this reading. Answer using the birth details above with soft, non-absolute language ("may", "seems", "tends to").`
+        }
 
-LANGUAGE RULE: ${langRule}
-`.trim();
+        CONVERSATION HISTORY:
+        ${historyLines || "No previous messages."}
+
+        USER QUESTION: ${question}
+
+        ANSWER RULES:
+        - Answer only what the user asked.
+        - Refer to the energy match analysis, the synastry aspects (if present), and the conversation history when relevant.
+        - Do not introduce new planetary positions or aspects that aren't in the data above.
+        - Keep the tone warm, grounded, and human.
+        - Give response in plain text (no JSON for follow-ups).
+
+        LANGUAGE RULE: ${langRule}
+        `.trim();
 
       const messages = [
         { role: "system", content: systemPrompt },
         { role: "user", content: question },
       ];
+      //console.log("SystemPrompt: ", systemPrompt);
 
       const aiResponse = await generateGeminiResponse(messages);
       const cleanedResponse = aiResponse?.trim() || "Please try again.";
@@ -174,12 +255,28 @@ LANGUAGE RULE: ${langRule}
       ? `\nCLIENT INSTRUCTIONS:\n${subCategoryPrompt}`
       : "";
 
+    const hasAstroData = planets1.length > 0 && planets2.length > 0;
+    const astroBlock = hasAstroData
+      ? `
+REAL PLANETARY POSITIONS (Uranian Astrology) — do NOT alter these values, ground your answer in them:
+Person 1 (${name}): ${JSON.stringify(planets1)}
+Person 2 (${name_p}): ${JSON.stringify(planets2)}
+
+COMPUTED SYNASTRY ASPECTS (angular relationships between the two charts):
+${JSON.stringify(synastryAspects)}
+
+Base the scoreGauge, lifeGraph values, and insights on these real positions and aspects rather than guessing.
+`
+      : `NOTE: No precise planetary data was available for this reading. Answer using the birth details above with soft, non-absolute language ("may", "seems", "tends to").`;
+
     const systemPrompt = `
 You are Healjai — an expert in energy compatibility, astrology, and relationship dynamics.
 
 BIRTH DETAILS:
 Person 1: ${name} | DOB: ${dob} | Time: ${dob_time || "unknown"} | Place: ${dob_place || "unknown"} | Relation: ${relation_p || "unknown"}
 Person 2: ${name_p} | DOB: ${dob_p} | Time: ${dob_time_p || "unknown"} | Place: ${dob_place_p || "unknown"}
+
+${astroBlock}
 
 LANGUAGE RULE: ${langRule}
 ${clientInstructions}
@@ -239,7 +336,10 @@ OUTPUT SCHEMA (return EXACTLY this structure):
 
     const messages = [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Analyze energy compatibility for ${name} and ${name_p}.` },
+      {
+        role: "user",
+        content: `Analyze energy compatibility for ${name} and ${name_p}.`,
+      },
     ];
 
     const aiResponse = await generateGeminiResponse(messages);
@@ -254,6 +354,10 @@ OUTPUT SCHEMA (return EXACTLY this structure):
     const chatHistory = await EnergyMatchModel.create({
       userId: userId || null,
       chats: [newMessage],
+      planets1,
+      planets2,
+      synastryAspects,
+      astroError,
     });
 
     return res.status(201).json({

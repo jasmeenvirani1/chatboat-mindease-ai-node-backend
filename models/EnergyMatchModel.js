@@ -38,6 +38,23 @@ const EnergyMatchHistorySchema = new Schema(
     //   default: null,
     // },
 
+    planets1: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    planets2: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    synastryAspects: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    astroError: {
+      type: String,
+      default: null,
+    },
+
     chats: {
       type: [EnergyMatchMessageSchema],
       required: true,
