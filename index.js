@@ -12,6 +12,7 @@ const marriageVerdictRoutes = require("./Routes/marriageVerdictRoutes.js");
 const checkMateRoutes = require("./Routes/checkMateRoutes.js");
 const matescanRoutes = require("./Routes/matescanRoutes.js");
 const energyMatchV2Routes = require("./Routes/energyMatchV2Routes.js");
+const sajuRoutes = require("./Routes/sajuRoutes.js");
 const { loadIndex, search, buildPrompt } = require("./helper/search.js");
 const { startTrendingTopicsCron } = require("./cron/TrendingTopicsCron.js");
 
@@ -63,6 +64,7 @@ app.use("/api/backend/marriage-verdict", marriageVerdictRoutes);
 app.use("/api/backend/checkmate", checkMateRoutes);
 app.use("/api/backend/matescan", matescanRoutes);
 app.use("/api/backend/energy-match-v2", energyMatchV2Routes);
+app.use("/api/backend/astria-korea-saju", sajuRoutes);
 app.use("/api/backend", adminRoutes);
 app.use("/api", authRoutes);
 app.use("/api/payment", paymentRoutes);

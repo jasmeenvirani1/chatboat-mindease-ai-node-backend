@@ -75,7 +75,20 @@ const {
   parseCompatibilityPartnersKR,
   buildCompatibilityMissingQuestionKR,
   isCompatibilitySubcategoryKR,
+  isSajuSubcategoryKR,
 } = require("../helper/astriaKoreaService");
+const {
+  computeSajuV4KR,
+  computeSajuDailyLuckKR,
+} = require("../helper/astriaKoreaSajuService");
+const {
+  buildAstriaKoreaV2Context,
+  computeWesternBirthChartKR: computeWesternBirthChartKRV2,
+  parseCompatibilityPartnersKR: parseCompatibilityPartnersKRV2,
+  buildCompatibilityMissingQuestionKR: buildCompatibilityMissingQuestionKRV2,
+  isRelationshipEngineSubcategoryKRV2,
+  isCompatibilitySubcategoryKRV2,
+} = require("../helper/AstriaKoreaV2Service");
 const {
   buildAstriaBrazilContext,
   computeWesternBirthChartBR,
@@ -125,18 +138,22 @@ const {
 // HELPER FUNCTIONS
 // ============================================
 
-// Appends the user's resolved Date of Birth and latest message to the end of
-// an Astria-lane system prompt. Applied identically across every "Astria
-// <Country>" category (US, Spanish, Japan, Korea, Brazil, PSM, GCC, UK,
-// Canada, Indonesia, India) so the model always has this as trailing,
-// highest-recency context regardless of which lane built the prompt.
-function appendAstriaDobAndMessageContext(systemPrompt, dob, userMessage) {
+// Appends DOB + latest user message (as grounding context) to an Astria-lane prompt.
+// Shared by every "Astria <Country>" lane (US, Spanish, Japan, Korea, Brazil,
+// PSM, GCC, UK, Canada, Indonesia) so the model always gets this trailing block.
+function appendAstriaDobAndMessageContext(
+  systemPrompt,
+  dob,
+  userMessage,
+  additionalContext,
+) {
+  const extra = String(additionalContext || "").trim();
   return `${systemPrompt}
 
 ━━━ USER CONTEXT (attached last — use as primary grounding) ━━━
 Date of Birth: ${dob ? String(dob).trim() : "unknown"}
 Latest User Message: "${String(userMessage || "").trim()}"
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+${extra ? `Additional Context: ${extra}\n` : ""}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 }
 
 function getKolkataMidnightDate() {
@@ -2152,16 +2169,10 @@ const chatController = {
       const isVivahMuhurat =
         categoryName === "Vivah Muhurat" || subCategoryName === "Vivah Muhurat";
 
-      // ============================================
-      // ====== UPAY MARG FLAG ======
-      // ============================================
-      // Upay Marg Engine — Path of Alignment guidance
+      // UPAY MARG FLAG
       const isUpayMarg =
         categoryName === "Upay Marg" || subCategoryName === "Upay Marg";
 
-      // ============================================
-      // ====== SAMBANDH TAAL-MEL FLAG ======
-      // ============================================
       // Sambandh Taal-Mel Engine — Relationship rhythm & connection flow
       const isSambandhTaalMel =
         categoryName === "Sambandh Taal-Mel" ||
@@ -2169,35 +2180,30 @@ const chatController = {
         categoryName === "Sambandh Taal Mel" ||
         subCategoryName === "Sambandh Taal Mel";
 
-      // ============================================
-      // ====== ASTRIA US FLAG ======
-      // ============================================
       // Astria US Engine — Modern psychology-based Western astrology (US lane)
       const isAstriaUS = categoryName === "Astria US";
 
-      // ============================================
-      // ====== ASTRIA INDIA CATEGORY FLAG ======
-      // ============================================
       // Astria India Engine — Vedic-psychology-based Indian astrology (India lane)
       // Separate from "รหัส Healjai V3" (isAstriaIndia). This is the standalone category.
       const isAstriaIndiaCategory =
         categoryName === "Astria India" && !isAstriaUS;
 
-      // ============================================
-      // ====== ASTRIA JAPAN FLAG ======
-      // ============================================
       // Astria Japan Engine — Soft, polite, minimal, emotionally-reserved Western astrology (Japan lane)
       const isAstriaJapan =
         categoryName === "Astria Japan" &&
         !isAstriaUS &&
         !isAstriaIndiaCategory;
 
-      // ============================================
-      // ====== ASTRIA KOREA FLAG ======
-      // ============================================
+      // Astria Korea V2 Engine — extends Astria Korea with Life Map / Relationship
+      // Engine / Daily Companion. Isolated category name so v1 is never touched.
+      const isAstriaKoreaV2 =
+        categoryName === "Astria Korea V2" && !isAstriaUS && !isAstriaIndiaCategory && !isAstriaJapan;
+
       // Astria Korea Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
-      // Also activate when korea3Box data is sent with required fields (blood_type or dob)
+      // Also activate when korea3Box data is sent with required fields (blood_type or dob).
+      // Explicitly excluded for "Astria Korea V2" so v2 requests are never hijacked into v1's 3-box path.
       const hasKorea3BoxData =
+        !isAstriaKoreaV2 &&
         korea3BoxSelf &&
         korea3BoxPartner &&
         (korea3BoxSelf.blood_type || korea3BoxSelf.dob) &&
@@ -2206,27 +2212,23 @@ const chatController = {
         (categoryName === "Astria Korea" || hasKorea3BoxData) &&
         !isAstriaUS &&
         !isAstriaIndiaCategory &&
-        !isAstriaJapan;
+        !isAstriaJapan &&
+        !isAstriaKoreaV2;
 
-      // ============================================
-      // ====== ASTRIA SPANISH FLAG ======
-      // ============================================
       // Astria Spanish Engine — Spanish-lane astrology with 3 tone variants
       const isAstriaSpanish =
         categoryName === "Astria Spanish" &&
         !isAstriaUS &&
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
-        !isAstriaKorea;
+        !isAstriaKorea &&
+        !isAstriaKoreaV2;
       // spanishTone: "neutral" (default) | "spain" | "mexico"
       const resolvedSpanishTone =
         !isAstriaUS && isAstriaSpanish && spanishTone
           ? String(spanishTone).toLowerCase()
           : "neutral";
 
-      // ============================================
-      // ====== ASTRIA BRAZIL FLAG ======
-      // ============================================
       // Astria Brazil Engine — Warm, expressive, spiritual Western astrology (Brazil lane)
       const isAstriaBrazil =
         categoryName === "Astria Brazil" &&
@@ -2234,6 +2236,7 @@ const chatController = {
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaSpanish;
 
       // PSM lane: Philippines, Singapore, Malaysia — 3 separate category names, one engine
@@ -2245,12 +2248,10 @@ const chatController = {
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaSpanish &&
         !isAstriaBrazil;
 
-      // ============================================
-      // ====== ASTRIA GCC FLAG ======
-      // ============================================
       // Astria GCC Engine — Spiritual, elegant, respectful Western astrology (GCC lane)
       const isAstriaGCC =
         categoryName === "Astria GCC" &&
@@ -2258,14 +2259,12 @@ const chatController = {
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM;
       //console.log("Astria GCC:", isAstriaGCC);
 
-      // ============================================
-      // ====== ASTRIA UK FLAG ======
-      // ============================================
       // Astria UK Engine — Calm, understated, warm-polite Western astrology (UK lane)
       const isAstriaUK =
         categoryName === "Astria UK" &&
@@ -2273,14 +2272,12 @@ const chatController = {
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
         !isAstriaGCC;
 
-      // ============================================
-      // ====== ASTRIA CANADA FLAG ======
-      // ============================================
       // Astria Canada Engine — Calm, understated, warm-polite Western astrology (Canada lane)
       const isAstriaCanada =
         categoryName === "Astria Canada" &&
@@ -2288,15 +2285,13 @@ const chatController = {
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
         !isAstriaGCC &&
         !isAstriaUK;
 
-      // ============================================
-      // ====== ASTRIA INDONESIA FLAG ======
-      // ============================================
       // Astria Indonesia Engine — Calm, gentle, respectful, soft-contained Western astrology (Indonesia lane)
       const isAstriaIndonesia =
         categoryName === "Astria Indonesia" &&
@@ -2304,6 +2299,7 @@ const chatController = {
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
@@ -2311,9 +2307,8 @@ const chatController = {
         !isAstriaUK &&
         !isAstriaCanada;
 
-      // ============================================
       // SPECIALIZED FEATURES (HealJai categories only)
-      // ============================================
+
       let musicRecommendation = { shouldRecommend: false };
       let foodRecommendation = { shouldRecommend: false };
       let v4Classification = { domain: null, label: null, engineState: null };
@@ -2448,9 +2443,6 @@ const chatController = {
       const currentTone =
         toneDetailsMap[tone_mode] || toneDetailsMap.healjai_style;
 
-      // ============================================
-      // HEALJAI ENGINE PROMPT (UPDATED V5.6)
-      // ============================================
       /** HEALJAI ENGINE PROMPT */
       const healjaiEnginePrompt = `
 You are Healjai.
@@ -2517,9 +2509,7 @@ If Senior: very gentle, slow, comforting, avoid slang.
 
 `.trim();
 
-      // ============================================
       // DEFAULT PROMPT — ENGINE STATE BASED (UPDATED V5.6)
-      // ============================================
       let defaultPrompt = "";
 
       if (isHealJaiCategory) {
@@ -2779,9 +2769,7 @@ DAILY CHECK-IN (when natural):
       let selectedCaseId = null;
       let supportLine = null;
 
-      // ============================================
       // FINAL ENGINE STATE PROMPTING (UPDATED V5.6)
-      // ============================================
       const domainNameMap = {
         food_pack: "Food",
         gift_pack: "Gifts",
@@ -3032,9 +3020,7 @@ RULES:
         }
       }
 
-      // ============================================
-      // ====== UPAY MARG PROCESSING ======
-      // ============================================
+      // UPAY MARG PROCESSING
       let upayMargParsed = null;
       if (isUpayMarg) {
         // Get nakshatra context from existing birth data
@@ -3084,9 +3070,7 @@ RULES:
       }
       // ====== END UPAY MARG PROCESSING ======
 
-      // ============================================
-      // ====== SAMBANDH TAAL-MEL PROCESSING ======
-      // ============================================
+      // SAMBANDH TAAL-MEL PROCESSING
       let sambandhTaalMelData = null;
       let sambandhMissingFields = null;
 
@@ -3207,6 +3191,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA US PROCESSING ======
@@ -3298,6 +3283,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA SPANISH PROCESSING ======
@@ -3440,6 +3426,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA JAPAN PROCESSING ======
@@ -3451,9 +3438,15 @@ RULES:
       // ============================================
       let compatibilityMissingQuestionKR = null;
       if (isAstriaKorea) {
-        // Detect Korean compatibility: either from subCategoryName OR from korea3Box data
+        // Detect Korean compatibility: either from subCategoryName OR from korea3Box data.
+        // IMPORTANT: an explicit, non-compatibility subCategoryName (e.g. "Saju KR")
+        // always wins over stray/leftover 3-box payload data — otherwise a session
+        // that previously used Compatibility can bleed 3-box state into other tabs
+        // (e.g. Saju) and silently reroute them into the compatibility branch.
+        const isSajuTab = isSajuSubcategoryKR(subCategoryName);
         const isKoreanCompat =
-          isCompatibilitySubcategoryKR(subCategoryName) || hasKorea3BoxData;
+          !isSajuTab &&
+          (isCompatibilitySubcategoryKR(subCategoryName) || hasKorea3BoxData);
         if (isKoreanCompat) {
           // Korea 3-Box path: frontend sends structured self + partner 3-box data
           const has3BoxSelf =
@@ -3579,6 +3572,24 @@ RULES:
             }
           }
 
+          let astriaKoreaSajuData = null;
+          let astriaKoreaSajuDailyLuck = null;
+          if (isSajuSubcategoryKR(subCategoryName) && selfDob0) {
+            try {
+              astriaKoreaSajuData = computeSajuV4KR({
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+              });
+              if (astriaKoreaSajuData) {
+                astriaKoreaSajuDailyLuck = computeSajuDailyLuckKR(
+                  astriaKoreaSajuData,
+                );
+              }
+            } catch (sajuErr) {
+              logger.error("Astria Korea Saju compute error:", sajuErr);
+            }
+          }
+
           systemPrompt = buildAstriaKoreaContext({
             subCategoryName: subCategoryName || null,
             categoryPrompt: categoryPrompt || null,
@@ -3586,15 +3597,201 @@ RULES:
             target,
             userMessage,
             birthChart: astriaKoreaBirthChart,
+            sajuData: astriaKoreaSajuData,
+            sajuDailyLuck: astriaKoreaSajuDailyLuck,
           });
         }
         systemPrompt = appendAstriaDobAndMessageContext(
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA KOREA PROCESSING ======
+
+      // ============================================
+      // ASTRIA KOREA V2 ENGINE — Astria Korea V2 category ONLY
+      // Extends Astria Korea with Life Map / Relationship Engine / Daily
+      // Companion / Compatibility (3-Box), reusing the same real chart/Saju
+      // computation as v1.
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on "Astria Korea" (v1) or any other category.
+      // ============================================
+      let compatibilityMissingQuestionKRV2 = null;
+      if (isAstriaKoreaV2) {
+        const isRelationshipEngineTab =
+          isRelationshipEngineSubcategoryKRV2(subCategoryName);
+        const isCompatibilityTab =
+          isCompatibilitySubcategoryKRV2(subCategoryName);
+
+        let astriaKoreaV2BirthChart = null;
+        let astriaKoreaV2BirthChartB = null;
+        let compat3BoxParamsV2 = {};
+
+        if (isCompatibilityTab) {
+          // Compatibility KR v2 — same 3-Box form as v1: structured self/partner
+          // data when the client sends it, else fall back to text/DOB parsing.
+          const has3BoxSelf =
+            korea3BoxSelf &&
+            (korea3BoxSelf.blood_type ||
+              korea3BoxSelf.dob ||
+              korea3BoxSelf.destiny_time);
+          const has3BoxPartner =
+            korea3BoxPartner &&
+            (korea3BoxPartner.blood_type ||
+              korea3BoxPartner.dob ||
+              korea3BoxPartner.destiny_time);
+
+          if (has3BoxSelf && has3BoxPartner) {
+            try {
+              const selfDob = korea3BoxSelf.dob || selfDob0;
+              if (selfDob) {
+                astriaKoreaV2BirthChart = computeWesternBirthChartKRV2({
+                  dob: String(selfDob).trim(),
+                  dob_time: korea3BoxSelf.birth_time || selfDobTime0 || null,
+                  dob_place: korea3BoxSelf.birth_city || selfDobPlace0 || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Korea V2 Compatibility - chartA error:", err);
+            }
+            try {
+              if (korea3BoxPartner.dob) {
+                astriaKoreaV2BirthChartB = computeWesternBirthChartKRV2({
+                  dob: String(korea3BoxPartner.dob).trim(),
+                  dob_time: korea3BoxPartner.birth_time || null,
+                  dob_place: korea3BoxPartner.birth_city || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Korea V2 Compatibility - chartB error:", err);
+            }
+
+            compat3BoxParamsV2 = {
+              selfName: korea3BoxSelf.name || null,
+              selfGender: korea3BoxSelf.gender || null,
+              selfBloodType: korea3BoxSelf.blood_type || null,
+              selfDestinyTime: korea3BoxSelf.destiny_time || null,
+              partnerName: korea3BoxPartner.name || null,
+              partnerGender: korea3BoxPartner.gender || null,
+              partnerBloodType: korea3BoxPartner.blood_type || null,
+              partnerDestinyTime: korea3BoxPartner.destiny_time || null,
+            };
+          } else {
+            // Fallback: text-based compatibility parsing (same as Relationship Engine)
+            const compatPartnersKRV2 = parseCompatibilityPartnersKRV2(
+              userMessage,
+              dob0,
+              dob_time0,
+              dob_place0,
+            );
+
+            if (compatPartnersKRV2.missingFields.length > 0) {
+              compatibilityMissingQuestionKRV2 =
+                buildCompatibilityMissingQuestionKRV2(
+                  compatPartnersKRV2.missingFields,
+                  !!(dob0 && String(dob0).trim()),
+                );
+            } else {
+              try {
+                if (compatPartnersKRV2.personA.dob) {
+                  astriaKoreaV2BirthChart = computeWesternBirthChartKRV2({
+                    dob: compatPartnersKRV2.personA.dob,
+                    dob_time: compatPartnersKRV2.personA.time || null,
+                    dob_place: compatPartnersKRV2.personA.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria Korea V2 Compatibility - chartA error:", err);
+              }
+              try {
+                if (compatPartnersKRV2.personB.dob) {
+                  astriaKoreaV2BirthChartB = computeWesternBirthChartKRV2({
+                    dob: compatPartnersKRV2.personB.dob,
+                    dob_time: compatPartnersKRV2.personB.time || null,
+                    dob_place: compatPartnersKRV2.personB.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error("Astria Korea V2 Compatibility - chartB error:", err);
+              }
+            }
+          }
+        } else if (isRelationshipEngineTab) {
+          // Relationship Engine needs two charts — parse both DOBs from the
+          // message/stored profile the same way v1's Compatibility tab does.
+          const compatPartnersKRV2 = parseCompatibilityPartnersKRV2(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (compatPartnersKRV2.missingFields.length > 0) {
+            compatibilityMissingQuestionKRV2 =
+              buildCompatibilityMissingQuestionKRV2(
+                compatPartnersKRV2.missingFields,
+                !!(dob0 && String(dob0).trim()),
+              );
+          } else {
+            try {
+              if (compatPartnersKRV2.personA.dob) {
+                astriaKoreaV2BirthChart = computeWesternBirthChartKRV2({
+                  dob: compatPartnersKRV2.personA.dob,
+                  dob_time: compatPartnersKRV2.personA.time || null,
+                  dob_place: compatPartnersKRV2.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Korea V2 Relationship Engine - chartA error:", err);
+            }
+            try {
+              if (compatPartnersKRV2.personB.dob) {
+                astriaKoreaV2BirthChartB = computeWesternBirthChartKRV2({
+                  dob: compatPartnersKRV2.personB.dob,
+                  dob_time: compatPartnersKRV2.personB.time || null,
+                  dob_place: compatPartnersKRV2.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria Korea V2 Relationship Engine - chartB error:", err);
+            }
+          }
+        } else if (selfDob0) {
+          try {
+            astriaKoreaV2BirthChart = computeWesternBirthChartKRV2({
+              dob: String(selfDob0).trim(),
+              dob_time: selfDobTime0 || null,
+              dob_place: selfDobPlace0 || null,
+            });
+          } catch (chartErr) {
+            logger.error("Astria Korea V2 birth chart error:", chartErr);
+          }
+        }
+
+        if (!compatibilityMissingQuestionKRV2) {
+          systemPrompt = buildAstriaKoreaV2Context({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            birthChart: astriaKoreaV2BirthChart,
+            birthChartB: astriaKoreaV2BirthChartB,
+            weatherContext: trendingTopicData?.context?.weather || null,
+            recentStress:
+              trendingTopicData?.context?.social_mood === "heavy" || null,
+            ...compat3BoxParamsV2,
+          });
+          systemPrompt = appendAstriaDobAndMessageContext(
+            systemPrompt,
+            selfDob0,
+            userMessage,
+            translatedMessage !== userMessage ? translatedMessage : null,
+          );
+        }
+      }
+      // ====== END ASTRIA KOREA V2 PROCESSING ======
 
       // ============================================
       // ASTRIA BRAZIL ENGINE — Astria Brazil category ONLY
@@ -3683,6 +3880,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA BRAZIL PROCESSING ======
@@ -3776,6 +3974,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA PSM PROCESSING ======
@@ -3933,6 +4132,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA GCC PROCESSING ======
@@ -4023,6 +4223,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA UK PROCESSING ======
@@ -4113,6 +4314,7 @@ RULES:
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA CANADA PROCESSING ======
@@ -4380,6 +4582,7 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
           systemPrompt,
           selfDob0,
           userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
       // ====== END ASTRIA INDONESIA PROCESSING ======
@@ -4475,7 +4678,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
       }
 
       // Specialized Feature Context
-      // isAstriaIndia / isAstriaIndiaCategory / isAstriaUS / isAstriaSpanish / isAstriaJapan / isAstriaKorea / isAstriaBrazil guard: prevent music/food blocks from overriding these prompts.
+      // isAstriaIndia / isAstriaIndiaCategory / isAstriaUS / isAstriaSpanish / isAstriaJapan / isAstriaKorea / isAstriaKoreaV2 / isAstriaBrazil guard: prevent music/food blocks from overriding these prompts.
       if (
         !isAstriaIndia &&
         !isAstriaIndiaCategory &&
@@ -4483,6 +4686,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         !isAstriaSpanish &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
         !isAstriaIndonesia &&
@@ -4497,6 +4701,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         !isAstriaSpanish &&
         !isAstriaJapan &&
         !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
         !isAstriaIndonesia &&
@@ -4557,7 +4762,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           content: systemPrompt.trim(),
         },
       ];
-      //console.log("System Prompt:", systemPrompt);
+      console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -4875,6 +5080,15 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             }
           } else if (isAstriaKorea && compatibilityMissingQuestionKR) {
             finalAiResponse = compatibilityMissingQuestionKR;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (isAstriaKoreaV2 && compatibilityMissingQuestionKRV2) {
+            finalAiResponse = compatibilityMissingQuestionKRV2;
             const words = finalAiResponse.split(" ");
             for (const word of words) {
               if (clientClosed) break;
@@ -5416,6 +5630,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
 
       if (isAstriaKorea && compatibilityMissingQuestionKR) {
         finalAiResponse = compatibilityMissingQuestionKR;
+      }
+
+      if (isAstriaKoreaV2 && compatibilityMissingQuestionKRV2) {
+        finalAiResponse = compatibilityMissingQuestionKRV2;
       }
 
       if (isAstriaBrazil && compatibilityMissingQuestionBR) {

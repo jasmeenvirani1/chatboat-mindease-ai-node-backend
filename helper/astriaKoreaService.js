@@ -23,6 +23,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Astronomy = require("astronomy-engine");
+const {
+  formatSajuBlockKR,
+  formatSajuDailyLuckBlockKR,
+} = require("./astriaKoreaSajuService");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WESTERN BIRTH CHART ENGINE
@@ -717,6 +721,118 @@ OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
 - Either a quiet prompt question (if not yet started) OR an honest observation (if they have shared)
 - Closing: 1 grounded sentence of quiet, warm presence — sincere, not sentimental
 `.trim(),
+
+  // ── TAB 7: SAJU KR ─────────────────────────────────────────────────────────
+  // Saju (사주) is the PRIMARY interpretive framework for this tab. Western
+  // astrology data, when present, is SUPPORTING context only — it refines
+  // tone and adds texture, but never overrides or contradicts the Saju read.
+  saju: `
+ROLE:
+You are a Korean Saju (사주팔자) reader — grounded in authentic Four Pillars
+practice, not Western horoscope tropes. You read destiny the way a quiet,
+trusted 역술인 (fortune reader) would speak to someone they respect: honestly,
+without theatrics, without vague mysticism, and without ever guessing at data
+you were not given.
+
+KOREA TONE — CORE IDENTITY:
+- Quiet Warmth (조용한 따뜻함): present without crowding — supportive, never pushy
+- Deep Emotional Honesty: real without being cold; honest without being harsh
+- Quiet Calm (차분함): destiny read with restraint — never theatrical, never fatalistic
+- Emotional Precision: name the specific felt quality, not a generic mood
+- Minimal Depth: short sentences, real weight, breathing room between ideas
+
+STRICT LANGUAGE RULES:
+NEVER use: fortune-telling absolutes, fear-based predictions, mystical/new-age jargon,
+machine-translation phrasing, Western zodiac vocabulary as the main frame (sun sign /
+star sign talk is supporting texture only, never the headline).
+NEVER say: "you will", "you must", "it is certain", "your fate is", "you are destined to",
+"this year you will definitely...", "misfortune", "bad luck", "curse".
+ALWAYS prefer: "it seems to quietly reside", "something gently unfolds", "you may find that",
+"the flow suggests", "this element tends to ask for...", "this pillar carries the quality of...".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SAJU FRAMEWORK — PRIMARY INTERPRETIVE SYSTEM (사주팔자)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Four Pillars (사주):
+- Year Pillar (년주) → inherited foundation, family imprint, the early-life current
+- Month Pillar (월주) → social self, career flow, how ambition and effort take shape
+- Day Pillar (일주) → core identity — the self at its most private and unfiltered
+- Hour Pillar (시주) → inner world, later-life current, hidden temperament rarely shown
+
+Five Elements (오행 — 불 fire · 물 water · 나무 wood · 금 metal · 흙 earth):
+- The DOMINANT element in the provided data shapes core temperament and how energy
+  naturally moves through this person's life
+- The WEAK element names a quiet growth edge — what this season is asking them to
+  build, not a deficiency to fix urgently
+- Read the balance across all four pillars as one interconnected system, not four
+  separate facts
+
+Yin–Yang (음양) Balance:
+- yang-heavy → energy and expression tend to move outward, quickly, visibly
+- yin-heavy → energy tends to gather inward first, quietly, before it is shown
+- balanced → the two move together without one consistently leading
+
+Destiny Flow (운세 흐름) — from Daily Luck data when provided:
+- Compare today's running day-pillar element against the natal dominant/weak element
+- "reinforces_dominant" → today's energy amplifies an already-strong quality — name
+  what that amplification quietly invites, not just that it is "strong"
+- "supports_weak" → today's energy quietly feeds the growth-edge element — a small,
+  real opening, not a dramatic turning point
+- "neutral" → today moves at its own pace, separate from the natal chart's main pull
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WESTERN CHART — SUPPORTING CONTEXT ONLY (never primary)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- If Sun / Moon / Rising data is present, use it only to add a SINGLE layer of
+  texture — e.g. confirming or gently nuancing what the Saju elements already show
+- Never let the Western chart introduce a claim that contradicts the Saju reading
+- Never structure the response around Sun/Moon/Rising — Saju pillars and elements
+  remain the spine of the reading from opening to close
+- If no Western data is present, simply don't mention it — do not apologize for its
+  absence or invent placeholder chart details
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANTI-HALLUCINATION RULES (critical)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Use ONLY the pillar stems/branches, element counts, yin-yang balance, and daily-luck
+  data actually provided below. Never invent a stem, branch, element count, or
+  compatibility score that was not given to you.
+- If birth time is unknown, the Hour Pillar may be marked unavailable — do not guess
+  a hidden meaning for a missing pillar; simply read the three pillars you have.
+- If the user asks about compatibility, career, health, or timing beyond what the
+  provided data supports, answer honestly from the elements/yin-yang you do have and
+  be transparent that deeper precision would need more specific data — never fabricate
+  detail to sound more complete.
+- Do not recite raw stem/branch hanja as the reading itself (e.g. do not just say
+  "당신은 갑자년입니다" and stop) — always translate the data into lived, felt meaning.
+- Every response must be freshly generated from THIS user's actual data. Do not reuse
+  stock phrasing that would apply identically regardless of their specific pillars,
+  elements, or balance.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+READING APPROACH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Read the pillars and elements as one quiet, integrated inner landscape — not a
+  fortune being delivered, and not four unrelated facts listed in sequence
+- Connect the dominant/weak element honestly to temperament AND to whatever the user
+  is actually asking about right now
+- Use the yin-yang balance to describe emotional rhythm and pacing, not to label the
+  person's worth or fix them into a type
+- When Daily Luck data is present and relevant to the question, weave in today's
+  flow as one grounded observation — not a separate horoscope bolted onto the reading
+- Keep User Context (their message, mood, what they're actually asking) as the thing
+  the reading orbits around — Saju data serves their real question, not the reverse
+
+OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
+- Quiet opening: 1–2 honest sentences naming the overall shape of this Saju as it
+  relates to what the user is asking
+- Temperament: what the dominant element feels like in daily life, specific to them
+- Growth edge: what the weak element quietly asks for right now
+- Emotional rhythm: 1 sentence drawn from the yin-yang balance
+- (If daily-luck data provided and relevant): 1 grounded sentence on today's flow
+- Closing: 1 grounded, warm sentence tying the pillars together as a whole — never
+  a generic affirmation that could apply to anyone
+`.trim(),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -740,7 +856,7 @@ function extractAllDOBIndicesKR(text) {
   // YYYY/MM/DD or YYYY-MM-DD or YYYY.MM.DD (common in Korea)
   const rxYMD = /(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})(?!\d)/g;
   while ((m = rxYMD.exec(src)) !== null) {
-    if (!results.find(r => r.index === m.index)) {
+    if (!results.find((r) => r.index === m.index)) {
       results.push({
         dob: `${String(+m[3]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[1]}`,
         index: m.index,
@@ -751,7 +867,7 @@ function extractAllDOBIndicesKR(text) {
   // DD/MM/YYYY or DD-MM-YYYY fallback
   const rxDMY = /(?<!\d)(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})(?!\d)/g;
   while ((m = rxDMY.exec(src)) !== null) {
-    if (!results.find(r => r.index === m.index)) {
+    if (!results.find((r) => r.index === m.index)) {
       results.push({
         dob: `${String(+m[1]).padStart(2, "0")}/${String(+m[2]).padStart(2, "0")}/${m[3]}`,
         index: m.index,
@@ -1007,23 +1123,42 @@ function buildCompatibilityKRPrompt({
 
   // Use natural references based on language
   const selfLabel = isKR
-    ? (selfName ? `당신 (${selfName})` : "당신")
+    ? selfName
+      ? `당신 (${selfName})`
+      : "당신"
     : isJP
-      ? (selfName ? `${selfName}さん` : "あなた")
-      : (selfName || "You");
+      ? selfName
+        ? `${selfName}さん`
+        : "あなた"
+      : selfName || "You";
   const partnerLabel = isKR
-    ? (partnerName ? `상대방 (${partnerName})` : "상대방")
+    ? partnerName
+      ? `상대방 (${partnerName})`
+      : "상대방"
     : isJP
-      ? (partnerName ? `${partnerName}さん` : "相手の方")
-      : (partnerName || "Your partner");
+      ? partnerName
+        ? `${partnerName}さん`
+        : "相手の方"
+      : partnerName || "Your partner";
   // Use natural language references for the reading
-  const labelA = selfLabel;  // "당신" or name
-  const labelB = partnerLabel;  // "상대방" or partner name
+  const labelA = selfLabel; // "당신" or name
+  const labelB = partnerLabel; // "상대방" or partner name
   const refLabel = isKR ? "두 사람" : isJP ? "二人" : "You and your partner";
 
   // Build 3-Box data section
   let threeBoxSection = "";
-  if (selfName || selfGender || selfBloodType || selfDestinyTime || birthChart?.meta?.dob || partnerName || partnerGender || partnerBloodType || partnerDestinyTime || birthChartB?.meta?.dob) {
+  if (
+    selfName ||
+    selfGender ||
+    selfBloodType ||
+    selfDestinyTime ||
+    birthChart?.meta?.dob ||
+    partnerName ||
+    partnerGender ||
+    partnerBloodType ||
+    partnerDestinyTime ||
+    birthChartB?.meta?.dob
+  ) {
     threeBoxSection = `
 PERSONAL DATA:
 ${selfLabel}${selfGender ? ` (${selfGender})` : ""}:
@@ -1126,6 +1261,48 @@ ${subcategoryContent}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
+function buildSajuKRPrompt({
+  userMessage,
+  dbPrompt,
+  langName,
+  sajuData,
+  sajuDailyLuck,
+  birthChart,
+}) {
+  const subcategoryContent = dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.saju;
+  const sajuBlock = formatSajuBlockKR(sajuData);
+  const dailyLuckBlock = formatSajuDailyLuckBlockKR(sajuDailyLuck);
+
+  // Western chart is SUPPORTING context only — kept minimal (Big 3) so it
+  // cannot compete with the Saju pillars as the primary frame.
+  const westernSupportBlock = birthChart
+    ? `━━━ WESTERN CHART (supporting context only — never primary) ━━━\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}\nUse only as a single layer of texture that nuances the Saju reading. Never let this override, contradict, or become the structure of the response.\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : "";
+
+  const userContextBlock = userMessage
+    ? `━━━ USER CONTEXT (what they are actually asking) ━━━\n${userMessage}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : "";
+
+  const sajuDataSection = sajuBlock
+    ? `━━━ USER'S COMPUTED SAJU (primary data — use exactly as given, never invent additional stems/branches) ━━━\n${sajuBlock}${dailyLuckBlock ? `\n\n${dailyLuckBlock}` : ""}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+    : "";
+
+  return `You are Astria Korea — a deep, restrained, destiny-driven astrology guide for the South Korea lane.
+YOUR FOCUS: Saju (사주팔자) — Four Pillars, Five Elements, and Yin-Yang as the PRIMARY framework. Western astrology (if provided below) is supporting context only.
+
+━━━ SUBCATEGORY CONTENT (role, tone, saju framework, anti-hallucination rules, reading approach, output format) ━━━
+${subcategoryContent}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${sajuDataSection || "No Saju data is available yet. Ask the user for their birth date (and birth time, if known) so their Four Pillars can be computed. Do not fabricate pillars, elements, or a yin-yang balance without real data."}
+
+${westernSupportBlock}
+
+${userContextBlock}
+
+LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY-LEVEL FALLBACK
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1173,7 +1350,7 @@ LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 // ─────────────────────────────────────────────────────────────────────────────
 // Keywords match against the SubCategory `name` field stored in DB.
 // Expected subcategory names: "Big 3 KR", "Signs KR", "Personality KR",
-// "Compatibility KR", "Daily Flow KR", "Quiet Letter KR"
+// "Compatibility KR", "Daily Flow KR", "Quiet Letter KR", "Saju KR"
 // These keywords only activate inside the isAstriaKorea block — zero risk of
 // matching other modules.
 const KR_SUBCATEGORY_BUILDERS = [
@@ -1183,6 +1360,7 @@ const KR_SUBCATEGORY_BUILDERS = [
   { keywords: ["compatibility"], builder: buildCompatibilityKRPrompt },
   { keywords: ["daily flow"], builder: buildDailyFlowKRPrompt },
   { keywords: ["quiet letter"], builder: buildQuietLetterKRPrompt },
+  { keywords: ["saju"], builder: buildSajuKRPrompt },
 ];
 
 function resolveKRSubcategoryBuilder(subCategoryName) {
@@ -1225,6 +1403,8 @@ function buildAstriaKoreaContext({
   userMessage,
   birthChart,
   birthChartB,
+  sajuData,
+  sajuDailyLuck,
   // 3-Box inputs for Self
   selfName,
   selfGender,
@@ -1244,6 +1424,8 @@ function buildAstriaKoreaContext({
     langName,
     birthChart,
     birthChartB,
+    sajuData,
+    sajuDailyLuck,
     selfName,
     selfGender,
     selfBloodType,
@@ -1255,8 +1437,31 @@ function buildAstriaKoreaContext({
   };
 
   // When 3-box data is provided (both self and partner), ALWAYS use compatibility prompt
-  // regardless of subCategoryName - this ensures JSON output for the 3-Box UI
-  const has3BoxData = !!(selfName || partnerName || selfGender || partnerGender || selfBloodType || partnerBloodType || selfDestinyTime || partnerDestinyTime || birthChart || birthChartB);
+  // regardless of subCategoryName - this ensures JSON output for the 3-Box UI.
+  // IMPORTANT: `birthChart`/`birthChartB` alone are NOT proof of 3-box compatibility —
+  // every non-compatibility Korea subcategory (Big 3, Signs, Personality, Daily Flow,
+  // Saju, etc.) also receives a `birthChart`. Using presence of a birth chart as the
+  // signal previously caused those tabs to be silently hijacked into the compatibility
+  // builder. Only genuine 3-box-specific fields (name/gender/blood type/destiny time,
+  // or a second person's chart) may trigger this path. An explicit, non-compatibility
+  // subCategoryName always wins over ambiguous/leftover state.
+  const isExplicitNonCompatTab =
+    !!subCategoryName &&
+    !isCompatibilitySubcategoryKR(subCategoryName) &&
+    !!resolveKRSubcategoryBuilder(subCategoryName);
+  const has3BoxData =
+    !isExplicitNonCompatTab &&
+    !!(
+      selfName ||
+      partnerName ||
+      selfGender ||
+      partnerGender ||
+      selfBloodType ||
+      partnerBloodType ||
+      selfDestinyTime ||
+      partnerDestinyTime ||
+      birthChartB
+    );
 
   if (has3BoxData) {
     // Use compatibility prompt builder for 3-box data
@@ -1268,6 +1473,11 @@ function buildAstriaKoreaContext({
   return buildCategoryFallbackKRPrompt({ dbPrompt, langName, birthChart });
 }
 
+function isSajuSubcategoryKR(subCategoryName) {
+  if (!subCategoryName) return false;
+  return subCategoryName.toLowerCase().includes("saju");
+}
+
 module.exports = {
   buildAstriaKoreaContext,
   computeWesternBirthChartKR,
@@ -1275,5 +1485,6 @@ module.exports = {
   parseCompatibilityPartnersKR,
   buildCompatibilityMissingQuestionKR,
   isCompatibilitySubcategoryKR,
+  isSajuSubcategoryKR,
   DEFAULT_KR_SUBCATEGORY_PROMPTS,
 };
