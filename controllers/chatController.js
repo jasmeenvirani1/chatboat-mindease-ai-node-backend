@@ -90,6 +90,9 @@ const {
   isCompatibilitySubcategoryKRV2,
 } = require("../helper/AstriaKoreaV2Service");
 const {
+  buildAstriaKoreaTalkContext,
+} = require("../helper/AstriaKoreaTalkService");
+const {
   buildAstriaBrazilContext,
   computeWesternBirthChartBR,
   parseCompatibilityPartnersBR,
@@ -2197,7 +2200,11 @@ const chatController = {
       // Astria Korea V2 Engine — extends Astria Korea with Life Map / Relationship
       // Engine / Daily Companion. Isolated category name so v1 is never touched.
       const isAstriaKoreaV2 =
-        categoryName === "Astria Korea V2" && !isAstriaUS && !isAstriaIndiaCategory && !isAstriaJapan;
+        categoryName === "Astria Korea V2" &&
+        categoryName === "Astria Korea v3" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan;
 
       // Astria Korea Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
       // Also activate when korea3Box data is sent with required fields (blood_type or dob).
@@ -2215,6 +2222,18 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKoreaV2;
 
+      // Astria Korea Talk Engine — KR v3 Whole Pack conversational companion
+      // (Relationship / Comfort / Healing / Daily Companion / Love modes).
+      // Isolated category name so v1/v2 are never touched.
+      const isAstriaKoreaTalk =
+        categoryName === "Astria Korea Talk" &&
+        subcategoryName === "Astria Korea Talk" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2;
+
       // Astria Spanish Engine — Spanish-lane astrology with 3 tone variants
       const isAstriaSpanish =
         categoryName === "Astria Spanish" &&
@@ -2222,7 +2241,8 @@ const chatController = {
         !isAstriaIndiaCategory &&
         !isAstriaJapan &&
         !isAstriaKorea &&
-        !isAstriaKoreaV2;
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk;
       // spanishTone: "neutral" (default) | "spain" | "mexico"
       const resolvedSpanishTone =
         !isAstriaUS && isAstriaSpanish && spanishTone
@@ -2237,6 +2257,7 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
         !isAstriaSpanish;
 
       // PSM lane: Philippines, Singapore, Malaysia — 3 separate category names, one engine
@@ -2249,6 +2270,7 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil;
 
@@ -2260,6 +2282,7 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM;
@@ -2273,6 +2296,7 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
@@ -2286,6 +2310,7 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
@@ -2300,6 +2325,7 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
@@ -3581,9 +3607,8 @@ RULES:
                 dob_time: selfDobTime0 || null,
               });
               if (astriaKoreaSajuData) {
-                astriaKoreaSajuDailyLuck = computeSajuDailyLuckKR(
-                  astriaKoreaSajuData,
-                );
+                astriaKoreaSajuDailyLuck =
+                  computeSajuDailyLuckKR(astriaKoreaSajuData);
               }
             } catch (sajuErr) {
               logger.error("Astria Korea Saju compute error:", sajuErr);
@@ -3654,7 +3679,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error("Astria Korea V2 Compatibility - chartA error:", err);
+              logger.error(
+                "Astria Korea V2 Compatibility - chartA error:",
+                err,
+              );
             }
             try {
               if (korea3BoxPartner.dob) {
@@ -3665,7 +3693,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error("Astria Korea V2 Compatibility - chartB error:", err);
+              logger.error(
+                "Astria Korea V2 Compatibility - chartB error:",
+                err,
+              );
             }
 
             compat3BoxParamsV2 = {
@@ -3703,7 +3734,10 @@ RULES:
                   });
                 }
               } catch (err) {
-                logger.error("Astria Korea V2 Compatibility - chartA error:", err);
+                logger.error(
+                  "Astria Korea V2 Compatibility - chartA error:",
+                  err,
+                );
               }
               try {
                 if (compatPartnersKRV2.personB.dob) {
@@ -3714,7 +3748,10 @@ RULES:
                   });
                 }
               } catch (err) {
-                logger.error("Astria Korea V2 Compatibility - chartB error:", err);
+                logger.error(
+                  "Astria Korea V2 Compatibility - chartB error:",
+                  err,
+                );
               }
             }
           }
@@ -3744,7 +3781,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error("Astria Korea V2 Relationship Engine - chartA error:", err);
+              logger.error(
+                "Astria Korea V2 Relationship Engine - chartA error:",
+                err,
+              );
             }
             try {
               if (compatPartnersKRV2.personB.dob) {
@@ -3755,7 +3795,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error("Astria Korea V2 Relationship Engine - chartB error:", err);
+              logger.error(
+                "Astria Korea V2 Relationship Engine - chartB error:",
+                err,
+              );
             }
           }
         } else if (selfDob0) {
@@ -3792,6 +3835,34 @@ RULES:
         }
       }
       // ====== END ASTRIA KOREA V2 PROCESSING ======
+
+      // ============================================
+      // ASTRIA KOREA TALK ENGINE — Astria Korea Talk category ONLY
+      // KR v3 Whole Pack conversational companion (Relationship / Comfort /
+      // Healing / Daily Companion / Love modes + Memory + Emotional
+      // Intelligence + Astria KR inner-space tone refinement).
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on "Astria Korea" (v1), "Astria Korea V2", or any other
+      // category or subcategory.
+      // ============================================
+      if (isAstriaKoreaTalk) {
+        systemPrompt = buildAstriaKoreaTalkContext({
+          subCategoryName: subCategoryName || null,
+          categoryPrompt: categoryPrompt || null,
+          subCategoryPrompt: subCategoryPrompt || null,
+          target,
+          userMessage,
+          emotionalState: emotionType || null,
+          previousContext: null,
+        });
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+      // ====== END ASTRIA KOREA TALK PROCESSING ======
 
       // ============================================
       // ASTRIA BRAZIL ENGINE — Astria Brazil category ONLY
