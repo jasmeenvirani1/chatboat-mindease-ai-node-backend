@@ -25,6 +25,16 @@ const SubCategorySchema = new Schema(
       required: true,
       trim: true,
     },
+    name_ja: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    name_ko: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
     description: {
       type: String,
@@ -35,6 +45,14 @@ const SubCategorySchema = new Schema(
       default: "",
     },
     description_es: {
+      type: String,
+      default: "",
+    },
+    description_ja: {
+      type: String,
+      default: "",
+    },
+    description_ko: {
       type: String,
       default: "",
     },

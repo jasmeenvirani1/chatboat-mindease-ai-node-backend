@@ -93,6 +93,22 @@ const {
   buildAstriaKoreaTalkContext,
 } = require("../helper/AstriaKoreaTalkService");
 const {
+  buildAstriaKoreaV3Context,
+  computeWesternBirthChartKR: computeWesternBirthChartKRV3,
+  parseCompatibilityPartnersKR: parseCompatibilityPartnersKRV3,
+  buildCompatibilityMissingQuestionKR: buildCompatibilityMissingQuestionKRV3,
+  isRelationshipEngineSubcategoryKRV3,
+  isCompatibilitySubcategoryKRV3,
+  isSajuSubcategoryKRV3,
+  isCompanionTalkSubcategoryKRV3,
+  computeSajuV4KR: computeSajuV4KRV3,
+  computeSajuDailyLuckKR: computeSajuDailyLuckKRV3,
+} = require("../helper/AstriaKoreaV3Service");
+const {
+  buildAstriaJapanTalkContext,
+  resolveKyuseiStarIdFromDob,
+} = require("../helper/AstriaJapanTalkService");
+const {
   buildAstriaBrazilContext,
   computeWesternBirthChartBR,
   parseCompatibilityPartnersBR,
@@ -2201,7 +2217,6 @@ const chatController = {
       // Engine / Daily Companion. Isolated category name so v1 is never touched.
       const isAstriaKoreaV2 =
         categoryName === "Astria Korea V2" &&
-        categoryName === "Astria Korea v3" &&
         !isAstriaUS &&
         !isAstriaIndiaCategory &&
         !isAstriaJapan;
@@ -2234,6 +2249,40 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2;
 
+      // Astria Korea V3 Engine — full Korean experience: V2's Daily Flow /
+      // Life Map / Relationship Engine / Daily Companion / Compatibility tabs,
+      // plus v1's Saju tab, plus a Companion Talk tab (Astria Talk KR v3).
+      // Always replies in Korean only. Isolated category name so v1/v2/Talk
+      // are never touched.
+      const isAstriaKoreaV3 =
+        categoryName === "Astria Korea V3" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk;
+      console.log("Astria Korea V3:", isAstriaKoreaV3);
+
+      // Astria Japan Talk Engine — JP v3 Viral (Kyusei/Omamori/Kippou-i) +
+      // Timing Flow + Companion (Relationship/Comfort/Healing/Daily/Love).
+      // Matched by name at EITHER level — as the category itself, or as a
+      // subcategory nested under any other category (e.g. "Astria Japan
+      // V2") — so it keeps working with zero code change if "Astria Japan
+      // Talk" is moved between being a category and a subcategory. Isolated
+      // so the existing "Astria Japan" (Big3/Signs/Personality/
+      // Compatibility/Daily Flow/Quiet Letter) lane is never touched.
+      const isAstriaJapanTalk =
+        (categoryName === "Astria Japan Talk" ||
+          subCategoryName === "Astria Japan Talk") &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3;
+
       // Astria Spanish Engine — Spanish-lane astrology with 3 tone variants
       const isAstriaSpanish =
         categoryName === "Astria Spanish" &&
@@ -2242,7 +2291,9 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk;
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk;
       // spanishTone: "neutral" (default) | "spain" | "mexico"
       const resolvedSpanishTone =
         !isAstriaUS && isAstriaSpanish && spanishTone
@@ -2258,6 +2309,8 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
         !isAstriaSpanish;
 
       // PSM lane: Philippines, Singapore, Malaysia — 3 separate category names, one engine
@@ -2271,6 +2324,8 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil;
 
@@ -2283,6 +2338,8 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM;
@@ -2297,6 +2354,8 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
@@ -2311,6 +2370,8 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
@@ -2326,6 +2387,8 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
@@ -3865,6 +3928,287 @@ RULES:
       // ====== END ASTRIA KOREA TALK PROCESSING ======
 
       // ============================================
+      // ASTRIA KOREA V3 ENGINE — Astria Korea V3 category ONLY
+      // Full Korean experience: V2's Daily Flow / Life Map / Relationship
+      // Engine / Daily Companion / Compatibility tabs, plus v1's Saju tab,
+      // plus a Companion Talk tab (Astria Talk KR v3). Always replies in
+      // Korean only, regardless of the detected message language.
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on "Astria Korea" (v1), "Astria Korea V2", "Astria Korea
+      // Talk", or any other category.
+      // ============================================
+      let compatibilityMissingQuestionKRV3 = null;
+      if (isAstriaKoreaV3) {
+        const isCompanionTalkTab =
+          isCompanionTalkSubcategoryKRV3(subCategoryName);
+
+        if (isCompanionTalkTab) {
+          systemPrompt = buildAstriaKoreaV3Context({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            userMessage,
+            emotionalState: emotionType || null,
+            previousContext: null,
+          });
+          systemPrompt = appendAstriaDobAndMessageContext(
+            systemPrompt,
+            selfDob0,
+            userMessage,
+            translatedMessage !== userMessage ? translatedMessage : null,
+          );
+        } else {
+          const isSajuTab = isSajuSubcategoryKRV3(subCategoryName);
+          const isRelationshipEngineTab =
+            !isSajuTab && isRelationshipEngineSubcategoryKRV3(subCategoryName);
+          const isCompatibilityTab =
+            !isSajuTab && isCompatibilitySubcategoryKRV3(subCategoryName);
+
+          let astriaKoreaV3BirthChart = null;
+          let astriaKoreaV3BirthChartB = null;
+          let compat3BoxParamsV3 = {};
+          let astriaKoreaV3SajuData = null;
+          let astriaKoreaV3SajuDailyLuck = null;
+
+          if (isCompatibilityTab) {
+            // Compatibility KR v3 — same 3-Box form as v1/v2: structured
+            // self/partner data when the client sends it, else fall back to
+            // text/DOB parsing.
+            const has3BoxSelf =
+              korea3BoxSelf &&
+              (korea3BoxSelf.blood_type ||
+                korea3BoxSelf.dob ||
+                korea3BoxSelf.destiny_time);
+            const has3BoxPartner =
+              korea3BoxPartner &&
+              (korea3BoxPartner.blood_type ||
+                korea3BoxPartner.dob ||
+                korea3BoxPartner.destiny_time);
+
+            if (has3BoxSelf && has3BoxPartner) {
+              try {
+                const selfDob = korea3BoxSelf.dob || selfDob0;
+                if (selfDob) {
+                  astriaKoreaV3BirthChart = computeWesternBirthChartKRV3({
+                    dob: String(selfDob).trim(),
+                    dob_time: korea3BoxSelf.birth_time || selfDobTime0 || null,
+                    dob_place:
+                      korea3BoxSelf.birth_city || selfDobPlace0 || null,
+                  });
+                }
+              } catch (err) {
+                logger.error(
+                  "Astria Korea V3 Compatibility - chartA error:",
+                  err,
+                );
+              }
+              try {
+                if (korea3BoxPartner.dob) {
+                  astriaKoreaV3BirthChartB = computeWesternBirthChartKRV3({
+                    dob: String(korea3BoxPartner.dob).trim(),
+                    dob_time: korea3BoxPartner.birth_time || null,
+                    dob_place: korea3BoxPartner.birth_city || null,
+                  });
+                }
+              } catch (err) {
+                logger.error(
+                  "Astria Korea V3 Compatibility - chartB error:",
+                  err,
+                );
+              }
+
+              compat3BoxParamsV3 = {
+                selfName: korea3BoxSelf.name || null,
+                selfGender: korea3BoxSelf.gender || null,
+                selfBloodType: korea3BoxSelf.blood_type || null,
+                selfDestinyTime: korea3BoxSelf.destiny_time || null,
+                partnerName: korea3BoxPartner.name || null,
+                partnerGender: korea3BoxPartner.gender || null,
+                partnerBloodType: korea3BoxPartner.blood_type || null,
+                partnerDestinyTime: korea3BoxPartner.destiny_time || null,
+              };
+            } else {
+              const compatPartnersKRV3 = parseCompatibilityPartnersKRV3(
+                userMessage,
+                dob0,
+                dob_time0,
+                dob_place0,
+              );
+
+              if (compatPartnersKRV3.missingFields.length > 0) {
+                compatibilityMissingQuestionKRV3 =
+                  buildCompatibilityMissingQuestionKRV3(
+                    compatPartnersKRV3.missingFields,
+                    !!(dob0 && String(dob0).trim()),
+                  );
+              } else {
+                try {
+                  if (compatPartnersKRV3.personA.dob) {
+                    astriaKoreaV3BirthChart = computeWesternBirthChartKRV3({
+                      dob: compatPartnersKRV3.personA.dob,
+                      dob_time: compatPartnersKRV3.personA.time || null,
+                      dob_place: compatPartnersKRV3.personA.place || null,
+                    });
+                  }
+                } catch (err) {
+                  logger.error(
+                    "Astria Korea V3 Compatibility - chartA error:",
+                    err,
+                  );
+                }
+                try {
+                  if (compatPartnersKRV3.personB.dob) {
+                    astriaKoreaV3BirthChartB = computeWesternBirthChartKRV3({
+                      dob: compatPartnersKRV3.personB.dob,
+                      dob_time: compatPartnersKRV3.personB.time || null,
+                      dob_place: compatPartnersKRV3.personB.place || null,
+                    });
+                  }
+                } catch (err) {
+                  logger.error(
+                    "Astria Korea V3 Compatibility - chartB error:",
+                    err,
+                  );
+                }
+              }
+            }
+          } else if (isRelationshipEngineTab) {
+            const compatPartnersKRV3 = parseCompatibilityPartnersKRV3(
+              userMessage,
+              dob0,
+              dob_time0,
+              dob_place0,
+            );
+
+            if (compatPartnersKRV3.missingFields.length > 0) {
+              compatibilityMissingQuestionKRV3 =
+                buildCompatibilityMissingQuestionKRV3(
+                  compatPartnersKRV3.missingFields,
+                  !!(dob0 && String(dob0).trim()),
+                );
+            } else {
+              try {
+                if (compatPartnersKRV3.personA.dob) {
+                  astriaKoreaV3BirthChart = computeWesternBirthChartKRV3({
+                    dob: compatPartnersKRV3.personA.dob,
+                    dob_time: compatPartnersKRV3.personA.time || null,
+                    dob_place: compatPartnersKRV3.personA.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error(
+                  "Astria Korea V3 Relationship Engine - chartA error:",
+                  err,
+                );
+              }
+              try {
+                if (compatPartnersKRV3.personB.dob) {
+                  astriaKoreaV3BirthChartB = computeWesternBirthChartKRV3({
+                    dob: compatPartnersKRV3.personB.dob,
+                    dob_time: compatPartnersKRV3.personB.time || null,
+                    dob_place: compatPartnersKRV3.personB.place || null,
+                  });
+                }
+              } catch (err) {
+                logger.error(
+                  "Astria Korea V3 Relationship Engine - chartB error:",
+                  err,
+                );
+              }
+            }
+          } else if (isSajuTab) {
+            if (selfDob0) {
+              try {
+                astriaKoreaV3BirthChart = computeWesternBirthChartKRV3({
+                  dob: String(selfDob0).trim(),
+                  dob_time: selfDobTime0 || null,
+                  dob_place: selfDobPlace0 || null,
+                });
+              } catch (chartErr) {
+                logger.error("Astria Korea V3 birth chart error:", chartErr);
+              }
+              try {
+                astriaKoreaV3SajuData = computeSajuV4KRV3({
+                  dob: String(selfDob0).trim(),
+                  dob_time: selfDobTime0 || null,
+                });
+                if (astriaKoreaV3SajuData) {
+                  astriaKoreaV3SajuDailyLuck = computeSajuDailyLuckKRV3(
+                    astriaKoreaV3SajuData,
+                  );
+                }
+              } catch (sajuErr) {
+                logger.error("Astria Korea V3 Saju compute error:", sajuErr);
+              }
+            }
+          } else if (selfDob0) {
+            try {
+              astriaKoreaV3BirthChart = computeWesternBirthChartKRV3({
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Korea V3 birth chart error:", chartErr);
+            }
+          }
+
+          if (!compatibilityMissingQuestionKRV3) {
+            systemPrompt = buildAstriaKoreaV3Context({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              userMessage,
+              birthChart: astriaKoreaV3BirthChart,
+              birthChartB: astriaKoreaV3BirthChartB,
+              weatherContext: trendingTopicData?.context?.weather || null,
+              recentStress:
+                trendingTopicData?.context?.social_mood === "heavy" || null,
+              sajuData: astriaKoreaV3SajuData,
+              sajuDailyLuck: astriaKoreaV3SajuDailyLuck,
+              ...compat3BoxParamsV3,
+            });
+            systemPrompt = appendAstriaDobAndMessageContext(
+              systemPrompt,
+              selfDob0,
+              userMessage,
+              translatedMessage !== userMessage ? translatedMessage : null,
+            );
+          }
+        }
+      }
+      // ====== END ASTRIA KOREA V3 PROCESSING ======
+
+      // ============================================
+      // ASTRIA JAPAN TALK ENGINE — Astria Japan Talk category ONLY
+      // JP v3 Viral (Kyusei/Omamori/Kippou-i) + Timing Flow + Companion
+      // (Relationship / Comfort / Healing / Daily / Love modes + Memory +
+      // Emotional Intelligence + Astria JP inner-space tone refinement).
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on "Astria Japan" (Big3/Signs/Personality/Compatibility/
+      // Daily Flow/Quiet Letter) or any other category or subcategory.
+      // ============================================
+      if (isAstriaJapanTalk) {
+        systemPrompt = buildAstriaJapanTalkContext({
+          subCategoryName: subCategoryName || null,
+          categoryPrompt: categoryPrompt || null,
+          subCategoryPrompt: subCategoryPrompt || null,
+          target,
+          userMessage,
+          emotionalState: emotionType || null,
+          previousContext: selfDob0 ? { dob: selfDob0 } : null,
+          starId: resolveKyuseiStarIdFromDob(selfDob0),
+        });
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+      // ====== END ASTRIA JAPAN TALK PROCESSING ======
+
+      // ============================================
       // ASTRIA BRAZIL ENGINE — Astria Brazil category ONLY
       // Fully overrides systemPrompt for this category.
       // Zero impact on any other category or subcategory.
@@ -4749,15 +5093,17 @@ MANDATORY RULES — CANNOT BE SKIPPED:
       }
 
       // Specialized Feature Context
-      // isAstriaIndia / isAstriaIndiaCategory / isAstriaUS / isAstriaSpanish / isAstriaJapan / isAstriaKorea / isAstriaKoreaV2 / isAstriaBrazil guard: prevent music/food blocks from overriding these prompts.
+      // isAstriaIndia / isAstriaIndiaCategory / isAstriaUS / isAstriaSpanish / isAstriaJapan / isAstriaKorea / isAstriaKoreaV2 / isAstriaKoreaV3 / isAstriaBrazil guard: prevent music/food blocks from overriding these prompts.
       if (
         !isAstriaIndia &&
         !isAstriaIndiaCategory &&
         !isAstriaUS &&
         !isAstriaSpanish &&
         !isAstriaJapan &&
+        !isAstriaJapanTalk &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaV3 &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
         !isAstriaIndonesia &&
@@ -4771,8 +5117,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         !isAstriaUS &&
         !isAstriaSpanish &&
         !isAstriaJapan &&
+        !isAstriaJapanTalk &&
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
+        !isAstriaKoreaV3 &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
         !isAstriaIndonesia &&
@@ -5160,6 +5508,15 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             }
           } else if (isAstriaKoreaV2 && compatibilityMissingQuestionKRV2) {
             finalAiResponse = compatibilityMissingQuestionKRV2;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (isAstriaKoreaV3 && compatibilityMissingQuestionKRV3) {
+            finalAiResponse = compatibilityMissingQuestionKRV3;
             const words = finalAiResponse.split(" ");
             for (const word of words) {
               if (clientClosed) break;
@@ -5705,6 +6062,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
 
       if (isAstriaKoreaV2 && compatibilityMissingQuestionKRV2) {
         finalAiResponse = compatibilityMissingQuestionKRV2;
+      }
+
+      if (isAstriaKoreaV3 && compatibilityMissingQuestionKRV3) {
+        finalAiResponse = compatibilityMissingQuestionKRV3;
       }
 
       if (isAstriaBrazil && compatibilityMissingQuestionBR) {

@@ -15,6 +15,14 @@ const CategorySchema = new Schema(
       type: String,
       required: true,
     },
+    name_ja: {
+      type: String,
+      required: true,
+    },
+    name_ko: {
+      type: String,
+      required: true,
+    },
     description: {
       type: String,
       default: "",
@@ -24,6 +32,14 @@ const CategorySchema = new Schema(
       default: "",
     },
     description_es: {
+      type: String,
+      default: "",
+    },
+    description_ja: {
+      type: String,
+      default: "",
+    },
+    description_ko: {
       type: String,
       default: "",
     },
