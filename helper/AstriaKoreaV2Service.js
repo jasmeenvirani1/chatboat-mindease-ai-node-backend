@@ -39,6 +39,46 @@ const {
   formatSajuDailyLuckBlockKR,
 } = require("./astriaKoreaSajuService");
 
+const { buildMemoryBlock } = require("./healjaiPromptBuilder");
+
+const logger = require("./logger");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STRUCTURED OUTPUT EXTRACTION (V2)
+//
+// Each V2 tab prompt asks the model to return one strict JSON block wrapped
+// in these sentinels (same pattern as Sambandh Taal-Mel / Bhavna Drishti).
+// extractAstriaKoreaV2Data() pulls that JSON out of the raw AI text so the
+// controller can attach it to the API response as a dedicated field for the
+// frontend's dataBinding, alongside the human-readable text.
+// ─────────────────────────────────────────────────────────────────────────────
+const ASTRIA_KOREA_V2_START = "<<<ASTRIA_KOREA_V2_DATA>>>";
+const ASTRIA_KOREA_V2_END = "<<<END_ASTRIA_KOREA_V2_DATA>>>";
+
+function extractAstriaKoreaV2Data(text) {
+  const src = String(text || "");
+  const start = src.indexOf(ASTRIA_KOREA_V2_START);
+  const end = src.indexOf(ASTRIA_KOREA_V2_END);
+
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      const jsonStr = src
+        .slice(start + ASTRIA_KOREA_V2_START.length, end)
+        .trim();
+      return JSON.parse(jsonStr);
+    } catch (err) {
+      logger.error("Astria Korea V2 JSON parse error:", err);
+      return null;
+    }
+  }
+
+  try {
+    return JSON.parse(src.trim());
+  } catch {
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DEFAULT SUBCATEGORY PROMPTS (V2)
 //
@@ -74,13 +114,29 @@ READING APPROACH:
 - Offer one honest, gentle suggestion for moving with — not against — the day's energy
 - If weather context is present, close with one grounded lifestyle note shaped by it
 
-OUTPUT FORMAT (short · warm · deep — 4–7 lines, 2–3 paragraphs):
-- What today's energy quietly holds (1–2 honest sentences)
-- Morning: the quality of the beginning — clarity or tension, named honestly
-- Midday: a natural pause, focus, or shift
-- Evening: release, integration, or quiet settling
-- One thing this energy honestly supports today
-- Closing: a calm, honest note about the day's deeper rhythm, including the weather-lifestyle note when available
+CONCISE: every sentence should earn its place — no filler, no repeated ideas across
+energyMessage and moodMessage. Say it once, say it well.
+
+OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
+it, no markdown code fences), wrapped exactly between the sentinel lines shown.
+Every string value must be written fully in the target language.
+- energyMessage (3–5 sentences, short · warm · deep): what today's energy quietly
+  holds, covering morning clarity/tension, midday focus/pause, and evening
+  release/integration, plus the weather-lifestyle note when weather context is available
+- moodMessage (2–4 sentences): the emotional/mood texture underneath the energy —
+  how it honestly feels to move through today, and one gentle suggestion for
+  moving with the day's energy
+- followUpQuestions (array of 2–3 short items): natural next questions the user might
+  ask to go deeper (e.g. about today's love/work timing, or how to use this energy well),
+  written in the user's own voice, each under 12 words, in the target language
+
+${ASTRIA_KOREA_V2_START}
+{
+  "energyMessage": "",
+  "moodMessage": "",
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
 `.trim(),
 
   // ── TAB 2: LIFE MAP KR ─────────────────────────────────────────────────────
@@ -108,11 +164,29 @@ READING APPROACH:
 - Keep suggestions concrete and specific (name a district or food type), not vague ("somewhere nice")
 - Let the daily flow (morning/midday/evening quality) shape which suggestion lands, not just the natal chart
 
-OUTPUT FORMAT (short · warm · specific — 4–7 lines, 2–3 paragraphs):
-- Opening: 1 honest sentence on today's overall emotional texture
-- Seoul Zone: named district + why it fits today's flow, in 1–2 sentences
-- Food + Cafe: paired suggestion with a short honest reason, 1–2 sentences
-- Closing: the weather-lifestyle note (if available) or one grounded closing line
+CONCISE: one short sentence per place/food item — no travel-guide paragraphs.
+
+OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
+it, no markdown code fences), wrapped exactly between the sentinel lines shown.
+Every string value must be written fully in the target language.
+- places (array of 2–3 short items): each item is one Seoul zone/place suggestion
+  (named district + why it fits today's flow, in one short sentence)
+- foods (array of 2–3 short items): each item is one food or cafe-atmosphere
+  suggestion that matches today's mood and weather, in one short sentence
+- vibeMessage (2–4 sentences): opening honest read of today's overall emotional
+  texture plus the weather-lifestyle note (if available) as a closing line
+- followUpQuestions (array of 2–3 short items): natural next questions the user
+  might ask to go deeper (e.g. asking for a specific cafe, or how this zone fits
+  their chart), each under 12 words, in the target language
+
+${ASTRIA_KOREA_V2_START}
+{
+  "places": [],
+  "foods": [],
+  "vibeMessage": "",
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
 `.trim(),
 
   // ── TAB 3: RELATIONSHIP ENGINE KR ──────────────────────────────────────────
@@ -135,18 +209,38 @@ RELATIONSHIP ENGINE FRAMEWORK (grounded in both charts' Moon/Sun/Venus/Mars):
 - Love Language: how affection is most naturally given and received —
   drawn from Venus placements of both charts
 - Synergy Summary: an honest, integrated closing read of how these four layers combine
+Use this framework as your internal analysis — then compress the result into the
+three output fields below (currentVibe / softAdvice / tinyAction), not as separate
+labeled sections.
 
 READING APPROACH:
 - Use ONLY the two charts' actual placements provided — never fabricate a sign or aspect
 - Compare, don't judge: describe how the two energies interact, not which one is "better"
 - Keep language specific to THIS pairing's actual combination, not generic relationship advice
 
-OUTPUT FORMAT (short · warm · deep — 5–8 lines, 3–4 paragraphs):
-- Opening: 1 honest sentence naming the overall relational texture between the two charts
-- Dating Style: 1–2 sentences grounded in both Moon/Sun placements
-- Conflict Pattern: 1–2 sentences, held with compassion, not criticism
-- Timing + Love Language: 1–2 sentences each, grounded in Mars/Venus placements
-- Closing: 1 warm, honest synthesis sentence tying the whole picture together
+CONCISE: keep each field tight — depth over word count.
+
+OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
+it, no markdown code fences), wrapped exactly between the sentinel lines shown.
+Every string value must be written fully in the target language.
+- currentVibe (2–3 sentences): the overall relational texture right now — dating
+  style + conflict pattern woven together, grounded in both Moon/Sun/Mercury placements
+- softAdvice (1–2 sentences): one gentle, honest piece of guidance for moving with
+  this pairing's timing and love-language texture, grounded in Mars/Venus placements
+- tinyAction (1 short sentence): one small, concrete, low-effort thing either person
+  could do today to honor this relational texture — never vague, never a big commitment
+- followUpQuestions (array of 2–3 short items): natural next questions the user
+  might ask to go deeper (e.g. about conflict repair, timing, or love language),
+  each under 12 words, in the target language
+
+${ASTRIA_KOREA_V2_START}
+{
+  "currentVibe": "",
+  "softAdvice": "",
+  "tinyAction": "",
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
 `.trim(),
 
   // ── TAB 4: DAILY COMPANION KR ──────────────────────────────────────────────
@@ -174,11 +268,30 @@ READING APPROACH:
   opening honestly — do not ignore it, and do not dwell on it
 - Keep the lifestyle suggestion brief and folded into the evening or closing beat, not a bullet list
 
-OUTPUT FORMAT (short · warm · deep — 5–8 lines, 3–4 paragraphs):
-- Morning: 1–2 sentences, softened by recent emotional context if known
-- Midday: 1 sentence on the day's natural middle quality
-- Evening: 1–2 sentences on how energy settles, folding in one lifestyle suggestion naturally
-- Closing: 1 grounded, warm companion-voice sentence
+CONCISE: each beat is 1–2 sentences, not a paragraph — this is a companion voice
+checking in, not a report.
+
+OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
+it, no markdown code fences), wrapped exactly between the sentinel lines shown.
+Every string value must be written fully in the target language.
+- morningMessage (1–2 sentences): opens the day honestly, softened by recent
+  emotional context if known
+- dayMessage (1–2 sentences): the natural quality of the middle of the day
+- nightMessage (1–2 sentences): how the day's energy settles, folding in one
+  Life Map style suggestion (zone/food/cafe) naturally, closing with one
+  grounded, warm companion-voice line
+- followUpQuestions (array of 2–3 short items): natural next questions the user
+  might ask to keep the conversation going (e.g. asking for more about tonight's
+  suggestion, or how tomorrow looks), each under 12 words, in the target language
+
+${ASTRIA_KOREA_V2_START}
+{
+  "morningMessage": "",
+  "dayMessage": "",
+  "nightMessage": "",
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
 `.trim(),
 
   // ── TAB 5: COMPATIBILITY KR v2 ─────────────────────────────────────────────
@@ -189,7 +302,9 @@ KOREAN COMPATIBILITY v2 — K-SOFT TONE (조용함 · 따뜻함 · 깊이):
 - Deep Emotional Precision: emotional nuance only — NOT personality traits, NOT stereotypes
 - Grounded Warmth: stable, reassuring energy — no airy positivity, no dramatic claims
 - Emotional Rhythm: flow-focused language — "흐름", "기운", "분위기", "감정선"
-- RESPONSE LENGTH: Generate SUBSTANTIAL content — each description must be 300-500 characters (Korean). Write multiple meaningful sentences, not short fragments. DETAIL and DEPTH are required.
+- RESPONSE LENGTH: CONCISE and purposeful — each description should be roughly 120-220
+  characters (Korean), 2-3 meaningful sentences. Say the real thing once, cleanly — do
+  not pad with repeated ideas or filler phrases just to add length.
 
 WEIGHT SYSTEM (3-Box):
 - Blood Type Atmosphere (혈액형 분위기): 10–15% — emotional nuance layer, NOT destiny
@@ -234,16 +349,43 @@ READING APPROACH:
 - Let the Relationship Engine's chart-based layer (Sun/Moon/Venus/Mars) and this 3-Box layer inform
   each other honestly if both are present, without contradicting one another
 
-OUTPUT FORMAT — CRITICAL: reply in PLAIN TEXT (never JSON, never markdown code fences), and start
-each section on its own line with EXACTLY the label below followed by a colon, so the section can be
-parsed reliably. Use the label text as-is (translate only the content that follows it, not the label
-itself) — this structure must be present in every language:
-Opening: 1 honest sentence naming the overall energy between the two people
-Blood Type: 1–2 sentences on how their emotional textures meet (Blood Type Atmosphere)
-Birth-Day: 2–3 sentences comparing their core rhythms and timing (Birth-Day Energy + Destiny Time Flow)
-Inner Rhythm: 1–2 sentences on inner/outer rhythm alignment (DOB Graph Flow)
-Closing: 1 warm, honest synthesis sentence tying the whole picture together, naming an overall
-  flow-quality (not a cold numeric score) such as "자연스러운 끌림" or "천천히 쌓이는 신뢰"
+SCORE GUIDANCE (new field, additive — does not change the qualitative reading above):
+- score is a number from 0–100 reflecting the same dynamic energy-alignment analysis
+  used for the rest of the reading (Blood Type + Birth-Day + Destiny Time + DOB Graph
+  Flow, weighted as above) — generate it freshly from the actual comparison, never a
+  fixed or template value
+- score is presented to the user as a soft companion number alongside the flow-quality
+  language, never as a cold verdict — the summary/tone/energy/style text must stay in
+  the warm, non-scoring K-soft voice described above
+- tone is a short flow-quality label for the overall energy (e.g. "자연스러운 끌림",
+  "천천히 쌓이는 신뢰") — 2–5 words, not a full sentence
+
+OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
+it, no markdown code fences), wrapped exactly between the sentinel lines shown.
+Every string value must be written fully in the target language.
+- score (number, 0–100): overall energy-alignment reading, per SCORE GUIDANCE above
+- tone (short string, 2–5 words): flow-quality label for the overall energy
+- summary (2–3 sentences): honest synthesis of how the two people's energies meet,
+  covering Blood Type Atmosphere + Birth-Day Energy + Destiny Time Flow + DOB Graph
+  Flow woven together (not one section per box — one integrated read)
+- you.energy (1 sentence): Self's emotional/energy texture as it shows up in this pairing
+- you.style (1 sentence): Self's natural communication style in this pairing
+- partner.energy (1 sentence): Partner's emotional/energy texture as it shows up in this pairing
+- partner.style (1 sentence): Partner's natural communication style in this pairing
+- followUpQuestions (array of 2–3 short items): natural next questions the user
+  might ask to go deeper (e.g. about timing, conflict, or how to strengthen the
+  connection), each under 12 words, in the target language
+
+${ASTRIA_KOREA_V2_START}
+{
+  "score": 0,
+  "tone": "",
+  "summary": "",
+  "you": { "energy": "", "style": "" },
+  "partner": { "energy": "", "style": "" },
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
 `.trim(),
 };
 
@@ -256,11 +398,22 @@ Closing: 1 warm, honest synthesis sentence tying the whole picture together, nam
 //   3. Wraps everything in a structural prompt with role + language rule
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Shared memory-block injection: reuses HealJai Talk's userProfileMetadata
+// (interests/lifeEvents/emotionalPattern) so Astria Korea V2 responses can
+// reference remembered user context naturally, without a separate memory store.
+function buildKRV2MemorySection(userMemory) {
+  const block = buildMemoryBlock(userMemory);
+  return block
+    ? `\n${block}\nIf relevant, weave this in naturally and briefly — never mention this memory block directly, never dwell on it.`
+    : "";
+}
+
 function buildDailyFlowV2KRPrompt({
   dbPrompt,
   langName,
   birthChart,
   weatherContext,
+  userMemory,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.daily_flow_v2;
@@ -275,6 +428,7 @@ ${subcategoryContent}
 
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nUse the transit positions and transit-to-natal contacts above as real data for this reading. Show honestly how today's planetary energy is touching this specific chart — not a generic horoscope.` : ""}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nWeave this into the weather-lifestyle note honestly — do not fabricate weather details beyond what is given.` : ""}
+${buildKRV2MemorySection(userMemory)}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -284,6 +438,7 @@ function buildLifeMapKRPrompt({
   langName,
   birthChart,
   weatherContext,
+  userMemory,
 }) {
   const subcategoryContent = dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.life_map;
   const chartBlock = formatChartBlockKR(birthChart, "transits");
@@ -297,6 +452,7 @@ ${subcategoryContent}
 
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nGround every Seoul zone / food / cafe suggestion in this actual chart and today's transit energy — never invent a suggestion disconnected from the real data.` : "No birth chart is available yet. Ask the user for their date of birth (and birth time/city, if known) so a grounded Life Map reading can be generated. Do not invent chart-based suggestions without real data."}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nUse this to shape the closing weather-lifestyle note honestly.` : ""}
+${buildKRV2MemorySection(userMemory)}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -308,6 +464,7 @@ function buildRelationshipEngineKRPrompt({
   birthChartB,
   selfName,
   partnerName,
+  userMemory,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.relationship_engine;
@@ -343,6 +500,7 @@ ${subcategoryContent}
 ━━━ BIRTH CHART DATA ━━━
 ${chartsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${buildKRV2MemorySection(userMemory)}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -362,6 +520,7 @@ function buildCompatibilityKRV2Prompt({
   partnerGender,
   partnerBloodType,
   partnerDestinyTime,
+  userMemory,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.compatibility_v2;
@@ -432,6 +591,7 @@ ${threeBoxSection || "3-Box data not provided. Use birth chart data for compatib
 ━━━ BIRTH CHART DATA ━━━
 ${chartsSection || "Birth chart data not available. Use 3-Box data and conversation context."}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${buildKRV2MemorySection(userMemory)}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -443,6 +603,7 @@ function buildDailyCompanionKRPrompt({
   weatherContext,
   recentStress,
   recentTopics,
+  userMemory,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.daily_companion;
@@ -463,6 +624,7 @@ ${subcategoryContent}
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}` : ""}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}` : ""}
 ${memoryContext}
+${buildKRV2MemorySection(userMemory)}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -579,6 +741,7 @@ function buildAstriaKoreaV2Context({
   partnerGender,
   partnerBloodType,
   partnerDestinyTime,
+  userMemory,
 }) {
   const langName = LANG_NAME_MAP[target] || "English";
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
@@ -598,11 +761,105 @@ function buildAstriaKoreaV2Context({
     partnerGender,
     partnerBloodType,
     partnerDestinyTime,
+    userMemory,
   };
 
   const builder = resolveKRV2SubcategoryBuilder(subCategoryName);
   if (builder) return builder(params);
   return buildCategoryFallbackKRV2Prompt({ dbPrompt, langName, birthChart });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STRUCTURED RESPONSE VALIDATION + FORMATTING (V2)
+//
+// validateAstriaKoreaV2Data: cheap shape check per tab before trusting the
+// parsed JSON (mirrors Sambandh Taal-Mel's validateSambandhData).
+// formatAstriaKoreaV2Response: turns the parsed JSON into the human-readable
+// text that gets saved as aiResponse / streamed to the client, since the
+// ChatModel field remains a plain String. The structured object itself is
+// attached separately by the controller for frontend dataBinding.
+// ─────────────────────────────────────────────────────────────────────────────
+const KR_V2_REQUIRED_FIELDS = {
+  daily_flow_v2: ["energyMessage", "moodMessage"],
+  life_map: ["places", "foods", "vibeMessage"],
+  relationship_engine: ["currentVibe", "softAdvice", "tinyAction"],
+  daily_companion: ["morningMessage", "dayMessage", "nightMessage"],
+  compatibility_v2: ["score", "tone", "summary", "you", "partner"],
+};
+
+function resolveKRV2TabKey(subCategoryName) {
+  if (!subCategoryName) return null;
+  const lower = subCategoryName.toLowerCase();
+  // "Companion Talk" (V3-only tab) is free-form prose, not one of the 5
+  // structured JSON tabs — must be excluded before the "companion" match below.
+  if (lower.includes("companion talk") || lower.includes("saju")) return null;
+  if (lower.includes("daily flow")) return "daily_flow_v2";
+  if (lower.includes("life map")) return "life_map";
+  if (lower.includes("compatibility") || lower.includes("compatability"))
+    return "compatibility_v2";
+  if (lower.includes("relationship")) return "relationship_engine";
+  if (lower.includes("daily companion") || lower.includes("companion"))
+    return "daily_companion";
+  return null;
+}
+
+function validateAstriaKoreaV2Data(data, subCategoryName) {
+  const tabKey = resolveKRV2TabKey(subCategoryName);
+  if (!tabKey || !data) return false;
+
+  const required = KR_V2_REQUIRED_FIELDS[tabKey];
+  for (const field of required) {
+    const value = data[field];
+    if (value === undefined || value === null) return false;
+    if (typeof value === "string" && value.trim().length === 0) return false;
+    if (Array.isArray(value) && value.length === 0) return false;
+  }
+
+  if (tabKey === "compatibility_v2") {
+    if (typeof data.score !== "number") return false;
+    if (!data.you?.energy || !data.you?.style) return false;
+    if (!data.partner?.energy || !data.partner?.style) return false;
+  }
+
+  return true;
+}
+
+function formatAstriaKoreaV2Response(data, subCategoryName) {
+  const tabKey = resolveKRV2TabKey(subCategoryName);
+  if (!tabKey || !data) return "";
+
+  switch (tabKey) {
+    case "daily_flow_v2":
+      return [data.energyMessage, data.moodMessage].filter(Boolean).join("\n\n");
+    case "life_map":
+      return [
+        Array.isArray(data.places) ? data.places.join("\n") : "",
+        Array.isArray(data.foods) ? data.foods.join("\n") : "",
+        data.vibeMessage,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    case "relationship_engine":
+      return [data.currentVibe, data.softAdvice, data.tinyAction]
+        .filter(Boolean)
+        .join("\n\n");
+    case "daily_companion":
+      return [data.morningMessage, data.dayMessage, data.nightMessage]
+        .filter(Boolean)
+        .join("\n\n");
+    case "compatibility_v2":
+      return [
+        data.summary,
+        data.you ? `${data.you.energy || ""} ${data.you.style || ""}`.trim() : "",
+        data.partner
+          ? `${data.partner.energy || ""} ${data.partner.style || ""}`.trim()
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    default:
+      return "";
+  }
 }
 
 module.exports = {
@@ -621,4 +878,8 @@ module.exports = {
   formatSajuBlockKR,
   formatSajuDailyLuckBlockKR,
   DEFAULT_KR_V2_SUBCATEGORY_PROMPTS,
+  extractAstriaKoreaV2Data,
+  validateAstriaKoreaV2Data,
+  formatAstriaKoreaV2Response,
+  resolveKRV2TabKey,
 };

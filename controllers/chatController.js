@@ -88,6 +88,10 @@ const {
   buildCompatibilityMissingQuestionKR: buildCompatibilityMissingQuestionKRV2,
   isRelationshipEngineSubcategoryKRV2,
   isCompatibilitySubcategoryKRV2,
+  extractAstriaKoreaV2Data,
+  validateAstriaKoreaV2Data,
+  formatAstriaKoreaV2Response,
+  resolveKRV2TabKey,
 } = require("../helper/AstriaKoreaV2Service");
 const {
   buildAstriaKoreaTalkContext,
@@ -132,6 +136,9 @@ const {
   calculateCompatibilityScore,
   getCompatibilityScoreLabel,
 } = require("../helper/astriaGCCService");
+const {
+  buildAstriaGCCV2Context,
+} = require("../helper/astriaGCCV2Service");
 const {
   buildAstriaUKCanadaContext,
   computeWesternBirthChart: computeWesternBirthChartUKCanada,
@@ -2143,9 +2150,11 @@ const chatController = {
         HEALJAI_ACTIVE_CATEGORIES.has(subCategoryName);
 
       // HealJai Talk session-scoped memory — fetch profile only from the current chat session
+      // Also reused for Astria Korea V2 so its responses can reference remembered user context.
       let healjaiUserProfile = null;
       if (
-        categoryName === "HealJai Talk" &&
+        (categoryName === "HealJai Talk" ||
+          categoryName === "Astria Korea V2") &&
         chatId &&
         mongoose.Types.ObjectId.isValid(chatId)
       ) {
@@ -2345,6 +2354,22 @@ const chatController = {
         !isAstriaPSM;
       //console.log("Astria GCC:", isAstriaGCC);
 
+      // Astria GCC v2 Engine — "Global Lane v2" soft-premium emotional AI (GCC v2 lane, 7 tabs)
+      const isAstriaGCCV2 =
+        categoryName === "Astria GCC V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC;
+
       // Astria UK Engine — Calm, understated, warm-polite Western astrology (UK lane)
       const isAstriaUK =
         categoryName === "Astria UK" &&
@@ -2359,7 +2384,8 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
-        !isAstriaGCC;
+        !isAstriaGCC &&
+        !isAstriaGCCV2;
 
       // Astria Canada Engine — Calm, understated, warm-polite Western astrology (Canada lane)
       const isAstriaCanada =
@@ -2376,6 +2402,7 @@ const chatController = {
         !isAstriaBrazil &&
         !isAstriaPSM &&
         !isAstriaGCC &&
+        !isAstriaGCCV2 &&
         !isAstriaUK;
 
       // Astria Indonesia Engine — Calm, gentle, respectful, soft-contained Western astrology (Indonesia lane)
@@ -2393,6 +2420,7 @@ const chatController = {
         !isAstriaBrazil &&
         !isAstriaPSM &&
         !isAstriaGCC &&
+        !isAstriaGCCV2 &&
         !isAstriaUK &&
         !isAstriaCanada;
 
@@ -3163,6 +3191,9 @@ RULES:
       let sambandhTaalMelData = null;
       let sambandhMissingFields = null;
 
+      // ASTRIA KOREA V2 — structured per-tab data for frontend dataBinding
+      let astriaKoreaV2Data = null;
+
       if (isSambandhTaalMel) {
         const partnerInfo = SambandhTaalMelService.parsePartnersFromMessage(
           userMessage,
@@ -3887,6 +3918,7 @@ RULES:
             weatherContext: trendingTopicData?.context?.weather || null,
             recentStress:
               trendingTopicData?.context?.social_mood === "heavy" || null,
+            userMemory: healjaiUserProfile,
             ...compat3BoxParamsV2,
           });
           systemPrompt = appendAstriaDobAndMessageContext(
@@ -4553,6 +4585,47 @@ RULES:
       // ====== END ASTRIA GCC PROCESSING ======
 
       // ============================================
+      // ASTRIA GCC V2 ENGINE — Astria GCC V2 category ONLY
+      // "Global Lane v2" soft-premium emotional AI, 7 tabs (Timing, Kyusei,
+      // Companion, Emotional Intelligence, Personality Engine, Adaptive
+      // Memory, Letter Never Sent). English/Arabic only, plain-prose replies.
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on any other category or subcategory, including v1 GCC.
+      // ============================================
+      if (isAstriaGCCV2) {
+        let astriaGCCV2BirthChart = null;
+        if (selfDob0) {
+          try {
+            astriaGCCV2BirthChart = computeWesternBirthChartGCC({
+              dob: String(selfDob0).trim(),
+              dob_time: selfDobTime0 || null,
+              dob_place: selfDobPlace0 || null,
+            });
+          } catch (chartErr) {
+            logger.error("Astria GCC V2 birth chart error:", chartErr);
+          }
+        }
+
+        systemPrompt = buildAstriaGCCV2Context({
+          subCategoryName: subCategoryName || null,
+          categoryName: categoryName || null,
+          categoryPrompt: categoryPrompt || null,
+          subCategoryPrompt: subCategoryPrompt || null,
+          target,
+          userMessage,
+          birthChart: astriaGCCV2BirthChart,
+        });
+
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+      // ====== END ASTRIA GCC V2 PROCESSING ======
+
+      // ============================================
       // ASTRIA UK ENGINE — Astria UK category ONLY
       // Fully overrides systemPrompt for this category.
       // Zero impact on any other category or subcategory.
@@ -5106,6 +5179,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         !isAstriaKoreaV3 &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
+        !isAstriaGCCV2 &&
         !isAstriaIndonesia &&
         musicRecommendation?.shouldRecommend
       ) {
@@ -5123,6 +5197,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         !isAstriaKoreaV3 &&
         !isAstriaBrazil &&
         !isAstriaGCC &&
+        !isAstriaGCCV2 &&
         !isAstriaIndonesia &&
         foodRecommendation?.shouldRecommend
       ) {
@@ -5515,8 +5590,81 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
+          } else if (isAstriaKoreaV2) {
+            const krv2Stream = await generateGeminiResponseStream(messages);
+            let rawResponse = "";
+            for await (const chunk of krv2Stream) {
+              if (clientClosed) break;
+              const text = chunk?.text || "";
+              if (!text) continue;
+              rawResponse += text;
+            }
+
+            astriaKoreaV2Data = extractAstriaKoreaV2Data(rawResponse);
+
+            if (
+              astriaKoreaV2Data &&
+              validateAstriaKoreaV2Data(astriaKoreaV2Data, subCategoryName)
+            ) {
+              finalAiResponse = formatAstriaKoreaV2Response(
+                astriaKoreaV2Data,
+                subCategoryName,
+              );
+            } else {
+              astriaKoreaV2Data = null;
+              finalAiResponse =
+                rawResponse
+                  .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
+                  .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
+                  .trim() || "No response";
+            }
+
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
           } else if (isAstriaKoreaV3 && compatibilityMissingQuestionKRV3) {
             finalAiResponse = compatibilityMissingQuestionKRV3;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (isAstriaKoreaV3 && resolveKRV2TabKey(subCategoryName)) {
+            // V3's Daily Flow / Life Map / Relationship Engine / Compatibility /
+            // Daily Companion tabs reuse V2's DEFAULT_KR_V2_SUBCATEGORY_PROMPTS
+            // content verbatim, so they emit the same sentinel-wrapped JSON and
+            // need the same extraction (Saju + Companion Talk tabs are excluded
+            // by resolveKRV2TabKey and fall through to plain-text handling below).
+            const krv3Stream = await generateGeminiResponseStream(messages);
+            let rawResponse = "";
+            for await (const chunk of krv3Stream) {
+              if (clientClosed) break;
+              const text = chunk?.text || "";
+              if (!text) continue;
+              rawResponse += text;
+            }
+
+            const krv3Data = extractAstriaKoreaV2Data(rawResponse);
+
+            if (krv3Data && validateAstriaKoreaV2Data(krv3Data, subCategoryName)) {
+              finalAiResponse = formatAstriaKoreaV2Response(
+                krv3Data,
+                subCategoryName,
+              );
+            } else {
+              finalAiResponse =
+                rawResponse
+                  .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
+                  .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
+                  .trim() || "No response";
+            }
+
             const words = finalAiResponse.split(" ");
             for (const word of words) {
               if (clientClosed) break;
@@ -5795,9 +5943,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             logger.error("Chat save error:", saveErr);
           }
 
-          // HealJai Talk — fire profile extractor every 3 messages on streaming path (fire and forget)
+          // HealJai Talk / Astria Korea V2 — fire profile extractor every 3 messages on streaming path (fire and forget)
           if (
-            categoryName === "HealJai Talk" &&
+            (categoryName === "HealJai Talk" ||
+              categoryName === "Astria Korea V2") &&
             userId &&
             chatSaved &&
             chat?._id
@@ -5948,6 +6097,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 sambandhTaalMelData: isSambandhTaalMel
                   ? sambandhTaalMelData
                   : null,
+                astriaKoreaV2Data: isAstriaKoreaV2 ? astriaKoreaV2Data : null,
                 gccCompatibilityData:
                   isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
                     ? gccCompatibilityDataStream
@@ -6150,6 +6300,65 @@ MANDATORY RULES — CANNOT BE SKIPPED:
       // ====== END SAMBANDH TAAL-MEL RESPONSE PROCESSING ======
 
       // ============================================
+      // ASTRIA KOREA V2 RESPONSE PROCESSING (NON-STREAMING)
+      // ============================================
+      // The variable astriaKoreaV2Data is already declared in the processing section above
+      if (isAstriaKoreaV2 && !compatibilityMissingQuestionKRV2) {
+        const rawResponse = completion?.trim() || "No response";
+
+        astriaKoreaV2Data = extractAstriaKoreaV2Data(rawResponse);
+
+        if (
+          astriaKoreaV2Data &&
+          validateAstriaKoreaV2Data(astriaKoreaV2Data, subCategoryName)
+        ) {
+          finalAiResponse = formatAstriaKoreaV2Response(
+            astriaKoreaV2Data,
+            subCategoryName,
+          );
+        } else {
+          astriaKoreaV2Data = null;
+          finalAiResponse =
+            rawResponse
+              .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
+              .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
+              .trim() || "No response";
+        }
+      }
+      // ====== END ASTRIA KOREA V2 RESPONSE PROCESSING ======
+
+      // ============================================
+      // ASTRIA KOREA V3 RESPONSE PROCESSING (NON-STREAMING)
+      // ============================================
+      // V3's Daily Flow / Life Map / Relationship Engine / Compatibility /
+      // Daily Companion tabs reuse V2's DEFAULT_KR_V2_SUBCATEGORY_PROMPTS
+      // content verbatim, so they need the same JSON extraction. Saju and
+      // Companion Talk tabs are excluded by resolveKRV2TabKey and keep their
+      // existing plain-text behavior untouched.
+      if (
+        isAstriaKoreaV3 &&
+        !compatibilityMissingQuestionKRV3 &&
+        resolveKRV2TabKey(subCategoryName)
+      ) {
+        const rawResponse = completion?.trim() || "No response";
+        const krv3Data = extractAstriaKoreaV2Data(rawResponse);
+
+        if (krv3Data && validateAstriaKoreaV2Data(krv3Data, subCategoryName)) {
+          finalAiResponse = formatAstriaKoreaV2Response(
+            krv3Data,
+            subCategoryName,
+          );
+        } else {
+          finalAiResponse =
+            rawResponse
+              .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
+              .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
+              .trim() || "No response";
+        }
+      }
+      // ====== END ASTRIA KOREA V3 RESPONSE PROCESSING ======
+
+      // ============================================
       // GCC COMPATIBILITY RESPONSE PROCESSING (NON-STREAMING)
       // ============================================
       let gccCompatibilityData = null;
@@ -6292,9 +6501,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         logger.error("Chat save error:", saveErr);
       }
 
-      // HealJai Talk — fire background profile extractor every 3 messages (fire and forget)
+      // HealJai Talk / Astria Korea V2 — fire background profile extractor every 3 messages (fire and forget)
       if (
-        categoryName === "HealJai Talk" &&
+        (categoryName === "HealJai Talk" ||
+          categoryName === "Astria Korea V2") &&
         userId &&
         categoryId &&
         saveChat !== false
@@ -6339,6 +6549,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         vivahMuhuratData,
         upayMargData: isUpayMarg ? upayMargParsed : null,
         sambandhTaalMelData: isSambandhTaalMel ? sambandhTaalMelData : null,
+        astriaKoreaV2Data: isAstriaKoreaV2 ? astriaKoreaV2Data : null,
         gccCompatibilityData:
           isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
             ? gccCompatibilityData

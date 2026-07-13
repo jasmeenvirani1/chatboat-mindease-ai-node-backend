@@ -219,4 +219,4 @@ function buildHealjaiTalkPrompt({
   return sections.trim();
 }
 
-module.exports = { buildHealjaiTalkPrompt, detectAstrologyIntent };
+module.exports = { buildHealjaiTalkPrompt, detectAstrologyIntent, buildMemoryBlock };
