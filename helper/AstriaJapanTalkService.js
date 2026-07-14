@@ -864,6 +864,35 @@ function buildJPTimingFlowView(userStarId, userContext, lang = "en") {
   };
 }
 
+// Standalone Companion tab (jp_companion, per client spec): a single,
+// icon-less, text-only card — the "quietest" screen in the JP lane. Unlike
+// the companion sections bundled inside the Viral/Timing views, this is
+// fetched on its own so the frontend can render jp_companion as its own tab.
+function buildJPCompanionView(userContext, lang = "en") {
+  const resolvedLang = lang === "ja" ? "ja" : "en";
+  const copy = JP_VIRAL_VIEW_COPY[resolvedLang];
+
+  return {
+    header: {
+      title: resolvedLang === "ja" ? "Astria Japan · インナー・スペース" : "Astria Japan · Inner Space",
+      subtext:
+        resolvedLang === "ja"
+          ? "心の奥の静かな流れを、一緒にそっと感じるための場所です。"
+          : "A quiet place to gently feel the flow deep inside your heart, together.",
+    },
+    sections: [
+      {
+        id: "innerSpaceMessage",
+        title: copy.companionTitle,
+        type: "jpCompanion",
+        data: {
+          message: astriaTalkV3(copy.companionSeed, "neutral", userContext || null, "daily", resolvedLang),
+        },
+      },
+    ],
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LANGUAGE NAME MAP (shared shape with v1 / v2 / KR Talk)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1049,6 +1078,7 @@ module.exports = {
   // UI view builders
   buildAstriaJapanViralView,
   buildJPTimingFlowView,
+  buildJPCompanionView,
   // Chat integration
   buildAstriaJapanTalkContext,
   DEFAULT_JP_TALK_SUBCATEGORY_PROMPTS,

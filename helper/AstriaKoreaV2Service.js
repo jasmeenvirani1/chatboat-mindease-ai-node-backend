@@ -55,28 +55,65 @@ const logger = require("./logger");
 const ASTRIA_KOREA_V2_START = "<<<ASTRIA_KOREA_V2_DATA>>>";
 const ASTRIA_KOREA_V2_END = "<<<END_ASTRIA_KOREA_V2_DATA>>>";
 
+// Best-effort JSON repair for near-valid model output: strips markdown code
+// fences, trims to the outermost {...} object, and removes trailing commas
+// before the closing bracket/brace. Same tolerance level as the Indonesia
+// Compatibility parsing path elsewhere in this codebase — the model usually
+// gets the JSON right but sometimes wraps it in ```json fences or leaves a
+// trailing comma, and a hard JSON.parse() has zero tolerance for either.
+function repairAndParseJSON(raw) {
+  let s = String(raw || "").trim();
+  if (!s) return null;
+
+  // Strip ```json ... ``` or ``` ... ``` fences if present
+  s = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+  try {
+    return JSON.parse(s);
+  } catch {
+    // fall through to repair attempts below
+  }
+
+  // Trim to the outermost { ... } object (drops any stray prose around it)
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first === -1 || last === -1 || last <= first) return null;
+  let candidate = s.slice(first, last + 1);
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // fall through to trailing-comma repair
+  }
+
+  // Remove trailing commas before a closing } or ]
+  candidate = candidate.replace(/,(\s*[}\]])/g, "$1");
+  try {
+    return JSON.parse(candidate);
+  } catch (err) {
+    logger.error("Astria Korea V2 JSON repair failed:", err.message);
+    return null;
+  }
+}
+
 function extractAstriaKoreaV2Data(text) {
   const src = String(text || "");
   const start = src.indexOf(ASTRIA_KOREA_V2_START);
   const end = src.indexOf(ASTRIA_KOREA_V2_END);
 
   if (start !== -1 && end !== -1 && end > start) {
-    try {
-      const jsonStr = src
-        .slice(start + ASTRIA_KOREA_V2_START.length, end)
-        .trim();
-      return JSON.parse(jsonStr);
-    } catch (err) {
-      logger.error("Astria Korea V2 JSON parse error:", err);
-      return null;
-    }
-  }
-
-  try {
-    return JSON.parse(src.trim());
-  } catch {
+    const jsonStr = src
+      .slice(start + ASTRIA_KOREA_V2_START.length, end)
+      .trim();
+    const parsed = repairAndParseJSON(jsonStr);
+    if (parsed) return parsed;
+    logger.error("Astria Korea V2 JSON parse error: could not repair JSON block");
     return null;
   }
+
+  // No sentinels found (e.g. truncated mid-stream) — try repairing the
+  // whole response as a last resort before giving up.
+  return repairAndParseJSON(src);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -115,7 +152,7 @@ READING APPROACH:
 - If weather context is present, close with one grounded lifestyle note shaped by it
 
 CONCISE: every sentence should earn its place — no filler, no repeated ideas across
-energyMessage and moodMessage. Say it once, say it well.
+energyMessage, moodMessage, and softCheckIn. Say it once, say it well.
 
 OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
 it, no markdown code fences), wrapped exactly between the sentinel lines shown.
@@ -126,6 +163,9 @@ Every string value must be written fully in the target language.
 - moodMessage (2–4 sentences): the emotional/mood texture underneath the energy —
   how it honestly feels to move through today, and one gentle suggestion for
   moving with the day's energy
+- softCheckIn (1 short sentence): one gentle, warm check-in question inviting the
+  user to notice how they actually feel right now (e.g. "지금 당신의 마음은 어떤가요?"),
+  never generic small talk, written softly in the target language
 - followUpQuestions (array of 2–3 short items): natural next questions the user might
   ask to go deeper (e.g. about today's love/work timing, or how to use this energy well),
   written in the user's own voice, each under 12 words, in the target language
@@ -134,6 +174,7 @@ ${ASTRIA_KOREA_V2_START}
 {
   "energyMessage": "",
   "moodMessage": "",
+  "softCheckIn": "",
   "followUpQuestions": []
 }
 ${ASTRIA_KOREA_V2_END}
@@ -387,6 +428,11 @@ ${ASTRIA_KOREA_V2_START}
 }
 ${ASTRIA_KOREA_V2_END}
 `.trim(),
+
+  // NOTE: the model's raw output above stays "score / tone / summary / you /
+  // partner" — the client-facing 3-section display (Summary / Energy Match /
+  // Communication Style) is synthesized from that same JSON in
+  // deriveCompatibilityV2DisplaySections() below, not by changing this schema.
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -780,7 +826,7 @@ function buildAstriaKoreaV2Context({
 // attached separately by the controller for frontend dataBinding.
 // ─────────────────────────────────────────────────────────────────────────────
 const KR_V2_REQUIRED_FIELDS = {
-  daily_flow_v2: ["energyMessage", "moodMessage"],
+  daily_flow_v2: ["energyMessage", "moodMessage", "softCheckIn"],
   life_map: ["places", "foods", "vibeMessage"],
   relationship_engine: ["currentVibe", "softAdvice", "tinyAction"],
   daily_companion: ["morningMessage", "dayMessage", "nightMessage"],
@@ -824,13 +870,43 @@ function validateAstriaKoreaV2Data(data, subCategoryName) {
   return true;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPATIBILITY V2 — 3-SECTION DISPLAY DERIVATION
+//
+// The model's raw JSON stays score/tone/summary/you/partner (unchanged, so
+// SCORE GUIDANCE and existing validation keep working). The client-facing
+// card shows exactly 3 sections: Summary / Energy Match / Communication
+// Style — so Energy Match and Communication Style are synthesized here by
+// pairing you.energy+partner.energy and you.style+partner.style. score/tone
+// travel along as lightweight metadata on the returned object (for a small
+// inline badge next to Summary), not as their own SectionCards.
+// ─────────────────────────────────────────────────────────────────────────────
+function deriveCompatibilityV2DisplaySections(data) {
+  if (!data) return null;
+  return {
+    summary: data.summary || "",
+    energyMatch: {
+      you: data.you?.energy || "",
+      partner: data.partner?.energy || "",
+    },
+    communicationStyle: {
+      you: data.you?.style || "",
+      partner: data.partner?.style || "",
+    },
+    score: typeof data.score === "number" ? data.score : null,
+    tone: data.tone || "",
+  };
+}
+
 function formatAstriaKoreaV2Response(data, subCategoryName) {
   const tabKey = resolveKRV2TabKey(subCategoryName);
   if (!tabKey || !data) return "";
 
   switch (tabKey) {
     case "daily_flow_v2":
-      return [data.energyMessage, data.moodMessage].filter(Boolean).join("\n\n");
+      return [data.energyMessage, data.moodMessage, data.softCheckIn]
+        .filter(Boolean)
+        .join("\n\n");
     case "life_map":
       return [
         Array.isArray(data.places) ? data.places.join("\n") : "",
@@ -847,16 +923,21 @@ function formatAstriaKoreaV2Response(data, subCategoryName) {
       return [data.morningMessage, data.dayMessage, data.nightMessage]
         .filter(Boolean)
         .join("\n\n");
-    case "compatibility_v2":
+    case "compatibility_v2": {
+      const display = deriveCompatibilityV2DisplaySections(data);
+      if (!display) return "";
       return [
-        data.summary,
-        data.you ? `${data.you.energy || ""} ${data.you.style || ""}`.trim() : "",
-        data.partner
-          ? `${data.partner.energy || ""} ${data.partner.style || ""}`.trim()
-          : "",
+        display.summary,
+        [display.energyMatch.you, display.energyMatch.partner]
+          .filter(Boolean)
+          .join(" "),
+        [display.communicationStyle.you, display.communicationStyle.partner]
+          .filter(Boolean)
+          .join(" "),
       ]
         .filter(Boolean)
         .join("\n\n");
+    }
     default:
       return "";
   }
@@ -882,4 +963,5 @@ module.exports = {
   validateAstriaKoreaV2Data,
   formatAstriaKoreaV2Response,
   resolveKRV2TabKey,
+  deriveCompatibilityV2DisplaySections,
 };

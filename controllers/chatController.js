@@ -92,6 +92,7 @@ const {
   validateAstriaKoreaV2Data,
   formatAstriaKoreaV2Response,
   resolveKRV2TabKey,
+  deriveCompatibilityV2DisplaySections,
 } = require("../helper/AstriaKoreaV2Service");
 const {
   buildAstriaKoreaTalkContext,
@@ -136,9 +137,7 @@ const {
   calculateCompatibilityScore,
   getCompatibilityScoreLabel,
 } = require("../helper/astriaGCCService");
-const {
-  buildAstriaGCCV2Context,
-} = require("../helper/astriaGCCV2Service");
+const { buildAstriaGCCV2Context } = require("../helper/astriaGCCV2Service");
 const {
   buildAstriaUKCanadaContext,
   computeWesternBirthChart: computeWesternBirthChartUKCanada,
@@ -2046,31 +2045,31 @@ const chatController = {
       const selfDobPlace0 = placeFromMessage || dob_place0;
 
       // Daily chat limit: 10 chats/day for free users, unlimited for subscribers and testers (roleId 3)
-      if (userId) {
-        const isSubscribed = subscriptionId && subscriptionStatus === "Active";
-        const isTester = roleId === 3;
+      // if (userId) {
+      //   const isSubscribed = subscriptionId && subscriptionStatus === "Active";
+      //   const isTester = roleId === 3;
 
-        if (!isSubscribed && !isTester) {
-          const startOfDay = getKolkataMidnightDate();
-          const [limitCheck] = await ChatHistory.aggregate([
-            { $match: { userId: new mongoose.Types.ObjectId(userId) } },
-            { $unwind: "$chats" },
-            { $match: { "chats.messageTime": { $gte: startOfDay } } },
-            { $count: "total" },
-          ]);
-          const usedToday = limitCheck?.total || 0;
-          if (usedToday >= 10) {
-            return res.status(403).json({
-              success: false,
-              limitReached: true,
-              usedToday,
-              limit: 10,
-              message:
-                "Daily chat limit of 10 reached. Subscribe for unlimited chats.",
-            });
-          }
-        }
-      }
+      //   if (!isSubscribed && !isTester) {
+      //     const startOfDay = getKolkataMidnightDate();
+      //     const [limitCheck] = await ChatHistory.aggregate([
+      //       { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      //       { $unwind: "$chats" },
+      //       { $match: { "chats.messageTime": { $gte: startOfDay } } },
+      //       { $count: "total" },
+      //     ]);
+      //     const usedToday = limitCheck?.total || 0;
+      //     if (usedToday >= 10) {
+      //       return res.status(403).json({
+      //         success: false,
+      //         limitReached: true,
+      //         usedToday,
+      //         limit: 10,
+      //         message:
+      //           "Daily chat limit of 10 reached. Subscribe for unlimited chats.",
+      //       });
+      //     }
+      //   }
+      // }
 
       const target = detectLangFromMessage(userMessage);
 
@@ -5274,7 +5273,22 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           `.trim();
       }
 
-      messages.push({ role: "user", content: userMessage });
+      // Astria Korea V2: when conversation history is replayed, the model sees
+      // its OWN prior turns as plain, sentinel-stripped text (aiResponse is
+      // saved post-formatting — see formatAstriaKoreaV2Response()), which can
+      // pull a follow-up turn away from the strict-JSON output format even
+      // though the system prompt still requires it. Re-assert the JSON
+      // requirement right next to the final user turn so it isn't outweighed
+      // by the plain-text precedent in history. Scoped to isAstriaKoreaV2
+      // only — no other category's prompt/history behavior is affected.
+      if (isAstriaKoreaV2 && shouldIncludeHistory) {
+        messages.push({
+          role: "user",
+          content: `${userMessage}\n\n[REMINDER: Reply using ONLY the strict JSON block format specified in the system prompt, wrapped exactly between the <<<ASTRIA_KOREA_V2_DATA>>> / <<<END_ASTRIA_KOREA_V2_DATA>>> sentinels. Do not reply in plain prose, even though earlier turns in this conversation appear as plain text above.]`,
+        });
+      } else {
+        messages.push({ role: "user", content: userMessage });
+      }
 
       const wantsStream =
         String(req.query.stream || req.body.stream || "").toLowerCase() ===
@@ -5606,6 +5620,12 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               astriaKoreaV2Data &&
               validateAstriaKoreaV2Data(astriaKoreaV2Data, subCategoryName)
             ) {
+              if (isCompatibilitySubcategoryKRV2(subCategoryName)) {
+                astriaKoreaV2Data = {
+                  ...astriaKoreaV2Data,
+                  ...deriveCompatibilityV2DisplaySections(astriaKoreaV2Data),
+                };
+              }
               finalAiResponse = formatAstriaKoreaV2Response(
                 astriaKoreaV2Data,
                 subCategoryName,
@@ -5652,7 +5672,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
 
             const krv3Data = extractAstriaKoreaV2Data(rawResponse);
 
-            if (krv3Data && validateAstriaKoreaV2Data(krv3Data, subCategoryName)) {
+            if (
+              krv3Data &&
+              validateAstriaKoreaV2Data(krv3Data, subCategoryName)
+            ) {
               finalAiResponse = formatAstriaKoreaV2Response(
                 krv3Data,
                 subCategoryName,
@@ -5915,6 +5938,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             aiResponse: applyPurpleDotBranding(
               finalAiResponse.trim() || "No response",
             ),
+            astriaKoreaV2Data: isAstriaKoreaV2 ? astriaKoreaV2Data : null,
           };
 
           // Save chat to history - use try/finally to ensure it saves even on error
@@ -6312,6 +6336,12 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           astriaKoreaV2Data &&
           validateAstriaKoreaV2Data(astriaKoreaV2Data, subCategoryName)
         ) {
+          if (isCompatibilitySubcategoryKRV2(subCategoryName)) {
+            astriaKoreaV2Data = {
+              ...astriaKoreaV2Data,
+              ...deriveCompatibilityV2DisplaySections(astriaKoreaV2Data),
+            };
+          }
           finalAiResponse = formatAstriaKoreaV2Response(
             astriaKoreaV2Data,
             subCategoryName,
@@ -6472,6 +6502,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
       const chatMessage = {
         userMessage,
         aiResponse: applyPurpleDotBranding(finalAiResponse),
+        astriaKoreaV2Data: isAstriaKoreaV2 ? astriaKoreaV2Data : null,
       };
 
       const bhavnaDrishtiData = isBhavnaDrishti ? bhavnaDrishtiJsonData : null;

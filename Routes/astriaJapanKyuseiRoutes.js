@@ -10,12 +10,15 @@
 
 const express = require("express");
 const router = express.Router();
-const { daily, timing } = require("../controllers/astriaJapanKyuseiController.js");
+const { daily, timing, companion } = require("../controllers/astriaJapanKyuseiController.js");
 
 // Today's Omamori + Kyusei star card + Kippou-i micro-action (Viral tab)
 router.post("/daily", daily);
 
 // Daily Timing / Relationship Soft Timing / Minimal Diary / Gentle Luck (Timing tab)
 router.post("/timing", timing);
+
+// Standalone Inner-Space Companion (Companion tab) — quiet, icon-less, text-only
+router.post("/companion", companion);
 
 module.exports = router;

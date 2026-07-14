@@ -15,6 +15,7 @@ const {
   resolveKippouiDirectionForStar,
   buildAstriaJapanViralView,
   buildJPTimingFlowView,
+  buildJPCompanionView,
 } = require("../helper/AstriaJapanTalkService.js");
 
 // POST /api/backend/astria-japan-kyusei/daily
@@ -91,4 +92,23 @@ const timing = async (req, res) => {
   }
 };
 
-module.exports = { daily, timing };
+// POST /api/backend/astria-japan-kyusei/companion
+// Body: { userContext?: string, lang?: "en" | "ja" }
+// Returns the standalone Companion tab view (jp_companion): one quiet,
+// icon-less, text-only card. No dob/star required — this tab is not
+// star-bound, matching the client's Jp_tab.txt spec.
+const companion = async (req, res) => {
+  try {
+    const userContext = typeof req.body?.userContext === "string" ? req.body.userContext.trim().slice(0, 500) : "";
+    const lang = req.body?.lang === "ja" ? "ja" : "en";
+
+    const view = buildJPCompanionView({ topic: userContext || null }, lang);
+
+    return res.status(200).json({ success: true, view });
+  } catch (err) {
+    console.error("[astriaJapanKyuseiController] companion error:", err?.message || err);
+    return res.status(500).json({ success: false, message: "Failed to build today's inner space. Please try again." });
+  }
+};
+
+module.exports = { daily, timing, companion };

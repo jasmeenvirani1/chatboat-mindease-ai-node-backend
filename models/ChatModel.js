@@ -17,6 +17,15 @@ const ChatMessageSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    // Structured section data for Astria Korea V2 (Daily Flow / Life Map /
+    // Relationship / Daily Companion / Compatibility). Persisted so the
+    // frontend's 3-SectionCard layout survives page reload and reopening
+    // chat history, not just the live SSE stream. Null/absent for every
+    // other category's messages.
+    astriaKoreaV2Data: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
   },
   { _id: false },
 );
