@@ -26,6 +26,15 @@ const ChatMessageSchema = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
+    // Structured tab/lineIndex selection for the deterministic copy-pack
+    // lanes (Astria Philippines V2 / Astria Indonesia V2 — see
+    // helper/philippinesIndonesiaV2Shared.js). Used to compute each tab's
+    // anti-repeat window on the next request. Null/absent for every other
+    // category's messages.
+    phVnIdV2Data: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
   },
   { _id: false },
 );

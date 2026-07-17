@@ -49,6 +49,10 @@ const {
 } = require("../helper/astriaIndiaModule");
 const SambandhTaalMelService = require("../helper/sambandh-taalmel.service.js");
 const {
+  buildAstriaIndiaV2Context,
+  extractAstriaIndiaV2Data,
+} = require("../helper/astriaIndiaV2Service");
+const {
   buildAstriaUSContext,
   computeWesternBirthChart,
   parseEnergyMatchPartners,
@@ -153,19 +157,36 @@ const {
   isEnergyMatchSubcategoryID,
 } = require("../helper/astriaIndonesiaService");
 const { evaluateIndonesia3Box } = require("../helper/indonesia3BoxEngine");
+const {
+  buildAstriaPhilippinesV2Response,
+  resolvePhilippinesV2Tab,
+} = require("../helper/astriaPhilippinesV2Service");
+const {
+  buildAstriaIndonesiaV2Response,
+  resolveIndonesiaV2Tab,
+} = require("../helper/astriaIndonesiaV2Service");
+const {
+  buildAstriaVietnamV2Response,
+  resolveVietnamV2Tab,
+} = require("../helper/astriaVietnamV2Service");
+const {
+  buildAstriaBrazilV2Response,
+  resolveBrazilV2Tab,
+} = require("../helper/astriaBrazilV2Service");
+const {
+  buildAstriaMexicoV2Response,
+  resolveMexicoV2Tab,
+} = require("../helper/astriaMexicoV2Service");
+const {
+  buildAntiRepeatWindow: buildPhIdV2AntiRepeatWindow,
+} = require("../helper/philippinesIndonesiaV2Shared");
 const { appendUserProfile } = require("../helper/healjaiProfileExtractor");
 const {
   buildHealjaiTalkPrompt,
   detectAstrologyIntent,
 } = require("../helper/healjaiPromptBuilder");
 
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-// Appends DOB + latest user message (as grounding context) to an Astria-lane prompt.
-// Shared by every "Astria <Country>" lane (US, Spanish, Japan, Korea, Brazil,
-// PSM, GCC, UK, Canada, Indonesia) so the model always gets this trailing block.
+// Append the user's date of birth and latest message to the system prompt
 function appendAstriaDobAndMessageContext(
   systemPrompt,
   dob,
@@ -768,10 +789,7 @@ LANGUAGE RULE: Write every single word in ${langName} only. Never mix languages.
   ];
 }
 
-// ============================================
 // VIVAH MUHURAT — PARTNER PARSING HELPERS
-// ============================================
-
 function detectVivahIntention(text = "") {
   const src = String(text || "").toLowerCase();
   if (/\bengagement\b|sagai|sagan|sagun|mangni|\broka\b/.test(src))
@@ -781,9 +799,7 @@ function detectVivahIntention(text = "") {
   return "Wedding Ceremony (Vivah)";
 }
 
-// Month-name vocab across languages we support, all mapped to numeric month.
-// Where a word is shared across languages (e.g. "mai"/"juli"/"november") it is
-// listed once — the numeric month is identical regardless of source language.
+// VIVAH MUHURAT — DATE PARSING HELPERS
 const MONTH_NAME_MAP = {
   // English
   jan: 1,
@@ -898,10 +914,7 @@ function monthNameToNumber(raw) {
   return MONTH_NAME_MAP[key] || null;
 }
 
-/**
- * Detects a date-of-birth in free text across numeric, textual, and
- * CJK/Devanagari formats and languages, normalizing the result to DD/MM/YYYY.
- */
+// extract Dob from text
 function extractDOBFromText(text = "") {
   const src = String(text || "").trim();
   if (!src) return null;
@@ -946,9 +959,7 @@ function extractDOBFromText(text = "") {
     }
   }
 
-  // Textual "D Month YYYY" / "D. Month YYYY" / "D de Month de YYYY" (Spanish/French/Portuguese
-  // connector words "de"/"del"/"of" optionally sit between the parts; also covers
-  // Devanagari/other-script month names)
+  // Textual "D Month YYYY" / "D Month, YYYY" (English/Spanish/etc. DMY style)
   const dmy = src.match(
     new RegExp(
       `\\b(\\d{1,2})(?:st|nd|rd|th)?\\.?\\s+(?:de\\s+|del\\s+|of\\s+)?(${MONTH_NAME_PATTERN})\\.?,?\\s+(?:de\\s+|del\\s+|of\\s+)?(\\d{4})\\b`,
@@ -981,10 +992,7 @@ function extractDOBFromText(text = "") {
   return null;
 }
 
-/**
- * Detects a birth time in free text across 12h/24h numeric formats plus
- * Korean (시/분, 오전/오후) and Hindi (बजे) spoken-time phrasing.
- */
+// Extracts birth time from text
 function extractBirthTimeFromText(text = "") {
   const src = String(text || "");
 
@@ -1027,10 +1035,7 @@ function extractBirthTimeFromText(text = "") {
   return null;
 }
 
-/**
- * Detects a birth place in free text using English, Hindi, and Korean cue
- * phrases (e.g. "born in X", "X में जन्म", "X에서 태어").
- */
+// Extracts birth place from text
 function extractBirthPlaceFromText(text = "") {
   const src = String(text || "");
   const patterns = [
@@ -1983,6 +1988,11 @@ const chatController = {
         gcc3BoxPartner,
         indonesia3BoxSelf,
         indonesia3BoxPartner,
+        philippinesV2Wizard,
+        indonesiaV2Wizard,
+        vietnamV2Wizard,
+        brazilV2Wizard,
+        mexicoV2Wizard,
         saveChat,
       } = req.body;
 
@@ -2019,20 +2029,7 @@ const chatController = {
         userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
 
-      // ============================================
-      // SELF DOB RESOLUTION — message-provided birth details override stored ones
-      // Used by all single-person birth-chart flows across every category
-      // module (HealJai, Astria US/Spanish/Japan/Korea/Brazil/PSM/GCC/
-      // UK/Canada/Indonesia/India, Upay Marg, etc.). Date, time, and place are
-      // each resolved independently: if the current message contains that
-      // field, it is used for this request; otherwise it falls back to the
-      // value stored on the user's profile. This holds even if only one of
-      // the three (e.g. just a birth place) is mentioned without the others.
-      // NOTE: dual-partner flows (Vivah Muhurat, Energy Match, Sambandh
-      // Match) intentionally keep using the raw dob0/dob_time0/dob_place0
-      // — they already do their own message-vs-stored resolution per
-      // partner, and substituting a message DOB there would incorrectly
-      // collapse both partners onto the same date.
+      // Extract DOB, time, and place from user message if present
       const dobFromMessage =
         extractThaiDateTime(userMessage)?.dateOfBirth ||
         extractDOBFromText(userMessage);
@@ -2092,9 +2089,7 @@ const chatController = {
       const allSentences = getSentencesForEmotion(emotionType);
       const sentences = pickRandomUnique(allSentences, 10);
 
-      // ============================================
-      // LOAD CATEGORY & SUBCATEGORY DATA
-      // ============================================
+      // Get category, subcategory, and chat details
       let chat = null;
       let categoryName = null;
       let categoryPrompt = null;
@@ -2148,8 +2143,7 @@ const chatController = {
         HEALJAI_ACTIVE_CATEGORIES.has(categoryName) ||
         HEALJAI_ACTIVE_CATEGORIES.has(subCategoryName);
 
-      // HealJai Talk session-scoped memory — fetch profile only from the current chat session
-      // Also reused for Astria Korea V2 so its responses can reference remembered user context.
+      // Load Healjai user profile
       let healjaiUserProfile = null;
       if (
         (categoryName === "HealJai Talk" ||
@@ -2178,42 +2172,56 @@ const chatController = {
         subCategoryName === "รหัส Healjai V3" ||
         categoryName === "รหัส Healjai V3";
 
-      // Samay Pravah Engine — isolated flag for "Samay Pravah" category/subcategory
+      // Astria India V2 Engine — isolated flag for "Astria India V2"
+      const isAstriaIndiaV2CategoryForLegacyGuard =
+        categoryName === "Astria India V2";
+
+      // Samay Pravah Engine — structured personality profile via Vedic birth chart
       const isSamayPravah =
-        categoryName === "Samay Pravah" || subCategoryName === "Samay Pravah";
+        (categoryName === "Samay Pravah" ||
+          subCategoryName === "Samay Pravah") &&
+        !isAstriaIndiaV2CategoryForLegacyGuard;
 
       // Vyaktitva Darshan Engine — structured personality profile via Vedic birth chart
       const isVyaktivaDarshan =
-        categoryName === "Vyaktitva Darshan" ||
-        subCategoryName === "Vyaktitva Darshan";
+        (categoryName === "Vyaktitva Darshan" ||
+          subCategoryName === "Vyaktitva Darshan") &&
+        !isAstriaIndiaV2CategoryForLegacyGuard;
 
       // Bhavna Drishti Engine — emotional inner-weather JSON reading
       const isBhavnaDrishti =
-        categoryName === "Bhavna Drishti" ||
-        subCategoryName === "Bhavna Drishti";
+        (categoryName === "Bhavna Drishti" ||
+          subCategoryName === "Bhavna Drishti") &&
+        !isAstriaIndiaV2CategoryForLegacyGuard;
 
       // Vivah Muhurat Engine — marriage timing flow (6th verdict tab)
       const isVivahMuhurat =
-        categoryName === "Vivah Muhurat" || subCategoryName === "Vivah Muhurat";
+        (categoryName === "Vivah Muhurat" ||
+          subCategoryName === "Vivah Muhurat") &&
+        !isAstriaIndiaV2CategoryForLegacyGuard;
 
       // UPAY MARG FLAG
       const isUpayMarg =
-        categoryName === "Upay Marg" || subCategoryName === "Upay Marg";
+        (categoryName === "Upay Marg" || subCategoryName === "Upay Marg") &&
+        !isAstriaIndiaV2CategoryForLegacyGuard;
 
       // Sambandh Taal-Mel Engine — Relationship rhythm & connection flow
       const isSambandhTaalMel =
-        categoryName === "Sambandh Taal-Mel" ||
-        subCategoryName === "Sambandh Taal-Mel" ||
-        categoryName === "Sambandh Taal Mel" ||
-        subCategoryName === "Sambandh Taal Mel";
+        (categoryName === "Sambandh Taal-Mel" ||
+          subCategoryName === "Sambandh Taal-Mel" ||
+          categoryName === "Sambandh Taal Mel" ||
+          subCategoryName === "Sambandh Taal Mel") &&
+        !isAstriaIndiaV2CategoryForLegacyGuard;
 
       // Astria US Engine — Modern psychology-based Western astrology (US lane)
       const isAstriaUS = categoryName === "Astria US";
 
-      // Astria India Engine — Vedic-psychology-based Indian astrology (India lane)
-      // Separate from "รหัส Healjai V3" (isAstriaIndia). This is the standalone category.
+      // Astria India Engine — Soft, polite, minimal, emotionally-reserved Western astrology (India lane)
       const isAstriaIndiaCategory =
         categoryName === "Astria India" && !isAstriaUS;
+
+      // Astria India V2 Engine — Soft, polite, minimal, emotionally-reserved Western astrology (India lane)
+      const isAstriaIndiaV2 = categoryName === "Astria India V2" && !isAstriaUS;
 
       // Astria Japan Engine — Soft, polite, minimal, emotionally-reserved Western astrology (Japan lane)
       const isAstriaJapan =
@@ -2221,17 +2229,14 @@ const chatController = {
         !isAstriaUS &&
         !isAstriaIndiaCategory;
 
-      // Astria Korea V2 Engine — extends Astria Korea with Life Map / Relationship
-      // Engine / Daily Companion. Isolated category name so v1 is never touched.
+      // Astria Korea V2 Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
       const isAstriaKoreaV2 =
         categoryName === "Astria Korea V2" &&
         !isAstriaUS &&
         !isAstriaIndiaCategory &&
         !isAstriaJapan;
 
-      // Astria Korea Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
-      // Also activate when korea3Box data is sent with required fields (blood_type or dob).
-      // Explicitly excluded for "Astria Korea V2" so v2 requests are never hijacked into v1's 3-box path.
+      // Astria Korea Engine — Soft, polite, minimal, emotionally-reserved Western astrology (South Korea lane)
       const hasKorea3BoxData =
         !isAstriaKoreaV2 &&
         korea3BoxSelf &&
@@ -2245,9 +2250,7 @@ const chatController = {
         !isAstriaJapan &&
         !isAstriaKoreaV2;
 
-      // Astria Korea Talk Engine — KR v3 Whole Pack conversational companion
-      // (Relationship / Comfort / Healing / Daily Companion / Love modes).
-      // Isolated category name so v1/v2 are never touched.
+      // Astria Korea Talk Engine — isolated flag for "Astria Korea Talk"
       const isAstriaKoreaTalk =
         categoryName === "Astria Korea Talk" &&
         subcategoryName === "Astria Korea Talk" &&
@@ -2257,11 +2260,7 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2;
 
-      // Astria Korea V3 Engine — full Korean experience: V2's Daily Flow /
-      // Life Map / Relationship Engine / Daily Companion / Compatibility tabs,
-      // plus v1's Saju tab, plus a Companion Talk tab (Astria Talk KR v3).
-      // Always replies in Korean only. Isolated category name so v1/v2/Talk
-      // are never touched.
+      // Astria Korea V3 Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
       const isAstriaKoreaV3 =
         categoryName === "Astria Korea V3" &&
         !isAstriaUS &&
@@ -2272,21 +2271,7 @@ const chatController = {
         !isAstriaKoreaTalk;
       console.log("Astria Korea V3:", isAstriaKoreaV3);
 
-      // Astria Japan Talk Engine — Companion (Relationship/Comfort/Healing/
-      // Daily/Love) conversational modes only.
-      // Matched by name at EITHER level — as the category itself, or as a
-      // subcategory nested under any other category (e.g. "Astria Japan
-      // V2") — so it keeps working with zero code change if "Astria Japan
-      // Talk" is moved between being a category and a subcategory. Isolated
-      // so the existing "Astria Japan" (Big3/Signs/Personality/
-      // Compatibility/Daily Flow/Quiet Letter) lane is never touched.
-      // "Kyusei Viral JP" and "Timing Flow JP" are EXCLUDED here even when
-      // nested under "Astria Japan Talk"/"Astria Japan V2", because those
-      // two are deterministic-engine tabs that must only be served by
-      // POST /api/backend/astria-japan-kyusei/daily and /timing — never by
-      // the LLM chat path. This prevents the exact leakage bug where Kyusei/
-      // Timing UI tabs were silently routed into the generic LLM prompt
-      // instead of calling the deterministic Kyusei engine.
+      // Astria Japan Talk Engine — isolated flag for "Astria Japan Talk" (companion voice)
       const isAstriaJapanTalk =
         (categoryName === "Astria Japan Talk" ||
           subCategoryName === "Astria Japan Talk") &&
@@ -2300,20 +2285,7 @@ const chatController = {
         !isAstriaKoreaTalk &&
         !isAstriaKoreaV3;
 
-      // Astria Japan V3 Engine — combines all "Astria Japan" (Big 3 / Signs /
-      // Personality / Compatibility / Daily Flow / Quiet Letter) subcategories
-      // with all "Astria Japan V2" (Kyusei Viral JP / Timing Flow JP / Astria
-      // Japan Talk) subcategories into one category, each carrying its own
-      // dedicated V3 prompt (set on the SubCategory document at creation
-      // time — see scripts/createAstriaJapanV3Category.js). Reuses the exact
-      // same builders/engines as v1 and the Talk pack (buildAstriaJapanContext /
-      // buildAstriaJapanTalkContext) — zero new engine code, zero change to
-      // v1/v2/Talk behavior. Isolated category name so v1/v2/Talk are never
-      // touched. "Kyusei Viral JP v3" / "Timing Flow JP v3" are excluded from
-      // the Talk-tab branch below (they route through the deterministic
-      // Kyusei REST endpoints via subcategory-name matching in the frontend,
-      // same as v2) but still need isAstriaJapanV3 true so the guard chain
-      // below does not misroute them into another lane.
+      // Astria Japan V3 Engine — Deep, restrained, destiny-driven Western astrology (Japan lane)
       const isAstriaJapanV3 =
         categoryName === "Astria Japan V3" &&
         !isAstriaUS &&
@@ -2325,15 +2297,7 @@ const chatController = {
         !isAstriaKoreaV3 &&
         !isAstriaJapanTalk;
 
-      // Within Astria Japan V3, the "Astria Japan Talk" tab (companion voice)
-      // uses buildAstriaJapanTalkContext; the other 8 tabs (Big 3/Signs/
-      // Personality/Compatibility/Daily Flow/Quiet Letter/Kyusei Viral/Timing
-      // Flow) use buildAstriaJapanContext. Matched by an explicit name list,
-      // strictly scoped to isAstriaJapanV3, rather than the looser
-      // resolveJPTalkMode keyword matcher — that matcher's "daily" keyword
-      // would false-positive on "Daily Flow", and its "viral"/"timing"
-      // keywords would false-positive on "Kyusei Viral"/"Timing Flow",
-      // silently routing all of them into the wrong (Talk companion) engine.
+      // Astria Japan V3 Talk Engine
       const ASTRIA_JAPAN_V3_TALK_TAB_NAMES = new Set([
         "astria japan talk",
         "astria japan talk v3",
@@ -2484,6 +2448,121 @@ const chatController = {
         !isAstriaGCCV2 &&
         !isAstriaUK &&
         !isAstriaCanada;
+
+      // Astria Philippines V2 Engine — Calm, gentle, respectful, soft-contained emotional astrology (Philippines V2 lane)
+      const isAstriaPhilippinesV2 =
+        categoryName === "Astria Philippines V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaGCCV2 &&
+        !isAstriaUK &&
+        !isAstriaCanada &&
+        !isAstriaIndonesia;
+
+      // Astria Indonesia V2 Engine — Calm, gentle, respectful, soft-contained emotional astrology (Indonesia V2 lane)
+      const isAstriaIndonesiaV2 =
+        categoryName === "Astria Indonesia V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaGCCV2 &&
+        !isAstriaUK &&
+        !isAstriaCanada &&
+        !isAstriaIndonesia &&
+        !isAstriaPhilippinesV2;
+
+      // Astria Vietnam V2 Engine — Calm, gentle, respectful, soft-contained emotional astrology (Vietnam V2 lane)
+      const isAstriaVietnamV2 =
+        categoryName === "Astria Vietnam V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaGCCV2 &&
+        !isAstriaUK &&
+        !isAstriaCanada &&
+        !isAstriaIndonesia &&
+        !isAstriaPhilippinesV2 &&
+        !isAstriaIndonesiaV2;
+
+      // Astria Brazil V2 Engine — Calm, warm, expressive, soft-contained emotional astrology (Brazil V2 lane)
+      const isAstriaBrazilV2 =
+        categoryName === "Astria Brazil V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaGCCV2 &&
+        !isAstriaUK &&
+        !isAstriaCanada &&
+        !isAstriaIndonesia &&
+        !isAstriaPhilippinesV2 &&
+        !isAstriaIndonesiaV2 &&
+        !isAstriaVietnamV2;
+
+      // Astria Mexico V2 Engine — Warm, expressive, grounded, soft-contained emotional astrology (Mexico V2 lane)
+      const isAstriaMexicoV2 =
+        categoryName === "Astria Mexico V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaBrazilV2 &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaGCCV2 &&
+        !isAstriaUK &&
+        !isAstriaCanada &&
+        !isAstriaIndonesia &&
+        !isAstriaPhilippinesV2 &&
+        !isAstriaIndonesiaV2 &&
+        !isAstriaVietnamV2;
 
       // SPECIALIZED FEATURES (HealJai categories only)
 
@@ -2737,9 +2816,7 @@ DAILY CHECK-IN (when natural):
       // Capture clean base prompt for HealJai Talk builder BEFORE the big assembly below
       const healjaiBasePrompt = systemPrompt;
 
-      // ============================================
       // HEADLINE DB QUERY (FIXED — range based + fallback)
-      // ============================================
       const dateKey = getKolkataMidnightDate();
       const nextDayKey = new Date(dateKey);
       nextDayKey.setUTCDate(nextDayKey.getUTCDate() + 1);
@@ -2881,7 +2958,7 @@ DAILY CHECK-IN (when natural):
           planetData: userProvidedPlanets,
           userMessage,
           translatedMessage,
-          trendingContext: buildTrendingTopicContext(
+          trendingContext: buildTrendingTopicCogcc3BoxPartnerntext(
             trendingTopicData,
             categoryName,
           ),
@@ -3062,11 +3139,7 @@ DAILY CHECK-IN (when natural):
           `.trim();
       }
 
-      // ============================================
       // ASTRIA INDIA ENGINE — รหัส Healjai V3 ONLY
-      // Fully overrides systemPrompt for this subcategory.
-      // Zero impact on any other category or subcategory.
-      // ============================================
       if (isAstriaIndia) {
         systemPrompt = await buildAstriaIndiaContext({
           dob: selfDob0,
@@ -3201,7 +3274,7 @@ RULES:
       // UPAY MARG PROCESSING
       let upayMargParsed = null;
       if (isUpayMarg) {
-        // Get nakshatra context from existing birth data
+        // Get nakshatra context from existing gcc3BoxPartnerbirth data
         let nakshatraContext = null;
         if (selfDob0) {
           try {
@@ -3378,13 +3451,8 @@ RULES:
           translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
-      // ====== END ASTRIA US PROCESSING ======
 
-      // ============================================
       // ASTRIA SPANISH ENGINE — Astria Spanish category ONLY
-      // Fully overrides systemPrompt for this category.
-      // Zero impact on any other category or subcategory.
-      // ============================================
       let energyMatchMissingQuestionES = null;
       if (isAstriaSpanish && !isAstriaUS) {
         if (isEnergyMatchSubcategoryES(subCategoryName)) {
@@ -3470,13 +3538,8 @@ RULES:
           translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
-      // ====== END ASTRIA SPANISH PROCESSING ======
 
-      // ============================================
       // ASTRIA JAPAN ENGINE — Astria Japan category ONLY
-      // Fully overrides systemPrompt for this category.
-      // Zero impact on any other category or subcategory.
-      // ============================================
       let energyMatchMissingQuestionJP = null;
       if (isAstriaJapan) {
         if (isCompatibilitySubcategoryJP(subCategoryName)) {
@@ -3613,20 +3676,10 @@ RULES:
           translatedMessage !== userMessage ? translatedMessage : null,
         );
       }
-      // ====== END ASTRIA JAPAN PROCESSING ======
 
-      // ============================================
       // ASTRIA KOREA ENGINE — Astria Korea category ONLY
-      // Fully overrides systemPrompt for this category.
-      // Zero impact on any other category or subcategory.
-      // ============================================
       let compatibilityMissingQuestionKR = null;
       if (isAstriaKorea) {
-        // Detect Korean compatibility: either from subCategoryName OR from korea3Box data.
-        // IMPORTANT: an explicit, non-compatibility subCategoryName (e.g. "Saju KR")
-        // always wins over stray/leftover 3-box payload data — otherwise a session
-        // that previously used Compatibility can bleed 3-box state into other tabs
-        // (e.g. Saju) and silently reroute them into the compatibility branch.
         const isSajuTab = isSajuSubcategoryKR(subCategoryName);
         const isKoreanCompat =
           !isSajuTab &&
@@ -4397,10 +4450,11 @@ RULES:
             );
 
             if (emPartnersJPV3.missingFields.length > 0) {
-              energyMatchMissingQuestionJPV3 = buildEnergyMatchMissingQuestionJP(
-                emPartnersJPV3.missingFields,
-                !!(dob0 && String(dob0).trim()),
-              );
+              energyMatchMissingQuestionJPV3 =
+                buildEnergyMatchMissingQuestionJP(
+                  emPartnersJPV3.missingFields,
+                  !!(dob0 && String(dob0).trim()),
+                );
             } else {
               let chartAJPV3 = null;
               let chartBJPV3 = null;
@@ -4413,7 +4467,10 @@ RULES:
                   });
                 }
               } catch (err) {
-                logger.error("Astria Japan V3 Compatibility - chartA error:", err);
+                logger.error(
+                  "Astria Japan V3 Compatibility - chartA error:",
+                  err,
+                );
               }
               try {
                 if (emPartnersJPV3.personB.dob) {
@@ -4424,7 +4481,10 @@ RULES:
                   });
                 }
               } catch (err) {
-                logger.error("Astria Japan V3 Compatibility - chartB error:", err);
+                logger.error(
+                  "Astria Japan V3 Compatibility - chartB error:",
+                  err,
+                );
               }
 
               systemPrompt = buildAstriaJapanContext({
@@ -5373,6 +5433,35 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
       }
       // ====== END ASTRIA INDIA CATEGORY PROCESSING ======
 
+      // ============================================
+      // ASTRIA INDIA V2 ENGINE — "Astria India V2" category ONLY
+      // Fully overrides systemPrompt for this category. Uses its own
+      // isolated prompt module (astriaIndiaV2Service.js) — reuses
+      // buildAstriaIndiaContext for the birth-chart/emotion computation,
+      // but persona/tone/output-format instructions are resolved per
+      // subcategory (subCategoryPrompt, loaded from DB above). Zero
+      // impact on "Astria India" or any of the standalone category
+      // engines (Sambandh Taal Mel, Vivah Muhurat, Upay Marg, Bhavna
+      // Drishti, Vyaktitva Darshan, Samay Pravah) — this category is
+      // entirely separate from all of them.
+      // ============================================
+      let astriaIndiaV2Data = null;
+      if (isAstriaIndiaV2) {
+        systemPrompt = await buildAstriaIndiaV2Context({
+          subCategoryName: subCategoryName || null,
+          subCategoryPrompt: subCategoryPrompt || categoryPrompt || null,
+          target,
+          userMessage,
+          dob: selfDob0,
+          dob_time: selfDobTime0,
+          dob_place: selfDobPlace0,
+          emotionType,
+          emotionIntensity,
+          ageInfo,
+        });
+      }
+      // ====== END ASTRIA INDIA V2 PROCESSING ======
+
       // Samay Pravah — self-contained enforcement block (highest priority, end of prompt)
       // Placed AFTER Astria India category processing so it is not overwritten when Samay Pravah
       // is used as a subcategory of "Astria India".
@@ -5532,6 +5621,86 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         messages.push({ role: "user", content: userMessage });
       }
 
+      // ============================================
+      // ASTRIA PHILIPPINES V2 / INDONESIA V2 / VIETNAM V2 / BRAZIL V2 /
+      // MEXICO V2 — DETERMINISTIC COPY-PACK PRE-CALL GUARD
+      // These lanes have no birth chart and never call the LLM — the
+      // response is picked deterministically from a fixed, client-approved
+      // copy pack via a weighted-random "variation engine" with a 5-response
+      // anti-repeat window (see helper/philippinesIndonesiaV2Shared.js).
+      // Computed once here, before the streaming/non-streaming split, so
+      // both paths below can skip generateGeminiResponse(Stream) entirely
+      // instead of calling it and discarding the result (the pattern every
+      // other "missing question" style short-circuit uses on the
+      // non-streaming path today).
+      // ============================================
+      const isPhIdV2CopyPackLane =
+        isAstriaPhilippinesV2 ||
+        isAstriaIndonesiaV2 ||
+        isAstriaVietnamV2 ||
+        isAstriaBrazilV2 ||
+        isAstriaMexicoV2;
+      let phVnIdV2Data = null;
+      let phVnIdV2FinalResponse = null;
+      if (isPhIdV2CopyPackLane) {
+        try {
+          const tab = isAstriaPhilippinesV2
+            ? resolvePhilippinesV2Tab(subCategoryName, philippinesV2Wizard?.tab)
+            : isAstriaIndonesiaV2
+              ? resolveIndonesiaV2Tab(subCategoryName, indonesiaV2Wizard?.tab)
+              : isAstriaVietnamV2
+                ? resolveVietnamV2Tab(subCategoryName, vietnamV2Wizard?.tab)
+                : isAstriaBrazilV2
+                  ? resolveBrazilV2Tab(subCategoryName, brazilV2Wizard?.tab)
+                  : resolveMexicoV2Tab(subCategoryName, mexicoV2Wizard?.tab);
+          const recentlyUsedIndices = buildPhIdV2AntiRepeatWindow(
+            chat?.chats,
+            tab,
+            5,
+          );
+          const picked = isAstriaPhilippinesV2
+            ? buildAstriaPhilippinesV2Response({
+                subCategoryName,
+                wizard: philippinesV2Wizard,
+                recentlyUsedIndices,
+              })
+            : isAstriaIndonesiaV2
+              ? buildAstriaIndonesiaV2Response({
+                  subCategoryName,
+                  wizard: indonesiaV2Wizard,
+                  recentlyUsedIndices,
+                })
+              : isAstriaVietnamV2
+                ? buildAstriaVietnamV2Response({
+                    subCategoryName,
+                    wizard: vietnamV2Wizard,
+                    recentlyUsedIndices,
+                  })
+                : isAstriaBrazilV2
+                  ? buildAstriaBrazilV2Response({
+                      subCategoryName,
+                      wizard: brazilV2Wizard,
+                      recentlyUsedIndices,
+                    })
+                  : buildAstriaMexicoV2Response({
+                      subCategoryName,
+                      wizard: mexicoV2Wizard,
+                      recentlyUsedIndices,
+                    });
+          phVnIdV2FinalResponse = picked.text;
+          phVnIdV2Data = { tab: picked.tab, lineIndex: picked.lineIndex };
+        } catch (err) {
+          logger.error(
+            "Astria Philippines/Indonesia/Vietnam/Brazil/Mexico V2 selection error:",
+            err,
+          );
+          phVnIdV2FinalResponse =
+            "I'm here with you — could you try that step again?";
+          phVnIdV2Data = null;
+        }
+      }
+      // ====== END ASTRIA PHILIPPINES V2 / INDONESIA V2 / VIETNAM V2 / BRAZIL V2 / MEXICO V2 PRE-CALL GUARD ======
+
       const wantsStream =
         String(req.query.stream || req.body.stream || "").toLowerCase() ===
           "true" ||
@@ -5563,7 +5732,19 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           let vivahMuhuratJsonData = null;
           let upayMargParsed = null;
 
-          if (musicRecommendation?.shouldRecommend) {
+          if (isPhIdV2CopyPackLane) {
+            // Deterministic copy-pack response — never calls the LLM. Word-
+            // chunked over SSE with the same timing as every other lane
+            // below, so the frontend's streaming UI behaves identically.
+            finalAiResponse = phVnIdV2FinalResponse;
+            const words = finalAiResponse.split(" ");
+            for (const word of words) {
+              if (clientClosed) break;
+              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+              if (res.flush) res.flush();
+              await new Promise((r) => setTimeout(r, 30));
+            }
+          } else if (musicRecommendation?.shouldRecommend) {
             const completion = await generateGeminiResponse(messages);
             finalAiResponse = completion?.trim() || "No response";
 
@@ -6190,6 +6371,26 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           }
           // ====== END UPAY MARG RESPONSE PROCESSING ======
 
+          // ============================================
+          // ====== ASTRIA INDIA V2 RESPONSE PROCESSING (STREAMING) ======
+          // Extracts the subcategory-specific JSON block appended to the
+          // narrative (see astriaIndiaV2Service.js). The raw markers are
+          // left in the streamed text (same tradeoff Vyaktitva Darshan /
+          // Samay Pravah accept) — the frontend cards read the structured
+          // astriaIndiaV2Data field instead of parsing the visible text.
+          // ============================================
+          if (isAstriaIndiaV2 && finalAiResponse) {
+            try {
+              astriaIndiaV2Data = extractAstriaIndiaV2Data(
+                subCategoryName,
+                finalAiResponse,
+              );
+            } catch (err) {
+              logger.error("Astria India V2 - Response parsing error:", err);
+            }
+          }
+          // ====== END ASTRIA INDIA V2 RESPONSE PROCESSING ======
+
           if (clientClosed) return;
 
           const chatMessage = {
@@ -6202,6 +6403,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               : isAstriaKoreaV3
                 ? astriaKoreaV3Data
                 : null,
+            phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
           };
 
           // Save chat to history - use try/finally to ensure it saves even on error
@@ -6388,6 +6590,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 sambandhTaalMelData: isSambandhTaalMel
                   ? sambandhTaalMelData
                   : null,
+                astriaIndiaV2Data: isAstriaIndiaV2 ? astriaIndiaV2Data : null,
                 astriaKoreaV2Data: isAstriaKoreaV2
                   ? astriaKoreaV2Data
                   : isAstriaKoreaV3
@@ -6406,6 +6609,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 indonesiaCompatibilityData: isIndonesiaCompatStream
                   ? indonesiaCompatibilityDataStream
                   : null,
+                phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
               })}\n\n`,
             );
             res.end();
@@ -6434,7 +6638,11 @@ MANDATORY RULES — CANNOT BE SKIPPED:
       // ============================================
       let finalAiResponse = "";
 
-      const completion = await generateGeminiResponse(messages);
+      // Astria Philippines V2 / Indonesia V2: skip the LLM call entirely —
+      // the response was already picked deterministically above.
+      const completion = isPhIdV2CopyPackLane
+        ? phVnIdV2FinalResponse
+        : await generateGeminiResponse(messages);
       finalAiResponse = completion?.trim() || "No response";
 
       if (
@@ -6547,9 +6755,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         finalAiResponse = sambandhMissingQuestionIN;
       }
 
-      // ============================================
-      // ====== UPAY MARG RESPONSE PROCESSING (NON-STREAMING) ======
-      // ============================================
+      // UPAY MARG RESPONSE PROCESSING (NON-STREAMING)
       if (isUpayMarg && finalAiResponse) {
         try {
           const jsonMatch = finalAiResponse.match(/\{[\s\S]*\}/);
@@ -6561,13 +6767,20 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           logger.error("Upay Marg - Response parsing error:", err);
         }
       }
-      // ====== END UPAY MARG RESPONSE PROCESSING ======
 
-      // ============================================
-      // ====== SAMBANDH TAAL-MEL RESPONSE PROCESSING (NON-STREAMING) ======
-      // ============================================
-      // The variable sambandhTaalMelData is already declared in the processing section above
-      // DO NOT redeclare it here - use the existing variable
+      // ASTRIA INDIA V2 RESPONSE PROCESSING (NON-STREAMING)
+      if (isAstriaIndiaV2 && finalAiResponse) {
+        try {
+          astriaIndiaV2Data = extractAstriaIndiaV2Data(
+            subCategoryName,
+            finalAiResponse,
+          );
+        } catch (err) {
+          logger.error("Astria India V2 - Response parsing error:", err);
+        }
+      }
+
+      //ASTRIA SAMBANDH TAALMEL RESPONSE PROCESSING (NON-STREAMING) ====
       if (isSambandhTaalMel) {
         if (sambandhMissingFields) {
           finalAiResponse = sambandhMissingFields;
@@ -6598,12 +6811,8 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           }
         }
       }
-      // ====== END SAMBANDH TAAL-MEL RESPONSE PROCESSING ======
 
-      // ============================================
       // ASTRIA KOREA V2 RESPONSE PROCESSING (NON-STREAMING)
-      // ============================================
-      // The variable astriaKoreaV2Data is already declared in the processing section above
       if (isAstriaKoreaV2 && !compatibilityMissingQuestionKRV2) {
         const rawResponse = completion?.trim() || "No response";
 
@@ -6632,16 +6841,8 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               .trim() || "No response";
         }
       }
-      // ====== END ASTRIA KOREA V2 RESPONSE PROCESSING ======
 
-      // ============================================
       // ASTRIA KOREA V3 RESPONSE PROCESSING (NON-STREAMING)
-      // ============================================
-      // V3's Daily Flow / Life Map / Relationship Engine / Compatibility /
-      // Daily Companion tabs reuse V2's DEFAULT_KR_V2_SUBCATEGORY_PROMPTS
-      // content verbatim, so they need the same JSON extraction. Saju and
-      // Companion Talk tabs are excluded by resolveKRV2TabKey and keep their
-      // existing plain-text behavior untouched.
       if (
         isAstriaKoreaV3 &&
         !compatibilityMissingQuestionKRV3 &&
@@ -6673,11 +6874,8 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               .trim() || "No response";
         }
       }
-      // ====== END ASTRIA KOREA V3 RESPONSE PROCESSING ======
 
-      // ============================================
-      // GCC COMPATIBILITY RESPONSE PROCESSING (NON-STREAMING)
-      // ============================================
+      // ASTRIA GCC RESPONSE PROCESSING (NON-STREAMING)
       let gccCompatibilityData = null;
       if (isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)) {
         try {
@@ -6699,11 +6897,8 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           // Keep original response if parsing fails
         }
       }
-      // ====== END GCC COMPATIBILITY RESPONSE PROCESSING ======
 
-      // ============================================
-      // JAPAN COMPATIBILITY RESPONSE PROCESSING (NON-STREAMING)
-      // ============================================
+      // ASTRIA JAPAN COMPATIBILITY RESPONSE PROCESSING (NON-STREAMING)
       let japanCompatibilityData = null;
       if (
         (isAstriaJapan || isAstriaJapanV3) &&
@@ -6798,6 +6993,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           : isAstriaKoreaV3
             ? astriaKoreaV3Data
             : null,
+        phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
       };
 
       const bhavnaDrishtiData = isBhavnaDrishti ? bhavnaDrishtiJsonData : null;
@@ -6875,6 +7071,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         vivahMuhuratData,
         upayMargData: isUpayMarg ? upayMargParsed : null,
         sambandhTaalMelData: isSambandhTaalMel ? sambandhTaalMelData : null,
+        astriaIndiaV2Data: isAstriaIndiaV2 ? astriaIndiaV2Data : null,
         astriaKoreaV2Data: isAstriaKoreaV2
           ? astriaKoreaV2Data
           : isAstriaKoreaV3
@@ -6893,6 +7090,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
         indonesiaCompatibilityData: isIndonesiaCompatNonStream
           ? indonesiaCompatibilityData
           : null,
+        phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
       });
     } catch (error) {
       logger.error("Chat Error:", error);
