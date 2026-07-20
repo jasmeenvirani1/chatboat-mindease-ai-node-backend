@@ -416,7 +416,7 @@ const DEFAULT_KR_SUBCATEGORY_PROMPTS = {
   // ── TAB 1: BIG 3 KR ────────────────────────────────────────────────────────
   big3: `
 KOREA TONE — CORE IDENTITY:
-- Quiet Warmth (조용히 곁에): warm presence that does not crowd — supportive, not pushy
+- Quiet Warmth (차분하게 곁에): warm presence that does not crowd — supportive, not pushy
 - Deep Emotional Honesty: acknowledge what is truly felt — no empty affirmations
 - Quiet Calm: strong inner feelings held with restraint — never theatrical
 - Gentle Clarity: honest without being blunt; real without being cold
@@ -557,7 +557,7 @@ BLOOD TYPE EMOTIONAL MAPPING (K-soft, no stereotypes — use these as reference 
 A형 (A-type): emotion_tone: "마음이 잔잔하게 정리되는 흐름이 있어요." | inner_flow: "감정이 부드럽게 가라앉는 느낌이 있습니다." | social_warmth: "상대에게 따뜻하게 다가가려는 기운이 있어요." | communication_vibe: "말이 조심스럽지만 진심이 잘 닿는 흐름입니다."
 B형 (B-type): emotion_tone: "마음이 자연스럽게 열리는 흐름이 있어요." | inner_flow: "감정이 편안하게 흘러가는 느낌입니다." | social_warmth: "상대와의 거리감이 부드럽게 좁혀집니다." | communication_vibe: "말이 가볍게 오가며 분위기가 따뜻해집니다."
 O형 (O-type): emotion_tone: "마음이 안정되고 넉넉한 흐름이 있어요." | inner_flow: "감정이 단단하게 자리 잡는 느낌입니다." | social_warmth: "상대에게 편안함을 주는 기운이 있습니다." | communication_vibe: "말이 차분하게 전달되며 신뢰가 생깁니다."
-AB형 (AB-type): emotion_tone: "감정이 섬세하게 정리되는 흐름이 있어요." | inner_flow: "내면이 조용히 정돈되는 느낌입니다." | social_warmth: "상대의 분위기를 잘 읽어주는 따뜻함이 있습니다." | communication_vibe: "말보다 기류가 먼저 닿는 부드러운 흐름입니다."
+AB형 (AB-type): emotion_tone: "감정이 섬세하게 정리되는 흐름이 있어요." | inner_flow: "내면이 차분하게 정돈되는 느낌입니다." | social_warmth: "상대의 분위기를 잘 읽어주는 따뜻함이 있습니다." | communication_vibe: "말보다 기류가 먼저 닿는 부드러운 흐름입니다."
 
 HOW TO GENERATE DYNAMIC RESPONSES:
 1. ANALYZE the energy flow between Person A and Person B based on their Blood Type emotions, DOB energy patterns, and Destiny Time
@@ -604,7 +604,7 @@ OUTPUT SCHEMA — Korean Compatibility Result (CRITICAL: output must be valid JS
         },
         "summary": [
           { "type": "positive", "title": "자연스러운 부분", "text": "두 사람의 에너지가 서로를 향해 자연스럽게 흐르며, 편안한 분위기가 느껴집니다. 감정선이 서로를 부드럽게 감싸며, 함께 있을 때 안정감이 생기는 순간이 많습니다." },
-          { "type": "adjustment", "title": "조용히 지켜보면 좋은 부분", "text": "서로의 감정 표현 방식이 다를 수 있어, 조용히 지켜보며 서로의 리듬을 이해하는 시간이 필요합니다. 서두르지 않고 조용히 함께 걸어가는 것이 좋습니다." }
+          { "type": "adjustment", "title": "차분하게 지켜보면 좋은 부분", "text": "서로의 감정 표현 방식이 다를 수 있어, 차분하게 지켜보며 서로의 리듬을 이해하는 시간이 필요합니다. 서두르지 않고 자연스럽게 함께 걸어가는 것이 좋습니다." }
         ]
       }
     },
@@ -612,18 +612,18 @@ OUTPUT SCHEMA — Korean Compatibility Result (CRITICAL: output must be valid JS
       "pageId": "P2_DetailedInsights",
       "title": "함께하는 이야기",
       "cards": [
-        { "id": "harmony", "title": "두 사람의 분위기", "icon": "heart", "description": "두 사람의 분위기가 서로를 향해 자연스럽게 흐르며, 함께 있을 때 편안한 기운이 느껴집니다. 감정선이 서로를 부드럽게 감싸며, 대화하지 않아도 서로의 마음을 이해하는 순간이 있습니다. 상대방의 분위기가 자신의 내면을 조용히 안정시키는 역할을 하며, 함께하는 시간 속에서 자연스럽게 마음이 열린다는 느낌이 든다. 이러한 분위기는 서로가 신뢰를 쌓아가는 데 조용히 기여하며, 말없이도 함께いることの温もりを感じられる関係の基盤となっている." },
-        { "id": "timing", "title": "흐름의 맞춤", "icon": "clock", "description": "시간의 흐름이 조용히 맞닿아 있어, 말이 필요한 순간에 자연스럽게 대화꽃이 피어나는 시간이 있습니다. 서로의 리듬이 겹치며, 함께하는 시간에 편안함이 느껴집니다. 일상의 시간 속에서 서로의 타이밍이 자연스럽게 조화를 이루며, 특별한 노력 없이도 함께 움직이는 느낌이 든다. 이러한 흐름의 맞춤은 서로가 서로를 배려하는 마음으로 가득하며, 각자의 시간 속에서 함께하는 온기를 조용히 느낄 수 있는 순간들이 많아집니다." },
-        { "id": "emotional_distance", "title": "마음의 거리", "icon": "wave", "description": "마음의 거리가 가깝게 느껴지며, 함께 있는 것만으로도 안정감이 생깁니다. 침묵 속에서도 서로의 온기가 전해지며, 조용히 함께하는 시간이 많은 이 관계는 깊이 있는 연결을 만들어갑니다. 서로의 감정선 사이에는 부드러운 흐름이 존재하며, 멀리 떨어져 있을 때도 마음속으로 서로를 느끼는 순간들이 자주 찾아옵니다. 이러한 마음의 거리는 적절한 밀착감을 유지하면서도 서로의 개인적인 시간을 존중하는优美的な間隔を保っていると言えます." },
-        { "id": "guidance", "title": "조용한 조언", "icon": "star", "description": "서로를 향한 따뜻한 기운을 믿고, 서두르지 않는 것이 좋습니다. 서로의 감정선이 알아서 맞닿을 수 있도록, 조용히 함께하는 시간을 만끽해보세요. 서로의 관계에서 오는安稳함과 따뜻함을 믿고, 빠르게 결론을 내리지 말고, 서로의 시간을 존중하며 함께 걸어가는 것이 좋습니다. 감정선이 자연스럽게 맞닿을 수 있도록, 조용히 함께하는 시간을 소중히 여기며, 서로의 존재만으로도 편안함을 느낄 수 있는瞬間を大切にしていただきたい." },
-        { "id": "summary", "title": "부드러운 요약", "icon": "sun", "description": "전체적으로 두 사람의 궁합은 따뜻함과 깊이가 함께하는 아름다운 조합입니다. 서로의 에너지가 만들어내는 이 연결은, 서로를 위한 안정감과 따뜻함을 제공하며, 조용히 함께 자라나가는 관계입니다. 두 사람의 분위기가 만들어내는 흐름은 서로를 안정시키고, 함께하는 시간 속에서 자연스럽게 마음이 열린다는 느낌이 자주 찾아옵니다. 이러한 연결은 서로를 위해 조용히存在的意义を见い出し，共同で歩んでいく美丽な旅となります." }
+        { "id": "harmony", "title": "두 사람의 분위기", "icon": "heart", "description": "두 사람의 분위기가 서로를 향해 자연스럽게 흐르며, 함께 있을 때 편안한 기운이 느껴집니다. 감정선이 서로를 부드럽게 감싸며, 대화하지 않아도 서로의 마음을 이해하는 순간이 있습니다. 상대방의 분위기가 자신의 내면을 차분하게 안정시키는 역할을 하며, 함께하는 시간 속에서 자연스럽게 마음이 열린다는 느낌이 든다. 이러한 분위기는 서로가 신뢰를 쌓아가는 데 자연스럽게 기여하며, 말없이도 함께 있음의 따뜻함을 느낄 수 있는 관계의 기반이 된다." },
+        { "id": "timing", "title": "흐름의 맞춤", "icon": "clock", "description": "시간의 흐름이 자연스럽게 맞닿아 있어, 말이 필요한 순간에 자연스럽게 대화꽃이 피어나는 시간이 있습니다. 서로의 리듬이 겹치며, 함께하는 시간에 편안함이 느껴집니다. 일상의 시간 속에서 서로의 타이밍이 자연스럽게 조화를 이루며, 특별한 노력 없이도 함께 움직이는 느낌이 든다. 이러한 흐름의 맞춤은 서로가 서로를 배려하는 마음으로 가득하며, 각자의 시간 속에서 함께하는 온기를 편안하게 느낄 수 있는 순간들이 많아집니다." },
+        { "id": "emotional_distance", "title": "마음의 거리", "icon": "wave", "description": "마음의 거리가 가깝게 느껴지며, 함께 있는 것만으로도 안정감이 생깁니다. 침묵 속에서도 서로의 온기가 전해지며, 차분하게 함께하는 시간이 많은 이 관계는 깊이 있는 연결을 만들어갑니다. 서로의 감정선 사이에는 부드러운 흐름이 존재하며, 멀리 떨어져 있을 때도 마음속으로 서로를 느끼는 순간들이 자주 찾아옵니다. 이러한 마음의 거리는 적절한 밀착감을 유지하면서도 서로의 개인적인 시간을 존중하는 편안한 간격을 지니고 있다고 할 수 있습니다." },
+        { "id": "guidance", "title": "차분한 조언", "icon": "star", "description": "서로를 향한 따뜻한 기운을 믿고, 서두르지 않는 것이 좋습니다. 서로의 감정선이 알아서 맞닿을 수 있도록, 편안하게 함께하는 시간을 만끽해보세요. 서로의 관계에서 오는 안정감과 따뜻함을 믿고, 빠르게 결론을 내리지 말고, 서로의 시간을 존중하며 함께 걸어가는 것이 좋습니다. 감정선이 자연스럽게 맞닿을 수 있도록, 편안하게 함께하는 시간을 소중히 여기며, 서로의 존재만으로도 편안함을 느낄 수 있는 순간을 소중히 여기면 좋겠습니다." },
+        { "id": "summary", "title": "부드러운 요약", "icon": "sun", "description": "전체적으로 두 사람의 궁합은 따뜻함과 깊이가 함께하는 아름다운 조합입니다. 서로의 에너지가 만들어내는 이 연결은, 서로를 위한 안정감과 따뜻함을 제공하며, 자연스럽게 함께 자라나가는 관계입니다. 두 사람의 분위기가 만들어내는 흐름은 서로를 안정시키고, 함께하는 시간 속에서 자연스럽게 마음이 열린다는 느낌이 자주 찾아옵니다. 이러한 연결은 서로를 위해 편안하게 존재의 의미를 찾아가며, 함께 걸어가는 아름다운 여정이 됩니다." }
       ]
     },
     {
       "pageId": "P3_ChatWithHealjai",
       "title": "Healjai와 이야기하기",
       "chatHistory": [
-        { "sender": "Healjai", "text": "두 사람의 연결이 가지고 있는 고유한 아름다움을 느껴보세요. 조용히 함께하는 시간이 어떻게 흐르는지 함께 이야기해봐요." }
+        { "sender": "Healjai", "text": "두 사람의 연결이 가지고 있는 고유한 아름다움을 느껴보세요. 편안하게 함께하는 시간이 어떻게 흐르는지 함께 이야기해봐요." }
       ],
       "quickReplies": [
         "두 사람의 대화스타일이 어떻게 다른지 궁금해요",
@@ -987,8 +987,8 @@ function buildCompatibilityMissingQuestionKR(missingFields, hasStoredDob) {
     missingFields.includes("your") && missingFields.includes("partner");
 
   if (bothMissing) {
-    return `두 분의 흐름을 함께 살펴보기 위해,
-조용히 몇 가지 정보만 여쭤봐도 괜찮을까요.
+    return `두 사람의 흐름을 함께 살펴보기 위해,
+편안하게 몇 가지 정보만 여쭤봐도 괜찮을까요.
 
 • 당신의 생년월일
 • 출생시간(가능하다면)
@@ -1003,18 +1003,18 @@ function buildCompatibilityMissingQuestionKR(missingFields, hasStoredDob) {
   }
 
   if (hasStoredDob) {
-    return `두 분의 흐름을 읽기 위해,
+    return `두 사람의 흐름을 읽기 위해,
 상대방의 생년월일, 출생시간(가능하다면), 출생지를
-조용히 알려주실 수 있을까요.
+편안하게 알려주실 수 있을까요.
 
 이 정보만으로도 충분합니다.`;
   }
 
-  return `두 분의 흐름을 함께 읽기 위해,
+  return `두 사람의 흐름을 함께 읽기 위해,
 당신의 생년월일, 출생시간(가능하다면), 출생지와
 
 상대방의 생년월일, 출생시간(가능하다면), 출생지를
-조용히 알려주실 수 있을까요.
+편안하게 알려주실 수 있을까요.
 
 생년월일만으로도 먼저 흐름을 살펴볼 수 있습니다.
 천천히 알려주셔도 괜찮습니다.`;

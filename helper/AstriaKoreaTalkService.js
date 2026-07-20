@@ -62,7 +62,7 @@ function applyEmotionalIntelligenceKR(text, state) {
 
   if (state === "happy") return `따뜻한 기분이 스며드는 순간이에요. ${text}`;
 
-  return `조용히 느껴지는 마음이에요. ${text}`;
+  return `차분하게 느껴지는 마음이에요. ${text}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ function applyRelationshipModeKR(text) {
 function applyComfortModeKR(text) {
   return (
     `지금 마음이 살짝 흔들릴 수 있어요. ${text} ` +
-    `조용히 숨을 한번 고르면 마음이 조금 편안해져요. ` +
+    `부드럽게 숨을 한번 고르면 마음이 조금 편안해져요. ` +
     `오늘은 스스로에게 살짝 부드럽게 대해보면 좋아요.`
   ).trim();
 }
@@ -102,7 +102,7 @@ function applyHealingModeKR(text) {
   return (
     `마음이 살짝 회복되는 흐름이에요. ${text} ` +
     `지금의 속도로 괜찮아요. ` +
-    `조용히 머무는 시간도 치유가 돼요.`
+    `차분히 머무는 시간도 치유가 돼요.`
   ).trim();
 }
 

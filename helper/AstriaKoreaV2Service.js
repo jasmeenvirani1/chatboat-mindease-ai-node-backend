@@ -362,7 +362,7 @@ BLOOD TYPE EMOTIONAL MAPPING (K-soft, no stereotypes — reference only, for ana
 A형 (A-type): emotion_tone: "마음이 잔잔하게 정리되는 흐름이 있어요." | inner_flow: "감정이 부드럽게 가라앉는 느낌이 있습니다." | social_warmth: "상대에게 따뜻하게 다가가려는 기운이 있어요." | communication_vibe: "말이 조심스럽지만 진심이 잘 닿는 흐름입니다."
 B형 (B-type): emotion_tone: "마음이 자연스럽게 열리는 흐름이 있어요." | inner_flow: "감정이 편안하게 흘러가는 느낌입니다." | social_warmth: "상대와의 거리감이 부드럽게 좁혀집니다." | communication_vibe: "말이 가볍게 오가며 분위기가 따뜻해집니다."
 O형 (O-type): emotion_tone: "마음이 안정되고 넉넉한 흐름이 있어요." | inner_flow: "감정이 단단하게 자리 잡는 느낌입니다." | social_warmth: "상대에게 편안함을 주는 기운이 있습니다." | communication_vibe: "말이 차분하게 전달되며 신뢰가 생깁니다."
-AB형 (AB-type): emotion_tone: "감정이 섬세하게 정리되는 흐름이 있어요." | inner_flow: "내면이 조용히 정돈되는 느낌입니다." | social_warmth: "상대의 분위기를 잘 읽어주는 따뜻함이 있습니다." | communication_vibe: "말보다 기류가 먼저 닿는 부드러운 흐름입니다."
+AB형 (AB-type): emotion_tone: "감정이 섬세하게 정리되는 흐름이 있어요." | inner_flow: "내면이 차분하게 정돈되는 느낌입니다." | social_warmth: "상대의 분위기를 잘 읽어주는 따뜻함이 있습니다." | communication_vibe: "말보다 기류가 먼저 닿는 부드러운 흐름입니다."
 
 HOW TO GENERATE DYNAMIC RESPONSES:
 1. ANALYZE the energy flow between Person A and Person B based on Blood Type emotions, DOB energy patterns, and Destiny Time
@@ -413,6 +413,16 @@ Every string value must be written fully in the target language.
 - you.style (1 sentence): Self's natural communication style in this pairing
 - partner.energy (1 sentence): Partner's emotional/energy texture as it shows up in this pairing
 - partner.style (1 sentence): Partner's natural communication style in this pairing
+- opening (2–3 sentences): a warm opening read of this pairing as a whole — the same
+  role as summary, but written as a standalone "오프닝" section a user reads first
+- bloodTypeReading (2–3 sentences): reading focused specifically on the Blood Type
+  Atmosphere layer (혈액형 분위기) — how the two blood-type emotional textures interact,
+  drawn from the BLOOD TYPE EMOTIONAL MAPPING above, never personality stereotypes
+- birthdayEnergyReading (2–3 sentences): reading focused specifically on the Birth-Day
+  Energy layer (태어난 날의 기운) — how the two people's DOB-based energy patterns meet
+- rhythmReading (2–3 sentences): reading focused specifically on Destiny Time Flow +
+  DOB Graph Flow combined (리듬 조화) — whether their daily/emotional rhythms align,
+  move at different paces, or complement each other
 - followUpQuestions (array of 2–3 short items): natural next questions the user
   might ask to go deeper (e.g. about timing, conflict, or how to strengthen the
   connection), each under 12 words, in the target language
@@ -424,15 +434,22 @@ ${ASTRIA_KOREA_V2_START}
   "summary": "",
   "you": { "energy": "", "style": "" },
   "partner": { "energy": "", "style": "" },
+  "opening": "",
+  "bloodTypeReading": "",
+  "birthdayEnergyReading": "",
+  "rhythmReading": "",
   "followUpQuestions": []
 }
 ${ASTRIA_KOREA_V2_END}
 `.trim(),
 
-  // NOTE: the model's raw output above stays "score / tone / summary / you /
-  // partner" — the client-facing 3-section display (Summary / Energy Match /
-  // Communication Style) is synthesized from that same JSON in
-  // deriveCompatibilityV2DisplaySections() below, not by changing this schema.
+  // NOTE: the model's raw output above keeps "score / tone / summary / you /
+  // partner" for backward compatibility (existing validation + the chat-bubble
+  // AstriaKoreaV2Card "compatibility" tab still read these), and additionally
+  // asks for "opening / bloodTypeReading / birthdayEnergyReading /
+  // rhythmReading" — the client's 4-section spec (오프닝/혈액형/생일 기운/리듬 조화)
+  // rendered by KoreaV2CompatibilityResult.tsx via
+  // deriveCompatibilityV2DisplaySections() below.
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -831,14 +848,28 @@ const KR_V2_REQUIRED_FIELDS = {
   relationship_engine: ["currentVibe", "softAdvice", "tinyAction"],
   daily_companion: ["morningMessage", "dayMessage", "nightMessage"],
   compatibility_v2: ["score", "tone", "summary", "you", "partner"],
+  // Saju KR v3 only — see resolveKRV2TabKey's "saju" branch below. Not part
+  // of the original V2 5-tab set; the stem/branch/element facts themselves
+  // come from code (computeSajuV4KR), so only the narrative fields are
+  // required here.
+  saju: [
+    "overview",
+    "pillarReading",
+    "fiveElementsReading",
+    "yinYangReading",
+  ],
 };
 
 function resolveKRV2TabKey(subCategoryName) {
   if (!subCategoryName) return null;
   const lower = subCategoryName.toLowerCase();
-  // "Companion Talk" (V3-only tab) is free-form prose, not one of the 5
+  // "Companion Talk" (V3-only tab) is free-form prose, not one of the
   // structured JSON tabs — must be excluded before the "companion" match below.
-  if (lower.includes("companion talk") || lower.includes("saju")) return null;
+  if (lower.includes("companion talk")) return null;
+  // Saju KR v3 (사주) — structured, but its factual data (pillars/elements/
+  // yin-yang) is code-computed, not model-generated; see the "saju" key in
+  // KR_V2_REQUIRED_FIELDS and formatAstriaKoreaV2Response below.
+  if (lower.includes("saju")) return "saju";
   if (lower.includes("daily flow")) return "daily_flow_v2";
   if (lower.includes("life map")) return "life_map";
   if (lower.includes("compatibility") || lower.includes("compatability"))
@@ -871,15 +902,20 @@ function validateAstriaKoreaV2Data(data, subCategoryName) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPATIBILITY V2 — 3-SECTION DISPLAY DERIVATION
+// COMPATIBILITY V2 — DISPLAY DERIVATION
 //
 // The model's raw JSON stays score/tone/summary/you/partner (unchanged, so
-// SCORE GUIDANCE and existing validation keep working). The client-facing
-// card shows exactly 3 sections: Summary / Energy Match / Communication
-// Style — so Energy Match and Communication Style are synthesized here by
-// pairing you.energy+partner.energy and you.style+partner.style. score/tone
-// travel along as lightweight metadata on the returned object (for a small
-// inline badge next to Summary), not as their own SectionCards.
+// SCORE GUIDANCE and existing validation keep working) plus the newer
+// opening/bloodTypeReading/birthdayEnergyReading/rhythmReading fields (see
+// compatibility_v2's OUTPUT FORMAT above). The client-facing result page
+// (KoreaV2CompatibilityResult.tsx) shows the client's 4-section spec —
+// 오프닝(Opening) / 혈액형(Blood Type) / 생일 기운(Birthday Energy) / 리듬
+// 조화(Rhythm) — sourced from the new fields, falling back to the older
+// blended summary/you/partner fields if a cached or DB-overridden prompt
+// hasn't been updated to emit them yet, so nothing breaks for in-flight
+// responses. score/tone travel along as lightweight metadata (for a small
+// inline badge), not as their own SectionCards. The legacy energyMatch /
+// communicationStyle fields are kept for any other caller still reading them.
 // ─────────────────────────────────────────────────────────────────────────────
 function deriveCompatibilityV2DisplaySections(data) {
   if (!data) return null;
@@ -895,6 +931,14 @@ function deriveCompatibilityV2DisplaySections(data) {
     },
     score: typeof data.score === "number" ? data.score : null,
     tone: data.tone || "",
+    opening: data.opening || data.summary || "",
+    bloodTypeReading:
+      data.bloodTypeReading ||
+      [data.you?.energy, data.partner?.energy].filter(Boolean).join(" "),
+    birthdayEnergyReading: data.birthdayEnergyReading || data.summary || "",
+    rhythmReading:
+      data.rhythmReading ||
+      [data.you?.style, data.partner?.style].filter(Boolean).join(" "),
   };
 }
 
@@ -927,17 +971,24 @@ function formatAstriaKoreaV2Response(data, subCategoryName) {
       const display = deriveCompatibilityV2DisplaySections(data);
       if (!display) return "";
       return [
-        display.summary,
-        [display.energyMatch.you, display.energyMatch.partner]
-          .filter(Boolean)
-          .join(" "),
-        [display.communicationStyle.you, display.communicationStyle.partner]
-          .filter(Boolean)
-          .join(" "),
+        display.opening,
+        display.bloodTypeReading,
+        display.birthdayEnergyReading,
+        display.rhythmReading,
       ]
         .filter(Boolean)
         .join("\n\n");
     }
+    case "saju":
+      return [
+        data.overview,
+        data.pillarReading,
+        data.fiveElementsReading,
+        data.yinYangReading,
+        data.closing,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
     default:
       return "";
   }
@@ -964,4 +1015,9 @@ module.exports = {
   formatAstriaKoreaV2Response,
   resolveKRV2TabKey,
   deriveCompatibilityV2DisplaySections,
+  // Sentinel strings — re-exported so other KR builders (e.g. Saju V3's
+  // structured-output prompt) can wrap their JSON block the same way
+  // without duplicating the literal sentinel text.
+  ASTRIA_KOREA_V2_START,
+  ASTRIA_KOREA_V2_END,
 };

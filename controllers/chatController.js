@@ -156,6 +156,9 @@ const {
   buildEnergyMatchMissingQuestionID,
   isEnergyMatchSubcategoryID,
 } = require("../helper/astriaIndonesiaService");
+const {
+  buildAstriaIndonesiaTalkContext,
+} = require("../helper/AstriaIndonesiaTalkService");
 const { evaluateIndonesia3Box } = require("../helper/indonesia3BoxEngine");
 const {
   buildAstriaPhilippinesV2Response,
@@ -185,6 +188,7 @@ const {
   buildHealjaiTalkPrompt,
   detectAstrologyIntent,
 } = require("../helper/healjaiPromptBuilder");
+const { buildPrompt: buildAstriaTalkPrompt } = require("../helper/AstriaTalkEngine");
 
 // Append the user's date of birth and latest message to the system prompt
 function appendAstriaDobAndMessageContext(
@@ -2492,6 +2496,33 @@ const chatController = {
         !isAstriaIndonesia &&
         !isAstriaPhilippinesV2;
 
+      // Astria Indonesia Talk Engine — isolated flag for "Astria Indonesia
+      // Talk" (companion voice: Daily Atmosphere / Companion / Love &
+      // Family / Life Coach / Mu & Culture / Primbon Light tabs). Follows
+      // the same isolated-flag pattern as isAstriaKoreaTalk / isAstriaJapanTalk.
+      // Zero impact on "Astria Indonesia" (v1) or "Astria Indonesia V2".
+      const isAstriaIndonesiaTalk =
+        categoryName === "Astria Indonesia Talk" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaGCC &&
+        !isAstriaGCCV2 &&
+        !isAstriaUK &&
+        !isAstriaCanada &&
+        !isAstriaIndonesia &&
+        !isAstriaPhilippinesV2 &&
+        !isAstriaIndonesiaV2;
+
       // Astria Vietnam V2 Engine — Calm, gentle, respectful, soft-contained emotional astrology (Vietnam V2 lane)
       const isAstriaVietnamV2 =
         categoryName === "Astria Vietnam V2" &&
@@ -2513,7 +2544,8 @@ const chatController = {
         !isAstriaCanada &&
         !isAstriaIndonesia &&
         !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2;
+        !isAstriaIndonesiaV2 &&
+        !isAstriaIndonesiaTalk;
 
       // Astria Brazil V2 Engine — Calm, warm, expressive, soft-contained emotional astrology (Brazil V2 lane)
       const isAstriaBrazilV2 =
@@ -2537,6 +2569,7 @@ const chatController = {
         !isAstriaIndonesia &&
         !isAstriaPhilippinesV2 &&
         !isAstriaIndonesiaV2 &&
+        !isAstriaIndonesiaTalk &&
         !isAstriaVietnamV2;
 
       // Astria Mexico V2 Engine — Warm, expressive, grounded, soft-contained emotional astrology (Mexico V2 lane)
@@ -2562,7 +2595,14 @@ const chatController = {
         !isAstriaIndonesia &&
         !isAstriaPhilippinesV2 &&
         !isAstriaIndonesiaV2 &&
+        !isAstriaIndonesiaTalk &&
         !isAstriaVietnamV2;
+
+      // Astria Talk Engine — centralized prompt builder for the generic
+      // "Astria Talk" / "Companion Talk" lane (previously fell through to
+      // the fully generic default-prompt path with no dedicated builder).
+      const isAstriaTalk =
+        categoryName === "Astria Talk" || categoryName === "Companion Talk";
 
       // SPECIALIZED FEATURES (HealJai categories only)
 
@@ -3139,6 +3179,32 @@ DAILY CHECK-IN (when natural):
           `.trim();
       }
 
+      // ASTRIA TALK ENGINE — centralized builder for "Astria Talk" /
+      // "Companion Talk" (country/persona/emotion/culture/memory/history
+      // are all assembled inside helper/AstriaTalkEngine.js; nothing about
+      // country detection, category detection, memory, or history loading
+      // above this point changes).
+      if (isAstriaTalk) {
+        systemPrompt = buildAstriaTalkPrompt({
+          country: categoryName,
+          language: target,
+          category: categoryName,
+          subCategory: subCategoryName,
+          userMessage,
+          history: shouldIncludeHistory ? chat?.chats : null,
+          memory: healjaiUserProfile,
+          userProfile: healjaiUserProfile,
+          target,
+          engineState,
+        });
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+
       // ASTRIA INDIA ENGINE — รหัส Healjai V3 ONLY
       if (isAstriaIndia) {
         systemPrompt = await buildAstriaIndiaContext({
@@ -3330,6 +3396,11 @@ RULES:
       // ASTRIA KOREA V3 — structured per-tab data for frontend dataBinding
       // (same shape/sentinels as V2, reused directly — see resolveKRV2TabKey).
       let astriaKoreaV3Data = null;
+      // Saju KR v3 — code-computed Four Pillars facts (pillars/elements/
+      // yin-yang), set inside the isAstriaKoreaV3 block below and merged into
+      // astriaKoreaV3Data once the model's narrative JSON is parsed, so the
+      // frontend never has to trust the model for the actual stems/branches.
+      let astriaKoreaV3SajuFacts = null;
 
       if (isSambandhTaalMel) {
         const partnerInfo = SambandhTaalMelService.parsePartnersFromMessage(
@@ -4100,6 +4171,22 @@ RULES:
             emotionalState: emotionType || null,
             previousContext: null,
           });
+          if (recentConversationContext) {
+            systemPrompt = `
+              ${systemPrompt}
+
+              CONVERSATION CONTINUITY RULES:
+              - Use the recent conversation context to understand what the user has already shared.
+              - Reply as a continuation of the same conversation, not like a brand-new chat.
+              - If the user's new message clearly refers to something earlier, connect to it naturally.
+              - Do not repeat the assistant's earlier wording unless needed.
+              - Prioritize the newest user message if it conflicts with older context.
+              - Keep references to previous turns brief and natural.${contextContaminationWarning}
+
+              RECENT CONVERSATION CONTEXT:
+              ${recentConversationContext}
+              `.trim();
+          }
           systemPrompt = appendAstriaDobAndMessageContext(
             systemPrompt,
             selfDob0,
@@ -4285,6 +4372,7 @@ RULES:
                   astriaKoreaV3SajuDailyLuck = computeSajuDailyLuckKRV3(
                     astriaKoreaV3SajuData,
                   );
+                  astriaKoreaV3SajuFacts = astriaKoreaV3SajuData;
                 }
               } catch (sajuErr) {
                 logger.error("Astria Korea V3 Saju compute error:", sajuErr);
@@ -4317,6 +4405,33 @@ RULES:
               sajuDailyLuck: astriaKoreaV3SajuDailyLuck,
               ...compat3BoxParamsV3,
             });
+            // Daily Companion KR v3 is a running conversation (unlike the
+            // one-shot Saju / Compatibility / Relationship Engine readings),
+            // so re-attach recent conversation context here — otherwise
+            // follow-up messages lose continuity and the model re-answers
+            // as if it were the first message. Scoped to this tab only.
+            const isDailyCompanionTab =
+              !isSajuTab &&
+              !isCompatibilityTab &&
+              !isRelationshipEngineTab &&
+              !!subCategoryName &&
+              subCategoryName.toLowerCase().includes("companion");
+            if (isDailyCompanionTab && recentConversationContext) {
+              systemPrompt = `
+                ${systemPrompt}
+
+                CONVERSATION CONTINUITY RULES:
+                - Use the recent conversation context to understand what the user has already shared.
+                - Reply as a continuation of the same conversation, not like a brand-new chat.
+                - If the user's new message clearly refers to something earlier, connect to it naturally.
+                - Do not repeat the assistant's earlier wording unless needed.
+                - Prioritize the newest user message if it conflicts with older context.
+                - Keep references to previous turns brief and natural.${contextContaminationWarning}
+
+                RECENT CONVERSATION CONTEXT:
+                ${recentConversationContext}
+                `.trim();
+            }
             systemPrompt = appendAstriaDobAndMessageContext(
               systemPrompt,
               selfDob0,
@@ -5375,6 +5490,32 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
       // ====== END ASTRIA INDONESIA PROCESSING ======
 
       // ============================================
+      // ASTRIA INDONESIA TALK ENGINE — Astria Indonesia Talk category ONLY
+      // ID Emotional OS: Daily Atmosphere / Companion / Love & Family / Life
+      // Coach / Mu & Culture / Primbon Light modes + Memory + Emotional
+      // Intelligence + Astria ID inner-space tone refinement.
+      // Fully overrides systemPrompt for this category.
+      // Zero impact on "Astria Indonesia" (v1) or "Astria Indonesia V2".
+      // ============================================
+      if (isAstriaIndonesiaTalk) {
+        systemPrompt = buildAstriaIndonesiaTalkContext({
+          subCategoryName: subCategoryName || null,
+          categoryPrompt: categoryPrompt || null,
+          subCategoryPrompt: subCategoryPrompt || null,
+          target,
+          userMessage,
+          previousContext: null,
+        });
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+      // ====== END ASTRIA INDONESIA TALK PROCESSING ======
+
+      // ============================================
       // ASTRIA INDIA CATEGORY ENGINE — "Astria India" category ONLY
       // Fully overrides systemPrompt for this category.
       // Zero impact on any other category or subcategory.
@@ -6112,6 +6253,18 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                 astriaKoreaV3Data = {
                   ...astriaKoreaV3Data,
                   ...deriveCompatibilityV2DisplaySections(astriaKoreaV3Data),
+                };
+              }
+              if (isSajuSubcategoryKRV3(subCategoryName) && astriaKoreaV3SajuFacts) {
+                // Attach the code-computed Four Pillars facts alongside the
+                // model's narrative text — the frontend Saju card reads
+                // pillars/elements/yinYang directly from here, never from
+                // model-generated text, so stems/branches can never drift.
+                astriaKoreaV3Data = {
+                  ...astriaKoreaV3Data,
+                  pillars: astriaKoreaV3SajuFacts.pillars,
+                  elements: astriaKoreaV3SajuFacts.elements,
+                  yinYang: astriaKoreaV3SajuFacts.yinYang,
                 };
               }
               finalAiResponse = formatAstriaKoreaV2Response(
@@ -6859,6 +7012,14 @@ MANDATORY RULES — CANNOT BE SKIPPED:
             astriaKoreaV3Data = {
               ...astriaKoreaV3Data,
               ...deriveCompatibilityV2DisplaySections(astriaKoreaV3Data),
+            };
+          }
+          if (isSajuSubcategoryKRV3(subCategoryName) && astriaKoreaV3SajuFacts) {
+            astriaKoreaV3Data = {
+              ...astriaKoreaV3Data,
+              pillars: astriaKoreaV3SajuFacts.pillars,
+              elements: astriaKoreaV3SajuFacts.elements,
+              yinYang: astriaKoreaV3SajuFacts.yinYang,
             };
           }
           finalAiResponse = formatAstriaKoreaV2Response(

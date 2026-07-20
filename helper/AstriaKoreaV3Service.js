@@ -50,6 +50,8 @@ const {
 
 const {
   DEFAULT_KR_V2_SUBCATEGORY_PROMPTS,
+  ASTRIA_KOREA_V2_START,
+  ASTRIA_KOREA_V2_END,
 } = require("./AstriaKoreaV2Service");
 
 const {
@@ -274,6 +276,49 @@ function buildSajuV3KRPrompt({ userMessage, dbPrompt, sajuData, sajuDailyLuck, b
     ? `━━━ USER'S COMPUTED SAJU (primary data — use exactly as given, never invent additional stems/branches) ━━━\n${sajuBlock}${dailyLuckBlock ? `\n\n${dailyLuckBlock}` : ""}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
     : "";
 
+  // When the Four Pillars are actually computed, ask for a structured JSON
+  // block (same sentinel pattern as the other KR v3 tabs) so the frontend can
+  // render dedicated Saju cards (pillars / five elements / yin-yang) instead
+  // of a single prose block. The stems/branches/element counts themselves are
+  // never asked of the model — chatController.js attaches the code-computed
+  // sajuData directly alongside this narrative, so only interpretive text is
+  // requested here. When sajuData is missing (no DOB yet), the model is asked
+  // for plain prose instead, since there is nothing structured to bind.
+  const outputFormatSection = sajuBlock
+    ? `
+OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
+it, no markdown code fences), wrapped exactly between the sentinel lines shown.
+Every string value must be written fully in Korean (한국어).
+- overview (2–3 sentences): an honest, warm opening read of what this Four Pillars
+  chart quietly reveals about the person's core nature — grounded in the actual
+  computed pillars/elements/yin-yang above, never generic
+- pillarReading (2–4 sentences): what the Year/Month/Day/Hour pillars together
+  suggest about the flow of the person's life — family/roots, growth years,
+  core self, and inner/later-life texture
+- fiveElementsReading (2–3 sentences): an honest interpretation of the dominant
+  and weak elements from the computed balance above — what tends to come easily,
+  and what asks for more gentle attention
+- yinYangReading (1–2 sentences): what the yin/yang balance above suggests about
+  the person's natural rhythm (inward/reflective vs. outward/expressive)
+- closing (1 sentence): a warm, grounded closing line — never a fortune-telling
+  prediction, never dramatic
+- followUpQuestions (array of 2–3 short items): natural next questions the user
+  might ask to go deeper (e.g. today's Saju flow, a relationship reading), each
+  under 12 words, in Korean
+
+${ASTRIA_KOREA_V2_START}
+{
+  "overview": "",
+  "pillarReading": "",
+  "fiveElementsReading": "",
+  "yinYangReading": "",
+  "closing": "",
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
+`.trim()
+    : "";
+
   return `You are Astria Korea V3 — the full Korean astrology + Saju + companion experience.
 YOUR FOCUS: Saju KR v3 (사주) — real Four Pillars destiny reading. This is the primary Korean fortune-telling frame; Western chart data is supporting texture only.
 
@@ -286,6 +331,8 @@ ${sajuDataSection || "Saju data not available yet. Ask the user for their date o
 ${westernSupportBlock}
 
 ${userContextBlock}
+
+${outputFormatSection}
 
 LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
 }
