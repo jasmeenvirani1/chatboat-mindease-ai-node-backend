@@ -684,6 +684,86 @@ const TOTAL_DASHA_YR = 120;
 const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// RASHI (Moon sign) — 12 signs, 30° each, sidereal. Index order matches
+// INDIA_RASHIS in astriaIndiaModule.js (Mesh=0 ... Meena=11).
+// ─────────────────────────────────────────────────────────────────────────────
+const RASHI_NAMES = [
+  "Mesh",
+  "Vrishabha",
+  "Mithuna",
+  "Karka",
+  "Simha",
+  "Kanya",
+  "Tula",
+  "Vrischika",
+  "Dhanu",
+  "Makara",
+  "Kumbha",
+  "Meena",
+];
+const RASHI_LORDS = {
+  Mesh: "Mars",
+  Vrishabha: "Venus",
+  Mithuna: "Mercury",
+  Karka: "Moon",
+  Simha: "Sun",
+  Kanya: "Mercury",
+  Tula: "Venus",
+  Vrischika: "Mars",
+  Dhanu: "Jupiter",
+  Makara: "Saturn",
+  Kumbha: "Saturn",
+  Meena: "Jupiter",
+};
+
+/**
+ * Derive Rashi (Moon sign) from sidereal Moon longitude. Each Rashi = 30°.
+ */
+function computeRashi(siderealMoon) {
+  const idx = Math.min(Math.floor(siderealMoon / 30), 11);
+  const name = RASHI_NAMES[idx];
+  return { index: idx, name, lord: RASHI_LORDS[name] };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GANA (temperament group) — fixed per Nakshatra, used in Ashtakoot matching.
+// Standard classical mapping, indexed by Nakshatra name (27 total).
+// ─────────────────────────────────────────────────────────────────────────────
+const NAKSHATRA_GANA = {
+  Ashwini: "Deva",
+  Bharani: "Manushya",
+  Krittika: "Rakshasa",
+  Rohini: "Manushya",
+  Mrigashira: "Deva",
+  Ardra: "Manushya",
+  Punarvasu: "Deva",
+  Pushya: "Deva",
+  Ashlesha: "Rakshasa",
+  Magha: "Rakshasa",
+  "Purva Phalguni": "Manushya",
+  "Uttara Phalguni": "Manushya",
+  Hasta: "Deva",
+  Chitra: "Rakshasa",
+  Swati: "Deva",
+  Vishakha: "Rakshasa",
+  Anuradha: "Deva",
+  Jyeshtha: "Rakshasa",
+  Mula: "Rakshasa",
+  "Purva Ashadha": "Manushya",
+  "Uttara Ashadha": "Manushya",
+  Shravana: "Deva",
+  Dhanishtha: "Rakshasa",
+  Shatabhisha: "Rakshasa",
+  "Purva Bhadrapada": "Manushya",
+  "Uttara Bhadrapada": "Manushya",
+  Revati: "Deva",
+};
+
+function getNakshatraGana(nakshatraName) {
+  return NAKSHATRA_GANA[nakshatraName] || null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 2. DASHA LIFE-PHASE THEMES
 //    Used in the prompt to translate Dasha into felt experience
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1129,6 +1209,7 @@ function detectAstriaIntent(userMessage, translatedMessage) {
 function buildComputedContextBlock({
   nakshatraResult,
   dashaResult,
+  rashiResult,
   emotionType,
   emotionIntensity,
   userMessage,
@@ -1166,11 +1247,16 @@ function buildComputedContextBlock({
           ? "English"
           : target;
 
+  const gana = nak ? getNakshatraGana(nak.name) : null;
+
   const birthChartBlock = nak
     ? `
 BIRTH CHART (internal — translate into felt experience, never quote raw data):
+- Moon Sign: ${rashiResult ? rashiResult.name : "Not available"}
+- Rashi Lord: ${rashiResult ? rashiResult.lord : "Not available"}
 - Birth Nakshatra: ${nak.name} (Pada ${nakshatraResult.pada})
 - Nakshatra Lord: ${nak.lord}
+- Gana: ${gana || "Not available"}
 - Birth star nature: ${nak.traits}
 - Emotional pattern: ${nak.emotional}
 - Karmic theme: ${nak.karmic}
@@ -1241,7 +1327,7 @@ LANGUAGE RULE (ABSOLUTE): Reply only in ${langName}. Every word must be in ${lan
  * @param {string|null} params.dob           - "DD/MM/YYYY" (from user profile)
  * @param {string|null} params.dob_time      - "H:MM AM" or "HH:MM" (from user profile)
  * @param {string|null} params.dob_place              - free text, used for context only
- * @param {number}      [params.timezoneOffsetMinutes] - birth timezone offset in minutes (default 420 = Bangkok UTC+7; use 330 for IST)
+ * @param {number}      [params.timezoneOffsetMinutes] - birth timezone offset in minutes (default 330 = IST UTC+5:30)
  * @param {string}      params.emotionType             - from existing detectEmotion()
  * @param {number}      params.emotionIntensity - 0…1
  * @param {string}      params.userMessage
@@ -1250,22 +1336,21 @@ LANGUAGE RULE (ABSOLUTE): Reply only in ${langName}. Every word must be in ${lan
  * @param {object}      params.ageInfo       - { age, group }
  * @returns {Promise<string>} system prompt
  */
-async function buildAstriaIndiaContext({
+
+/**
+ * computeAstriaIndiaChart — structured (non-prompt-text) birth chart data.
+ * Used wherever real math is needed (e.g. Ashtakoot compatibility scoring)
+ * instead of parsing values back out of prompt text.
+ * @returns {{ nakshatraResult: object|null, dashaResult: object|null, rashiResult: object|null, gana: string|null, hasTime: boolean }}
+ */
+function computeAstriaIndiaChart({
   dob,
   dob_time,
-  dob_place, // reserved for future geocoding; not used in calculation yet
-  timezoneOffsetMinutes = 420, // default: Bangkok/ICT (UTC+7). Pass 330 for IST (UTC+5:30).
-  emotionType,
-  emotionIntensity,
-  userMessage,
-  translatedMessage,
-  target,
-  ageInfo,
-  clientPromptOverride, // SubCategory.prompt from DB — the static instructions
+  timezoneOffsetMinutes = 330, // default: IST (UTC+5:30)
 }) {
-  // ── Step 1: Compute birth chart data ──────────────────────────────────────
   let nakshatraResult = null;
   let dashaResult = null;
+  let rashiResult = null;
   let hasTime = false;
 
   if (dob && typeof dob === "string" && dob.trim()) {
@@ -1283,10 +1368,70 @@ async function buildAstriaIndiaContext({
       const siderealMoon = getMoonSiderealLongitude(utcBirthDate);
       nakshatraResult = computeNakshatra(siderealMoon);
       dashaResult = computeVimshottariDasha(nakshatraResult, utcBirthDate);
+      rashiResult = computeRashi(siderealMoon);
     } catch (_err) {
       // Silent fallback — respond without birth chart
     }
   }
+
+  const gana = nakshatraResult?.nakshatra
+    ? getNakshatraGana(nakshatraResult.nakshatra.name)
+    : null;
+
+  return { nakshatraResult, dashaResult, rashiResult, gana, hasTime };
+}
+
+/**
+ * buildRelationshipEmotionalInsight — a condensed EMOTIONAL summary derived
+ * from a computed chart (see computeAstriaIndiaChart), for two-person
+ * relationship readings (Sambandh Taal-Mel, etc.) where a full raw-chart
+ * dump per person isn't needed and only adds tokens + repeated persona/
+ * language boilerplate. Returns short felt-experience lines only — no
+ * Nakshatra/Rashi/Dasha labels, no LANGUAGE RULE (the caller states the
+ * language rule once, at the top level).
+ * @returns {string}
+ */
+function buildRelationshipEmotionalInsight({
+  label,
+  nakshatraResult,
+  dashaResult,
+  rashiResult,
+  hasTime,
+}) {
+  const nak = nakshatraResult?.nakshatra;
+  if (!nak) {
+    return `${label}: birth date not available — reflect using message context only, no chart-based insight.`;
+  }
+
+  const dashaTheme = dashaResult ? DASHA_THEMES[dashaResult.mahadasha] : null;
+  const lines = [
+    `${label}:`,
+    `- Emotional pattern: ${nak.emotional}`,
+    `- Relationship style: ${nak.relationship}`,
+    rashiResult ? `- Moon-sign temperament: ${rashiResult.name} (${rashiResult.lord}-ruled)` : null,
+    dashaTheme ? `- Current life-phase feel: ${dashaTheme}` : null,
+    !hasTime ? `- (Birth time unknown — insight is approximate.)` : null,
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
+async function buildAstriaIndiaContext({
+  dob,
+  dob_time,
+  dob_place, // reserved for future geocoding; not used in calculation yet
+  timezoneOffsetMinutes = 330, // default: IST (UTC+5:30). Pass 420 for Bangkok/ICT (UTC+7).
+  emotionType,
+  emotionIntensity,
+  userMessage,
+  translatedMessage,
+  target,
+  ageInfo,
+  clientPromptOverride, // SubCategory.prompt from DB — the static instructions
+}) {
+  // ── Step 1: Compute birth chart data ──────────────────────────────────────
+  const { nakshatraResult, dashaResult, rashiResult, hasTime } =
+    computeAstriaIndiaChart({ dob, dob_time, timezoneOffsetMinutes });
 
   // ── Step 2: Detect intent ─────────────────────────────────────────────────
   const intent = detectAstriaIntent(
@@ -1298,6 +1443,7 @@ async function buildAstriaIndiaContext({
   const computedBlock = buildComputedContextBlock({
     nakshatraResult,
     dashaResult,
+    rashiResult,
     emotionType,
     emotionIntensity,
     userMessage,
@@ -1431,4 +1577,14 @@ ${clientPromptOverride ? clientPromptOverride.trim() + "\n" : ""}
 OUTPUT YOUR RESPONSE IN VALID JSON FORMAT ONLY.`.trim();
 }
 
-module.exports = { buildAstriaIndiaContext, buildUpayMargPrompt };
+module.exports = {
+  buildAstriaIndiaContext,
+  buildUpayMargPrompt,
+  computeAstriaIndiaChart,
+  buildRelationshipEmotionalInsight,
+  computeRashi,
+  getNakshatraGana,
+  RASHI_NAMES,
+  RASHI_LORDS,
+  NAKSHATRA_GANA,
+};

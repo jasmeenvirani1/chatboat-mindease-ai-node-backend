@@ -66,7 +66,10 @@ function repairAndParseJSON(raw) {
   if (!s) return null;
 
   // Strip ```json ... ``` or ``` ... ``` fences if present
-  s = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  s = s
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
 
   try {
     return JSON.parse(s);
@@ -102,12 +105,12 @@ function extractAstriaKoreaV2Data(text) {
   const end = src.indexOf(ASTRIA_KOREA_V2_END);
 
   if (start !== -1 && end !== -1 && end > start) {
-    const jsonStr = src
-      .slice(start + ASTRIA_KOREA_V2_START.length, end)
-      .trim();
+    const jsonStr = src.slice(start + ASTRIA_KOREA_V2_START.length, end).trim();
     const parsed = repairAndParseJSON(jsonStr);
     if (parsed) return parsed;
-    logger.error("Astria Korea V2 JSON parse error: could not repair JSON block");
+    logger.error(
+      "Astria Korea V2 JSON parse error: could not repair JSON block",
+    );
     return null;
   }
 
@@ -503,7 +506,8 @@ function buildLifeMapKRPrompt({
   weatherContext,
   userMemory,
 }) {
-  const subcategoryContent = dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.life_map;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.life_map;
   const chartBlock = formatChartBlockKR(birthChart, "transits");
 
   return `You are Astria Korea V2 — an evolution of Astria Korea's deep, restrained, destiny-driven astrology guide, extended with a Korean daily-lifestyle layer.
@@ -533,7 +537,11 @@ function buildRelationshipEngineKRPrompt({
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.relationship_engine;
 
   const isKR = langName === "Korean";
-  const selfLabel = isKR ? (selfName ? `당신 (${selfName})` : "당신") : selfName || "You";
+  const selfLabel = isKR
+    ? selfName
+      ? `당신 (${selfName})`
+      : "당신"
+    : selfName || "You";
   const partnerLabel = isKR
     ? partnerName
       ? `상대방 (${partnerName})`
@@ -541,7 +549,9 @@ function buildRelationshipEngineKRPrompt({
     : partnerName || "Your partner";
 
   const chartBlockA = formatChartBlockKR(birthChart, "relationship");
-  const chartBlockB = birthChartB ? formatChartBlockKR(birthChartB, "relationship") : null;
+  const chartBlockB = birthChartB
+    ? formatChartBlockKR(birthChartB, "relationship")
+    : null;
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
@@ -589,7 +599,11 @@ function buildCompatibilityKRV2Prompt({
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.compatibility_v2;
 
   const isKR = langName === "Korean";
-  const selfLabel = isKR ? (selfName ? `당신 (${selfName})` : "당신") : selfName || "You";
+  const selfLabel = isKR
+    ? selfName
+      ? `당신 (${selfName})`
+      : "당신"
+    : selfName || "You";
   const partnerLabel = isKR
     ? partnerName
       ? `상대방 (${partnerName})`
@@ -597,7 +611,9 @@ function buildCompatibilityKRV2Prompt({
     : partnerName || "Your partner";
 
   const chartBlockA = formatChartBlockKR(birthChart, "relationship");
-  const chartBlockB = birthChartB ? formatChartBlockKR(birthChartB, "relationship") : null;
+  const chartBlockB = birthChartB
+    ? formatChartBlockKR(birthChartB, "relationship")
+    : null;
 
   let threeBoxSection = "";
   if (
@@ -735,9 +751,18 @@ const KR_V2_SUBCATEGORY_BUILDERS = [
   { keywords: ["daily flow"], builder: buildDailyFlowV2KRPrompt },
   { keywords: ["life map"], builder: buildLifeMapKRPrompt },
   // "compatability" matches the DB subcategory's actual (misspelled) name.
-  { keywords: ["compatibility", "compatability"], builder: buildCompatibilityKRV2Prompt },
-  { keywords: ["relationship engine", "relationship"], builder: buildRelationshipEngineKRPrompt },
-  { keywords: ["daily companion", "companion"], builder: buildDailyCompanionKRPrompt },
+  {
+    keywords: ["compatibility", "compatability"],
+    builder: buildCompatibilityKRV2Prompt,
+  },
+  {
+    keywords: ["relationship engine", "relationship"],
+    builder: buildRelationshipEngineKRPrompt,
+  },
+  {
+    keywords: ["daily companion", "companion"],
+    builder: buildDailyCompanionKRPrompt,
+  },
 ];
 
 function resolveKRV2SubcategoryBuilder(subCategoryName) {
@@ -852,12 +877,7 @@ const KR_V2_REQUIRED_FIELDS = {
   // of the original V2 5-tab set; the stem/branch/element facts themselves
   // come from code (computeSajuV4KR), so only the narrative fields are
   // required here.
-  saju: [
-    "overview",
-    "pillarReading",
-    "fiveElementsReading",
-    "yinYangReading",
-  ],
+  saju: ["overview", "pillarReading", "fiveElementsReading", "yinYangReading"],
 };
 
 function resolveKRV2TabKey(subCategoryName) {

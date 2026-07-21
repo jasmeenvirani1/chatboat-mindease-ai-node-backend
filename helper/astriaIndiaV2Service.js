@@ -26,7 +26,11 @@
 // into the DB would let an edit silently break the UI.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { buildAstriaIndiaContext } = require("./astriaIndiaService");
+const {
+  buildAstriaIndiaContext,
+  computeAstriaIndiaChart,
+} = require("./astriaIndiaService");
+const { computeAshtakootMatch } = require("./ashtakootMatch");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // JSON MARKERS — one per subcategory, all namespaced "_V2" so they can never
@@ -61,6 +65,8 @@ const LANG_NAME_MAP = {
   en: "English",
   th: "Thai",
   hi: "Hindi",
+  ta: "Tamil",
+  mr: "Marathi",
   es: "Spanish",
   fr: "French",
   de: "German",
@@ -74,6 +80,22 @@ const LANG_NAME_MAP = {
   id: "Indonesian",
   hinglish: "Hinglish (natural mix of Hindi and English in Roman script)",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUPPORTED REPLY LANGUAGES — Astria India V2 only supports English, Hindi,
+// Tamil, and Marathi (an explicit frontend toggle, not auto-detected from
+// message text — detectLangFromMessage's script-based detection is unreliable
+// here: Hindi/Tamil/Marathi text mixed with any Latin characters, e.g. a
+// birth city name or partner's English name, gets misclassified as
+// "hinglish" or another language entirely). chatController.js passes the
+// user's selected `language` straight through as `target`; this function is
+// the single place that validates/defaults it before it reaches any builder.
+// ─────────────────────────────────────────────────────────────────────────────
+const INDIA_V2_SUPPORTED_LANGUAGES = new Set(["en", "hi", "ta", "mr"]);
+
+function resolveIndiaV2Target(language) {
+  return INDIA_V2_SUPPORTED_LANGUAGES.has(language) ? language : "en";
+}
 
 function extractJsonBlock(text, startMarker, endMarker) {
   const src = String(text || "");
@@ -118,7 +140,13 @@ function parseLabeledPersonDetails(userMessage, roleLabel) {
   );
 
   const clean = (v) => {
-    const trimmed = v?.trim();
+    // Each labeled line in the frontend's message ends with a sentence
+    // period before the newline (e.g. "Partner's Date of Birth: 14/08/1996.")
+    // — strip a single trailing "." so it doesn't get captured into the
+    // value itself (this previously broke date parsing downstream, e.g.
+    // "14/08/1996." failing the DD/MM/YYYY regex and silently producing no
+    // birth chart for the partner).
+    const trimmed = v?.trim().replace(/\.$/, "").trim();
     if (!trimmed || /^not provided$/i.test(trimmed)) return null;
     return trimmed;
   };
@@ -327,6 +355,29 @@ async function buildSambandhV2Prompt({
     ? `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${partnerLabel.toUpperCase()}'S BIRTH CHART\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${partnerContext}\n`
     : `\nNOTE: ${partnerLabel}'s birth details were not provided. Reflect using the user's chart and message context only — do not ask for the other person's details, since Step 1 of this flow always collects them when available.\n`;
 
+  // Real Ashtakoot-style compatibility score — deterministic Vedic math,
+  // computed independently of the LLM (mirrors sambandh-taalmel.service.js).
+  let matchResult = null;
+  if (partner.dob) {
+    const chartSelf = computeAstriaIndiaChart({
+      dob,
+      dob_time,
+      timezoneOffsetMinutes: 330,
+    });
+    const chartPartner = computeAstriaIndiaChart({
+      dob: partner.dob,
+      dob_time: partner.time,
+      timezoneOffsetMinutes: 330,
+    });
+    if (chartSelf.rashiResult && chartPartner.rashiResult) {
+      matchResult = computeAshtakootMatch(chartSelf, chartPartner);
+    }
+  }
+
+  const scoreBlock = matchResult
+    ? `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nCOMPUTED COMPATIBILITY SCORE (ground truth — do not recalculate or contradict)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\ncompatibility_score: ${matchResult.score0to100} (out of 100, derived from ${matchResult.totalPoints}/${matchResult.maxPoints} classical Ashtakoot guna points)\nStrongest factors: ${matchResult.factors.filter((f) => f.points / f.max >= 0.75).map((f) => f.label).join(", ") || "None stood out strongly"}\nWeaker factors: ${matchResult.factors.filter((f) => f.points / f.max <= 0.25).map((f) => f.label).join(", ") || "None"}\n`
+    : `\nNOTE: compatibility_score is not available (partner birth date not yet provided) — omit the numeric score from your response and speak only in qualitative terms.\n`;
+
   return `You are Astria India V2 — Sambandh Taal Mel (Relationship Alignment).
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -334,15 +385,17 @@ YOUR BIRTH CHART
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${selfContext}
 ${partnerBlock}
+${scoreBlock}
 ${subCategoryPrompt ? subCategoryPrompt.trim() : formatSubcategoryPromptFallback("sambandh_taal_mel")}
 
-CRITICAL RULE: All birth details needed for this reading are already provided above. NEVER ask the user (or ${partnerLabel}) for date of birth, time of birth, or place of birth — proceed directly to the reading using the chart data given.
+CRITICAL RULE: All birth details needed for this reading are already provided above. NEVER ask the user (or ${partnerLabel}) for date of birth, time of birth, or place of birth — proceed directly to the reading using the chart data given. NEVER invent or alter the compatibility_score — use ONLY the number given above, or omit it if not available.
 
 OUTPUT FORMAT (STRICT JSON — required, do not omit or rename fields):
 Respond with a short warm narrative first, then append exactly this JSON block:
 
 ${SAMBANDH_V2_START}
 {
+  "compatibility_score": ${matchResult ? matchResult.score0to100 : "null"},
   "rhythm_between": "",
   "harmony_level": "",
   "friction_point": "",
@@ -352,8 +405,9 @@ ${SAMBANDH_V2_START}
 ${SAMBANDH_V2_END}
 
 FIELD RULES:
+- compatibility_score: the exact integer given above (0-100). Omit this field entirely if not available.
 - rhythm_between: 1 sentence, overall relationship rhythm between both charts.
-- harmony_level: 1 sentence, how naturally both rhythms sync.
+- harmony_level: 1 sentence, how naturally both rhythms sync — let the tone genuinely reflect the computed score.
 - friction_point: 1 sentence, gentle — never "conflict/toxic/incompatible".
 - timing_alignment: 1-2 sentences, how the rhythms feel right now.
 - connection_path: 1-2 sentences, how the connection may deepen, soft landing.
@@ -760,6 +814,12 @@ function resolveV2SubcategoryEntry(subCategoryName) {
  * combined context + DB prompt if the subcategory name doesn't match any
  * of the 7 known tabs (so new subcategories added later still work without
  * a code change, as long as their prompt is fully self-contained in the DB).
+ *
+ * `target` here is expected to be the user's explicitly selected language
+ * (English/Hindi/Tamil/Marathi) from the frontend's India V2 language
+ * toggle, not the auto-detected value used elsewhere in the app — it is
+ * resolved through resolveIndiaV2Target() below so every builder always
+ * receives one of the 4 supported codes (defaulting to "en").
  */
 async function buildAstriaIndiaV2Context({
   subCategoryName,
@@ -773,11 +833,12 @@ async function buildAstriaIndiaV2Context({
   emotionIntensity,
   ageInfo,
 }) {
+  const resolvedTarget = resolveIndiaV2Target(target);
   const entry = resolveV2SubcategoryEntry(subCategoryName);
   const params = {
     userMessage,
     subCategoryPrompt,
-    target,
+    target: resolvedTarget,
     dob,
     dob_time,
     dob_place,
@@ -790,7 +851,7 @@ async function buildAstriaIndiaV2Context({
     return entry.builder(params);
   }
 
-  const langName = LANG_NAME_MAP[target] || "English";
+  const langName = LANG_NAME_MAP[resolvedTarget] || "English";
   const birthContext = await buildAstriaIndiaContext({
     dob,
     dob_time,
@@ -800,7 +861,7 @@ async function buildAstriaIndiaV2Context({
     emotionIntensity,
     userMessage,
     translatedMessage: userMessage,
-    target,
+    target: resolvedTarget,
     ageInfo,
     clientPromptOverride: subCategoryPrompt || null,
   });
@@ -830,4 +891,6 @@ module.exports = {
   SUBCATEGORY_PROMPT_CONFIG,
   GLOBAL_TONE_RULES,
   formatSubcategoryPromptFallback,
+  INDIA_V2_SUPPORTED_LANGUAGES,
+  resolveIndiaV2Target,
 };

@@ -54,9 +54,7 @@ const {
   ASTRIA_KOREA_V2_END,
 } = require("./AstriaKoreaV2Service");
 
-const {
-  buildAstriaKoreaTalkContext,
-} = require("./AstriaKoreaTalkService");
+const { buildAstriaKoreaTalkContext } = require("./AstriaKoreaTalkService");
 
 // Korean is the only language V3 is ever allowed to reply in.
 const KR_V3_LANG_NAME = "Korean";
@@ -259,7 +257,13 @@ LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the use
 }
 
 // ── SAJU KR v3 — real Four Pillars (사주), reused from v1 ──────────────────
-function buildSajuV3KRPrompt({ userMessage, dbPrompt, sajuData, sajuDailyLuck, birthChart }) {
+function buildSajuV3KRPrompt({
+  userMessage,
+  dbPrompt,
+  sajuData,
+  sajuDailyLuck,
+  birthChart,
+}) {
   const subcategoryContent = dbPrompt || DEFAULT_KR_SUBCATEGORY_PROMPTS.saju;
   const sajuBlock = formatSajuBlockKR(sajuData);
   const dailyLuckBlock = formatSajuDailyLuckBlockKR(sajuDailyLuck);
@@ -400,14 +404,26 @@ LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the use
 // These keywords only activate inside the isAstriaKoreaV3 block.
 // ─────────────────────────────────────────────────────────────────────────────
 const KR_V3_SUBCATEGORY_BUILDERS = [
-  { keywords: ["companion talk", "talk"], builder: buildCompanionTalkV3KRPrompt },
+  {
+    keywords: ["companion talk", "talk"],
+    builder: buildCompanionTalkV3KRPrompt,
+  },
   { keywords: ["saju"], builder: buildSajuV3KRPrompt },
   { keywords: ["daily flow"], builder: buildDailyFlowV3KRPrompt },
   { keywords: ["life map"], builder: buildLifeMapV3KRPrompt },
   // "compatability" matches the DB subcategory's actual (misspelled) name.
-  { keywords: ["compatibility", "compatability"], builder: buildCompatibilityV3KRPrompt },
-  { keywords: ["relationship engine", "relationship"], builder: buildRelationshipEngineV3KRPrompt },
-  { keywords: ["daily companion", "companion"], builder: buildDailyCompanionV3KRPrompt },
+  {
+    keywords: ["compatibility", "compatability"],
+    builder: buildCompatibilityV3KRPrompt,
+  },
+  {
+    keywords: ["relationship engine", "relationship"],
+    builder: buildRelationshipEngineV3KRPrompt,
+  },
+  {
+    keywords: ["daily companion", "companion"],
+    builder: buildDailyCompanionV3KRPrompt,
+  },
 ];
 
 function resolveKRV3SubcategoryBuilder(subCategoryName) {

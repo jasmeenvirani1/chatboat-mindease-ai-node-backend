@@ -46,11 +46,13 @@ const {
   parseSambandhPartners,
   buildSambandhMissingQuestion,
   isSambandhMatchSubcategory,
+  buildSamayPravahIndiaPrompt,
 } = require("../helper/astriaIndiaModule");
 const SambandhTaalMelService = require("../helper/sambandh-taalmel.service.js");
 const {
   buildAstriaIndiaV2Context,
   extractAstriaIndiaV2Data,
+  resolveIndiaV2Target,
 } = require("../helper/astriaIndiaV2Service");
 const {
   buildAstriaUSContext,
@@ -188,7 +190,9 @@ const {
   buildHealjaiTalkPrompt,
   detectAstrologyIntent,
 } = require("../helper/healjaiPromptBuilder");
-const { buildPrompt: buildAstriaTalkPrompt } = require("../helper/AstriaTalkEngine");
+const {
+  buildPrompt: buildAstriaTalkPrompt,
+} = require("../helper/AstriaTalkEngine");
 
 // Append the user's date of birth and latest message to the system prompt
 function appendAstriaDobAndMessageContext(
@@ -1822,8 +1826,13 @@ function getAgeInfo(dob) {
   const parts = dob.split("/");
   if (parts.length !== 3) return { age: null, group: "working_adult" };
   const birthYear = parseInt(parts[2], 10);
-  if (isNaN(birthYear)) return { age: null, group: "working_adult" };
   const currentYear = new Date().getFullYear();
+  if (
+    isNaN(birthYear) ||
+    birthYear < currentYear - 120 ||
+    birthYear > currentYear
+  )
+    return { age: null, group: "working_adult" };
   const age = currentYear - birthYear;
 
   let group = "working_adult";
@@ -1983,6 +1992,7 @@ const chatController = {
         userMessage,
         memory,
         userPersona,
+        language,
         spanishTone,
         japan3BoxSelf,
         japan3BoxPartner,
@@ -2072,7 +2082,7 @@ const chatController = {
       //   }
       // }
 
-      const target = detectLangFromMessage(userMessage);
+      let target = detectLangFromMessage(userMessage);
 
       // Translate ALL non-English input to English for internal processing
       let translatedMessage;
@@ -2273,7 +2283,7 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk;
-      console.log("Astria Korea V3:", isAstriaKoreaV3);
+      //console.log("Astria Korea V3:", isAstriaKoreaV3);
 
       // Astria Japan Talk Engine — isolated flag for "Astria Japan Talk" (companion voice)
       const isAstriaJapanTalk =
@@ -2719,7 +2729,7 @@ const chatController = {
 
       // TONE & AGE ENGINE
       const tone_mode = detectToneMode(userMessage);
-      const ageInfo = getAgeInfo(dob0);
+      const ageInfo = getAgeInfo(selfDob0);
 
       const toneDetailsMap = {
         healjai_style: {
@@ -2912,22 +2922,18 @@ DAILY CHECK-IN (when natural):
       MOST IMPORTANT RULE:
       - If Date of Birth change then don't ask for confirmation. Start processing with new date.
 
-      ${
-        !isSamayPravah
-          ? `GLOBAL AGE-BASED RESPONSE RULE:
+      GLOBAL AGE-BASED RESPONSE RULE:
       - Adapt every part of the response (tone, language style, examples, priorities, interests, recommendations, and follow-up questions) to the user's age group: ${ageInfo.group}.
-      - NEVER generate generic one-size-fits-all responses. Tailor the entire experience based on the user's age bracket.`
-          : ""
-      }
+      - NEVER generate generic one-size-fits-all responses. Tailor the entire experience based on the user's age bracket.
 
       INPUT:
       - User Age Group: ${ageInfo.group} (${ageInfo.age || "unknown"} years old)
       - ${isNewChat ? `Birth Date: ${effectiveDateTime?.dateOfBirth || dob0}` : ""}
       - ${isNewChat ? `Birth Time: ${effectiveDateTime?.timeOfBirth || "6:00 AM"}` : ""}
-      - ${categoryName === "HealJai Talk" || isSamayPravah ? "" : `Today's Context: ${userData?.dailyMessage || ""}`}
-      - ${categoryName === "HealJai Talk" || isSamayPravah ? "" : `User today's lucky color: ${userData?.lucky_color}`}
-      - ${categoryName === "HealJai Talk" || isSamayPravah ? "" : `User today's Energy level: ${userData?.energy_level}`}
-      - ${categoryName === "HealJai Talk" || isSamayPravah ? "" : `User today's Golden Hour: ${userData?.golden_hour}`}
+      - ${categoryName === "HealJai Talk" ? "" : `Today's Context: ${userData?.dailyMessage || ""}`}
+      - ${categoryName === "HealJai Talk" ? "" : `User today's lucky color: ${userData?.lucky_color}`}
+      - ${categoryName === "HealJai Talk" ? "" : `User today's Energy level: ${userData?.energy_level}`}
+      - ${categoryName === "HealJai Talk" ? "" : `User today's Golden Hour: ${userData?.golden_hour}`}
       - ${categoryName === "HealJai Talk" ? buildTrendingTopicContext(trendingTopicData, categoryName) : ""}
       - ${categoryName !== "HealJai Talk" || detectAstrologyIntent(userMessage, translatedMessage) ? `User planets position: ${JSON.stringify(userProvidedPlanets)}` : ""}
       - User Message: ${userMessage}
@@ -2936,9 +2942,7 @@ DAILY CHECK-IN (when natural):
       - ${subCategoryName === "ThaiAstro V2" ? "Give response in 650 words" : ""}
       - Don't show direct input in response, INPUT is only for you.
 
-      ${
-        !isSamayPravah
-          ? `TONE AND EMOTION RULES:
+      TONE AND EMOTION RULES:
       ${
         engineState === "DEEP_HEALING"
           ? `- Emotional Guidance: ${sentences.slice(0, 5).join(" | ")}
@@ -2946,21 +2950,18 @@ DAILY CHECK-IN (when natural):
       - DO NOT copy them literally. ALWAYS prioritize and align your response with the user's specific message: "${userMessage}".`
           : `- Tone: Be a helpful, friendly companion. Match the user's casual energy — no emotional analysis.`
       }
-      - If userMessage is a date, ignore the emotional sentences and focus on the birth details.`
-          : ""
-      }
+      - If userMessage is a date, ignore the emotional sentences and focus on the birth details.
 
       LANGUAGE RULE (RESTRICTED):
       - Always reply in ${{ en: "English", th: "Thai", es: "Spanish", hi: "Hindi", hinglish: "Hinglish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ja: "Japanese", ko: "Korean", zh: "Chinese", ar: "Arabic", ru: "Russian", vi: "Vietnamese", id: "Indonesian" }[target] || "English"} language.
       - ${target === "hinglish" ? "Hinglish means naturally mixing Hindi and English words in the same sentence, written entirely in Roman script (no Devanagari). Match the user's casual code-switching style." : "Output ONLY in the user's language. Never mix languages."}
       - Do NOT show any English intermediate in your reply.
-      ${isSamayPravah ? "- SAMAY PRAVAH EXCEPTION: The technical graph block markers (<<<SAMAY_PRAVAH_GRAPH>>> and <<<END_SAMAY_PRAVAH_GRAPH>>>) and the JSON inside them are system output — they MUST always be written in English exactly as specified, even when replying in a non-English language. Only the narrative sentences above the graph block should be in the user's language." : ""}
 
       ---
 
       ${systemPrompt}
 
-      ${categoryName === "HealJai Talk" || isSamayPravah ? "" : questionPrompt}
+      ${categoryName === "HealJai Talk" ? "" : questionPrompt}
       `.trim();
 
       // ADD CONTEXT
@@ -3751,6 +3752,12 @@ RULES:
       // ASTRIA KOREA ENGINE — Astria Korea category ONLY
       let compatibilityMissingQuestionKR = null;
       if (isAstriaKorea) {
+        // Region-based language: the "Astria Korea" category IS the Korea
+        // region lane, so always reply in Korean regardless of what language
+        // the user typed in (previously this fell through to
+        // detectLangFromMessage, which replied in English/Thai/etc. if the
+        // user's message wasn't in Korean).
+        target = "ko";
         const isSajuTab = isSajuSubcategoryKR(subCategoryName);
         const isKoreanCompat =
           !isSajuTab &&
@@ -3927,6 +3934,10 @@ RULES:
       // ============================================
       let compatibilityMissingQuestionKRV2 = null;
       if (isAstriaKoreaV2) {
+        // Region-based language: the "Astria Korea V2" category IS the Korea
+        // region lane, so always reply in Korean regardless of what language
+        // the user typed in (same reasoning as the v1 Astria Korea block).
+        target = "ko";
         const isRelationshipEngineTab =
           isRelationshipEngineSubcategoryKRV2(subCategoryName);
         const isCompatibilityTab =
@@ -5588,10 +5599,17 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
       // ============================================
       let astriaIndiaV2Data = null;
       if (isAstriaIndiaV2) {
+        // India V2 uses an explicit frontend language toggle (English/Hindi/
+        // Tamil/Marathi) instead of detectLangFromMessage's auto-detection —
+        // script-based detection is unreliable here since Hindi/Tamil/
+        // Marathi text mixed with any Latin characters (a name, a city) can
+        // get misclassified as "hinglish" or another language entirely.
+        // resolveIndiaV2Target() validates the incoming `language` value and
+        // defaults to English if missing/unsupported.
         systemPrompt = await buildAstriaIndiaV2Context({
           subCategoryName: subCategoryName || null,
           subCategoryPrompt: subCategoryPrompt || categoryPrompt || null,
-          target,
+          target: resolveIndiaV2Target(language),
           userMessage,
           dob: selfDob0,
           dob_time: selfDobTime0,
@@ -5603,35 +5621,47 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
       }
       // ====== END ASTRIA INDIA V2 PROCESSING ======
 
-      // Samay Pravah — self-contained enforcement block (highest priority, end of prompt)
-      // Placed AFTER Astria India category processing so it is not overwritten when Samay Pravah
-      // is used as a subcategory of "Astria India".
-      if (isSamayPravah) {
-        systemPrompt = `${systemPrompt}
+      // Samay Pravah — standalone top-level category only (categoryName ===
+      // "Samay Pravah" with no "Astria India" wrapper). The subcategory-of-
+      // "Astria India" case is already fully handled above by
+      // buildAstriaIndiaCategoryContext -> buildSamayPravahIndiaPrompt, which
+      // owns the complete prompt (persona, birth chart, output format,
+      // single language rule) — nothing should append to it here, since that
+      // previously produced a second, conflicting LANGUAGE RULE plus a
+      // duplicated graph-format explanation.
+      if (isSamayPravah && !isAstriaIndiaCategory) {
+        const samayLangName =
+          {
+            en: "English",
+            th: "Thai",
+            es: "Spanish",
+            hi: "Hindi",
+            hinglish: "Hinglish",
+            fr: "French",
+            de: "German",
+            it: "Italian",
+            pt: "Portuguese",
+            ja: "Japanese",
+            ko: "Korean",
+            zh: "Chinese",
+            ar: "Arabic",
+            ru: "Russian",
+            vi: "Vietnamese",
+            id: "Indonesian",
+          }[target] || "English";
 
-SAMAY PRAVAH — FINAL OUTPUT RULE (HIGHEST PRIORITY — OVERRIDES ALL LANGUAGE RULES):
-
-No matter what language the user writes in (Hindi, Thai, English, or any other), your response MUST end with the energy graph block written in English. The narrative sentences above the graph block should be in the user's language.
-
-VALID VALUES:
-- movement.type: "outward" | "inward" | "steady"
-- phase_weight.type: "light" | "medium" | "heavy"
-- flow_direction.type: "rising" | "settling" | "scattered"
-- intensity: integer 0–100
-
-CORRECT RESPONSE FORMAT (example for a Hindi-speaking user):
-[2–4 warm sentences in the user's language about their current energy and timing…]
-<<<SAMAY_PRAVAH_GRAPH>>>
-{"movement":{"type":"inward","intensity":72},"phase_weight":{"type":"heavy","intensity":80},"flow_direction":{"type":"settling","intensity":65}}
-<<<END_SAMAY_PRAVAH_GRAPH>>>
-
-MANDATORY RULES — CANNOT BE SKIPPED:
-1. The graph block (all three lines: marker, JSON, end marker) is ALWAYS in English — never translate or omit these lines.
-2. The JSON must be on a single line with no line breaks inside it.
-3. No text is allowed after <<<END_SAMAY_PRAVAH_GRAPH>>>.
-4. All three fields (movement, phase_weight, flow_direction) must always be present.
-5. This graph block is REQUIRED in every single response — never skip it regardless of the user's language.
-6. The narrative text above the graph block must be in the same language the user wrote in.`;
+        systemPrompt = await buildSamayPravahIndiaPrompt({
+          userMessage,
+          dbPrompt: subCategoryPrompt || categoryPrompt || null,
+          langName: samayLangName,
+          dob: selfDob0,
+          dob_time: selfDobTime0,
+          dob_place: selfDobPlace0,
+          emotionType,
+          emotionIntensity,
+          target,
+          ageInfo,
+        });
       }
 
       // Specialized Feature Context
@@ -5727,7 +5757,7 @@ MANDATORY RULES — CANNOT BE SKIPPED:
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System Prompt:", systemPrompt);
+      //console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -6255,7 +6285,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
                   ...deriveCompatibilityV2DisplaySections(astriaKoreaV3Data),
                 };
               }
-              if (isSajuSubcategoryKRV3(subCategoryName) && astriaKoreaV3SajuFacts) {
+              if (
+                isSajuSubcategoryKRV3(subCategoryName) &&
+                astriaKoreaV3SajuFacts
+              ) {
                 // Attach the code-computed Four Pillars facts alongside the
                 // model's narrative text — the frontend Saju card reads
                 // pillars/elements/yinYang directly from here, never from
@@ -7014,7 +7047,10 @@ MANDATORY RULES — CANNOT BE SKIPPED:
               ...deriveCompatibilityV2DisplaySections(astriaKoreaV3Data),
             };
           }
-          if (isSajuSubcategoryKRV3(subCategoryName) && astriaKoreaV3SajuFacts) {
+          if (
+            isSajuSubcategoryKRV3(subCategoryName) &&
+            astriaKoreaV3SajuFacts
+          ) {
             astriaKoreaV3Data = {
               ...astriaKoreaV3Data,
               pillars: astriaKoreaV3SajuFacts.pillars,

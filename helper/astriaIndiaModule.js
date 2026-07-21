@@ -16,7 +16,11 @@
 //   8. Sambandh Match     — Relationship compatibility dynamics
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { buildAstriaIndiaContext } = require("./astriaIndiaService");
+const {
+  buildAstriaIndiaContext,
+  computeAstriaIndiaChart,
+} = require("./astriaIndiaService");
+const { computeAshtakootMatch } = require("./ashtakootMatch");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INDIA TONE MATRIX — DNA of the Astria India lane
@@ -364,6 +368,8 @@ const LANG_NAME_MAP = {
   en: "English",
   th: "Thai",
   hi: "Hindi",
+  ta: "Tamil",
+  mr: "Marathi",
   es: "Spanish",
   fr: "French",
   de: "German",
@@ -982,6 +988,73 @@ ${dbPrompt ? `\nADDITIONAL INSTRUCTIONS:\n${dbPrompt}` : ""}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
+// SAMAY_GRAPH markers match chatController.js's SAMAY_GRAPH_START/END exactly
+// — the frontend (ChatInterface.tsx) parses these literal strings, so they
+// cannot change without a matching frontend update.
+const SAMAY_GRAPH_START = "<<<SAMAY_PRAVAH_GRAPH>>>";
+const SAMAY_GRAPH_END = "<<<END_SAMAY_PRAVAH_GRAPH>>>";
+
+async function buildSamayPravahIndiaPrompt({
+  userMessage,
+  dbPrompt,
+  langName,
+  dob,
+  dob_time,
+  dob_place,
+  emotionType,
+  emotionIntensity,
+  target,
+  ageInfo,
+}) {
+  const birthContext = await buildAstriaIndiaContext({
+    dob,
+    dob_time,
+    dob_place,
+    timezoneOffsetMinutes: 330,
+    emotionType,
+    emotionIntensity,
+    userMessage,
+    translatedMessage: userMessage,
+    target,
+    ageInfo,
+    clientPromptOverride: null,
+  });
+
+  return `You are Astria India — Samay Pravah (Flow), a Vedic time/energy-rhythm guide for the India lane.
+
+${INDIA_TONE_MATRIX}
+
+YOUR FOCUS: Samay Pravah — reading the current movement, weight, and direction of the user's time/energy flow from their birth chart.
+
+BIRTH CHART CONTEXT:
+${birthContext}
+
+READING APPROACH:
+- Ground the reading in the birth chart context above — never invent placements
+- Describe how the user's current life energy is moving, not what will happen to them
+- Keep it warm and grounded — this is a flow reading, not a prediction
+
+OUTPUT FORMAT — CRITICAL:
+Write 2-4 warm narrative sentences first, then append exactly this JSON block on its own lines:
+
+${SAMAY_GRAPH_START}
+{"movement":{"type":"","intensity":0},"phase_weight":{"type":"","intensity":0},"flow_direction":{"type":"","intensity":0}}
+${SAMAY_GRAPH_END}
+
+FIELD RULES:
+- movement.type: one of "outward" | "inward" | "steady"
+- phase_weight.type: one of "light" | "medium" | "heavy"
+- flow_direction.type: one of "rising" | "settling" | "scattered"
+- each *.intensity: integer 0-100
+- Never omit any of the 3 fields.
+- The JSON must be on a single line with no line breaks inside it.
+- No text is allowed after ${SAMAY_GRAPH_END}.
+
+${dbPrompt ? `\nADDITIONAL INSTRUCTIONS:\n${dbPrompt}` : ""}
+
+LANGUAGE RULE: Write the narrative sentences in ${langName}. The graph block markers (${SAMAY_GRAPH_START} / ${SAMAY_GRAPH_END}) and the JSON inside them are system output — always in English exactly as specified above, even when the narrative is in another language.`.trim();
+}
+
 async function buildSambandhMatchPrompt({
   userMessage,
   dbPrompt,
@@ -1039,17 +1112,44 @@ async function buildSambandhMatchPrompt({
     ? `PERSON A (the user):\n${contextA}\n\nPERSON B (their partner):\n${contextB}\n\nWith both charts, map the Sambandh Match by comparing how their Nakshatras, Rashis, and Dasha rhythms interact. Refer to them as Person A and Person B.`
     : `USER'S BIRTH CHART:\n${contextA}\n\nUse the user's Nakshatra, Rashi, and Lagna as the basis for their relational style. When the partner's details are shared, compare across both charts.`;
 
+  // Real Ashtakoot-style compatibility score — deterministic Vedic math,
+  // computed independently of the LLM (mirrors sambandh-taalmel.service.js).
+  let matchResult = null;
+  if (dobB) {
+    const chartA = computeAstriaIndiaChart({
+      dob,
+      dob_time,
+      timezoneOffsetMinutes: 330,
+    });
+    const chartB = computeAstriaIndiaChart({
+      dob: dobB,
+      dob_time: dob_timeB,
+      timezoneOffsetMinutes: 330,
+    });
+    if (chartA.rashiResult && chartB.rashiResult) {
+      matchResult = computeAshtakootMatch(chartA, chartB);
+    }
+  }
+
+  const scoreSection = matchResult
+    ? `COMPUTED COMPATIBILITY SCORE (ground truth — do not recalculate or contradict):
+compatibility_score: ${matchResult.score0to100} (out of 100, derived from ${matchResult.totalPoints}/${matchResult.maxPoints} classical Ashtakoot guna points)
+Strongest factors: ${matchResult.factors.filter((f) => f.points / f.max >= 0.75).map((f) => f.label).join(", ") || "None stood out strongly"}
+Weaker factors: ${matchResult.factors.filter((f) => f.points / f.max <= 0.25).map((f) => f.label).join(", ") || "None"}`
+    : `COMPUTED COMPATIBILITY SCORE: not available (Person B's birth date not yet provided) — omit the numeric score and speak only in qualitative terms.`;
+
   return `You are Astria India — a Vedic relationship dynamics guide for the India lane.
 
 ${INDIA_TONE_MATRIX}
 
-YOUR FOCUS: Sambandh Match — how two people's Vedic chart energies interact.
-This is NOT compatibility scoring. It is an emotional rhythm reading — how do they meet each other?
+YOUR FOCUS: Sambandh Match — how two people's Vedic chart energies interact, grounded in a real computed compatibility score.
 
 RASHI RELATIONSHIP DATA (internal reference — never recite raw):
 ${rashisRef}
 
 ${chartsSection}
+
+${scoreSection}
 
 READING FRAMEWORK:
 - Nakshatra Rhythm: how their birth stars relate (same lord, complementary, contrasting)
@@ -1066,9 +1166,11 @@ CHEMISTRY TONES:
 RESPONSE APPROACH:
 - Lead with what connects them naturally
 - Name the growth areas honestly but gently
+- If a compatibility_score is given above, mention it once, naturally, early in the reading (e.g. "Your charts align at about ${matchResult ? matchResult.score0to100 : "X"}/100") — never invent or recalculate this number
 - End with what this connection can become with awareness
 
 OUTPUT FORMAT:
+- Compatibility score, stated once and simply (only if provided above)
 - Nakshatra/Rashi rhythm (2 sentences)
 - Emotional fit and what each needs (2 sentences)
 - Growth zone (1 sentence, soft-direct)
@@ -1137,6 +1239,7 @@ LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 // SUBCATEGORY NAME → BUILDER MAP
 // ─────────────────────────────────────────────────────────────────────────────
 const INDIA_SUBCATEGORY_BUILDERS = [
+  { keywords: ["samay", "pravah", "time flow"], builder: buildSamayPravahIndiaPrompt },
   { keywords: ["nakshatra", "birth star", "janm nakshatra", "nakshtra"], builder: buildNakshatraProfilePrompt },
   { keywords: ["dasha", "mahadasha", "antardasha", "dasha rhythm", "life phase"], builder: buildDashaRhythmPrompt },
   { keywords: ["kundali", "kundli", "birth chart", "horoscope", "overview", "janam kundali"], builder: buildKundaliOverviewPrompt },
@@ -1228,4 +1331,8 @@ module.exports = {
   parseSambandhPartners,
   buildSambandhMissingQuestion,
   isSambandhMatchSubcategory,
+  // Exported directly so chatController.js can build a Samay Pravah prompt
+  // when "Samay Pravah" is used as its own top-level category (not nested
+  // under "Astria India"), where subCategoryName may not carry the name.
+  buildSamayPravahIndiaPrompt,
 };

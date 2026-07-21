@@ -1,4 +1,8 @@
-const { buildAstriaIndiaContext } = require("../helper/astriaIndiaService.js");
+const {
+  computeAstriaIndiaChart,
+  buildRelationshipEmotionalInsight,
+} = require("../helper/astriaIndiaService.js");
+const { computeAshtakootMatch } = require("../helper/ashtakootMatch.js");
 const logger = require("../helper/logger.js");
 
 // Constants
@@ -34,7 +38,86 @@ class SambandhTaalMelService {
   }
 
   /**
-   * Build the prompt for Sambandh Taal-Mel analysis
+   * STATIC prompt — persona, philosophy, strict rules, analysis approach,
+   * output schema, field guidelines, tone, and the single language rule.
+   * None of this depends on the two partners' data, so it's defined exactly
+   * once here and reused for every request instead of being rebuilt (and
+   * re-stating the same rules) inline per call.
+   */
+  static SYSTEM_TEMPLATE = `You are Astria India — specifically the Sambandh Taal-Mel (Relationship Rhythm & Flow) engine.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE PHILOSOPHY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sambandh Taal-Mel means "Relationship Rhythm & Connection."
+This is NOT a marriage success/failure predictor.
+Your role: help users understand emotional rhythm, connection style, alignment patterns, and areas of gentle friction between two people — grounded in a real, computed Vedic compatibility score (given below as ground truth), explained in warm, human language.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STRICT RULES — NEVER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Invent or alter the compatibility_score — use ONLY the number given to you, or omit the field if none was given
+- Predict breakup, divorce, or marriage outcomes
+- Use words like soulmate, destined, fate, guaranteed, perfect match, bad match, toxic, conflict, incompatible, problematic, successful marriage, failed relationship, auspicious, inauspicious
+- Judge the relationship as good/bad or successful/failed
+- Use therapist-style or clinical language
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RELATIONSHIP ANALYSIS APPROACH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Using each partner's emotional insight below, compare:
+- Emotional pace: similar or different?
+- Communication style: how do they express care?
+- Emotional expression: open or reserved?
+- Reflective tendencies: how do they process?
+
+Then generate the fields:
+- rhythm_between: overall relationship rhythm
+- harmony_level: how naturally both rhythms synchronize — match the tone to the computed score (high score = genuinely harmonious, low score = honestly name the extra care needed, without alarm)
+- friction_point: possible areas of difference, gently — informed by "Weaker factors" if given
+- timing_alignment: how both rhythms feel in the current phase
+- connection_path: how connection may deepen — informed by "Strongest factors" if given
+- compatibility_score: the exact number given to you (integer, 0-100) — omit this field entirely if no score was given; never invent one
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT (STRICT JSON)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Return ONLY this exact JSON structure. If no compatibility_score was given, omit that key entirely rather than writing null or a placeholder.
+
+${SAMBANDH_TAALMEL_START}
+{
+  "sambandh_taalmel": {
+    "compatibility_score": 0,
+    "rhythm_between": "",
+    "harmony_level": "",
+    "friction_point": "",
+    "timing_alignment": "",
+    "connection_path": ""
+  }
+}
+${SAMBANDH_TAALMEL_END}
+
+FIELD GUIDELINES:
+rhythm_between (1 sentence) — e.g. "Warm and expressive rhythm", "Quiet but steady rhythm"
+harmony_level (1 sentence) — e.g. "Softly aligned", "Gradually synchronizing"
+friction_point (1 sentence, gentle) — e.g. "Different communication pace". NEVER use: conflict, toxic, incompatible, problematic
+timing_alignment (1-2 sentences) — e.g. "Both seem to be moving at a similar pace."
+connection_path (1-2 sentences, ends with a soft neutral landing) — e.g. "Shared experiences may create stronger understanding."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TONE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Apply: Astria India = 85%, Healjai Soft = 15%.
+Use naturally: warm flow, gentle rhythm, inner alignment, reflective pace, emotional movement, shared understanding.
+Sentence rhythm: Short → Medium → Short.
+Use uncertainty phrases when appropriate: "lagta hai" (seems like), "shayad" (perhaps), "ho sakta hai" (it could be).`;
+
+  /**
+   * Build the prompt for Sambandh Taal-Mel analysis.
+   * Combines the static SYSTEM_TEMPLATE above (persona/rules/format — always
+   * identical) with the dynamic per-request data (partner emotional
+   * insights, computed score, user message, language) appended once at the
+   * end, where the single LANGUAGE RULE also lives.
    */
   async buildSambandhTaalMelPrompt({
     partnerA,
@@ -49,6 +132,8 @@ class SambandhTaalMelService {
     const langNameMap = {
       en: "English",
       hi: "Hindi",
+      ta: "Tamil",
+      mr: "Marathi",
       th: "Thai",
       es: "Spanish",
       fr: "French",
@@ -61,208 +146,79 @@ class SambandhTaalMelService {
       ru: "Russian",
       vi: "Vietnamese",
       id: "Indonesian",
+      hinglish: "Hinglish (natural mix of Hindi and English in Roman script)",
     };
     const langName = langNameMap[target] || "English";
 
-    // Build context for both partners
-    const [partnerAContext, partnerBContext] = await Promise.all([
-      buildAstriaIndiaContext({
-        dob: partnerA.dob,
-        dob_time: partnerA.time,
-        dob_place: partnerA.place,
-        timezoneOffsetMinutes: 330,
-        emotionType: emotionType || "neutral",
-        emotionIntensity: emotionIntensity || 0,
-        userMessage,
-        translatedMessage: userMessage,
-        target,
-        ageInfo: ageInfo || { age: null, group: "working_adult" },
-        clientPromptOverride: null,
-      }),
-      buildAstriaIndiaContext({
-        dob: partnerB.dob,
-        dob_time: partnerB.time,
-        dob_place: partnerB.place,
-        timezoneOffsetMinutes: 330,
-        emotionType: "neutral",
-        emotionIntensity: 0,
-        userMessage,
-        translatedMessage: userMessage,
-        target,
-        ageInfo: ageInfo || { age: null, group: "working_adult" },
-        clientPromptOverride: null,
-      }),
-    ]);
+    // Structured chart data (no prompt text) — used both for the emotional
+    // insight summaries below and for the deterministic Ashtakoot score.
+    const chartA = computeAstriaIndiaChart({
+      dob: partnerA.dob,
+      dob_time: partnerA.time,
+      timezoneOffsetMinutes: 330,
+    });
+    const chartB = computeAstriaIndiaChart({
+      dob: partnerB.dob,
+      dob_time: partnerB.time,
+      timezoneOffsetMinutes: 330,
+    });
 
-    // Extract moon sign, nakshatra, pada from context
-    const extractKeyData = (context) => {
-      const lines = context.split("\n");
-      let moonSign = "",
-        nakshatra = "",
-        pada = "";
+    // Condensed emotional insight per partner — felt-experience lines only,
+    // no raw chart dump and no embedded persona/language boilerplate (that
+    // used to come from buildAstriaIndiaContext(), duplicating this prompt's
+    // own rules once per partner).
+    const partnerAInsight = buildRelationshipEmotionalInsight({
+      label: partnerA.label || "Partner A",
+      ...chartA,
+    });
+    const partnerBInsight = buildRelationshipEmotionalInsight({
+      label: partnerB.label || "Partner B",
+      ...chartB,
+    });
 
-      for (const line of lines) {
-        if (line.includes("Moon Sign:")) {
-          moonSign = line.replace("Moon Sign:", "").trim();
-        } else if (line.includes("Nakshatra:")) {
-          nakshatra = line.replace("Nakshatra:", "").trim();
-        } else if (line.includes("Pada:")) {
-          pada = line.replace("Pada:", "").trim();
-        }
-      }
+    // Real Ashtakoot-style compatibility score — deterministic Vedic math,
+    // computed independently of the LLM so the number is always accurate
+    // and reproducible for the same two birth charts.
+    let matchResult = null;
+    if (chartA.rashiResult && chartB.rashiResult) {
+      matchResult = computeAshtakootMatch(chartA, chartB);
+    }
 
-      return { moonSign, nakshatra, pada };
-    };
-
-    const partnerAData = extractKeyData(partnerAContext);
-    const partnerBData = extractKeyData(partnerBContext);
+    const scoreBlock = matchResult
+      ? `compatibility_score: ${matchResult.score0to100} (out of 100, derived from ${matchResult.totalPoints}/${matchResult.maxPoints} classical Ashtakoot guna points)
+Strongest factors: ${matchResult.factors.filter((f) => f.points / f.max >= 0.75).map((f) => f.label).join(", ") || "None stood out strongly"}
+Weaker factors: ${matchResult.factors.filter((f) => f.points / f.max <= 0.25).map((f) => f.label).join(", ") || "None"}`
+      : `compatibility_score: not available (one or both birth dates could not be computed) — omit the "compatibility_score" key from your JSON response entirely and speak only in qualitative terms.`;
 
     const baseInstructions = clientPromptOverride?.trim() || "";
 
-    return `You are Astria India — specifically the Sambandh Taal-Mel (Relationship Rhythm & Flow) engine.
+    // DYNAMIC block — everything that changes per request. Appended once,
+    // after the static template, with the single LANGUAGE RULE at the end.
+    const dynamicBlock = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PARTNER EMOTIONAL INSIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${partnerAInsight}
+
+${partnerBInsight}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CORE PHILOSOPHY
+COMPUTED COMPATIBILITY SCORE (ground truth — do not recalculate or contradict)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Sambandh Taal-Mel means "Relationship Rhythm & Connection."
-
-This is NOT a compatibility score system.
-This is NOT a Kundli matching system.
-This is NOT a prediction engine.
-This is NOT a marriage success/failure predictor.
-
-Your role: Help users understand emotional rhythm, connection style, alignment patterns, and areas of gentle friction between two people.
-
-STRICT RULES — NEVER:
-- Provide a compatibility score, percentage match, or success rate
-- Predict breakup, divorce, or marriage outcomes
-- Use words like soulmate, destined, fate, or guaranteed
-- Judge a relationship as good/bad, successful/failed, or toxic
-- Use therapist-style language or clinical terminology
-- Mention auspicious/inauspicious timings
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PARTNER DATA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-PARTNER A:
-${partnerAContext}
-
-Key Traits:
-- Moon Sign: ${partnerAData.moonSign || "Not available"}
-- Nakshatra: ${partnerAData.nakshatra || "Not available"}
-- Pada: ${partnerAData.pada || "Not available"}
-
-PARTNER B:
-${partnerBContext}
-
-Key Traits:
-- Moon Sign: ${partnerBData.moonSign || "Not available"}
-- Nakshatra: ${partnerBData.nakshatra || "Not available"}
-- Pada: ${partnerBData.pada || "Not available"}
+${scoreBlock}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 USER CONTEXT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 User Message: "${userMessage}"
 Emotional State: ${emotionType} (intensity: ${emotionIntensity})
-Target Language: ${langName}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RELATIONSHIP ANALYSIS FLOW
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Step 1: Determine emotional rhythm of Partner A
-- Consider: emotional pace, communication style, expression tendencies
-
-Step 2: Determine emotional rhythm of Partner B
-- Consider: emotional pace, communication style, expression tendencies
-
-Step 3: Compare and synthesize:
-- Emotional pace: Are they similar or different?
-- Communication style: How do they express care?
-- Emotional expression: Open or reserved?
-- Reflective tendencies: How do they process?
-
-Step 4: Generate the five fields:
-- rhythm_between: Describe overall relationship rhythm
-- harmony_level: Describe how naturally both rhythms synchronize
-- friction_point: Describe possible areas of difference (gently)
-- timing_alignment: Describe how both rhythms feel in the current phase
-- connection_path: Describe how connection may deepen
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT FORMAT (STRICT JSON)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Return ONLY this exact JSON structure, with all values in ${langName}:
-
-${SAMBANDH_TAALMEL_START}
-{
-  "sambandh_taalmel": {
-    "rhythm_between": "",
-    "harmony_level": "",
-    "friction_point": "",
-    "timing_alignment": "",
-    "connection_path": ""
-  }
-}
-${SAMBANDH_TAALMEL_END}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FIELD GUIDELINES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-rhythm_between (1 sentence):
-Describe overall relationship rhythm.
-Examples: "Warm and expressive rhythm", "Quiet but steady rhythm"
-
-harmony_level (1 sentence):
-Describe how naturally both emotional rhythms synchronize.
-Examples: "Softly aligned", "Gradually synchronizing"
-
-friction_point (1 sentence):
-Describe possible areas of difference gently.
-Examples: "Different communication pace", "Different ways of expressing care"
-NEVER use: conflict, toxic, incompatible, problematic
-
-timing_alignment (1-2 sentences):
-Describe how both rhythms feel in the current phase.
-Examples: "Both seem to be moving at a similar pace."
-
-connection_path (1-2 sentences):
-Describe how the relationship may deepen.
-Examples: "Shared experiences may create stronger understanding."
-Must end with a soft neutral landing.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TONE REQUIREMENTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Apply: Astria India = 85%, Healjai Soft = 15%
-
-Use these phrases naturally:
-- warm flow, gentle rhythm, inner alignment
-- reflective pace, emotional movement, shared understanding
-
-Avoid:
-- destiny, fate, soulmate, guaranteed outcome
-- perfect match, bad match, toxic relationship
-- successful marriage, failed relationship
-
-Sentence rhythm: Short → Medium → Short
-
-Use uncertainty phrases when appropriate:
-- "lagta hai" (seems like)
-- "shayad" (perhaps)
-- "ho sakta hai" (it could be)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LANGUAGE RULE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Always respond in ${langName} only. Never mix languages.
 
 ${baseInstructions}
 
-Now generate the Sambandh Taal-Mel reading.`.trim();
+LANGUAGE RULE: Respond in ${langName} only, including all JSON text values. Never mix languages.
+
+Now generate the Sambandh Taal-Mel reading.`;
+
+    return `${SambandhTaalMelService.SYSTEM_TEMPLATE}\n\n${dynamicBlock}`.trim();
   }
 
   /**
@@ -325,10 +281,26 @@ Now generate the Sambandh Taal-Mel reading.`.trim();
       },
     };
 
+    const scoreHeading = {
+      en: "Compatibility Score",
+      hi: "संगतता स्कोर",
+      th: "คะแนนความเข้ากันได้",
+      es: "Puntuación de Compatibilidad",
+      fr: "Score de Compatibilité",
+      de: "Kompatibilitätswert",
+      pt: "Pontuação de Compatibilidade",
+      ta: "பொருத்த மதிப்பெண்",
+      mr: "सुसंगतता गुण",
+    };
+
     const langHeadings = headings[target] || headings.en;
     const data = sambandhData.sambandh_taalmel;
 
     let formatted = `---\n\n`;
+    if (Number.isFinite(data.compatibility_score)) {
+      const heading = scoreHeading[target] || scoreHeading.en;
+      formatted += `### ${heading}\n${data.compatibility_score}/100\n\n`;
+    }
     formatted += `### ${langHeadings.rhythm}\n${data.rhythm_between || ""}\n\n`;
     formatted += `### ${langHeadings.harmony}\n${data.harmony_level || ""}\n\n`;
     formatted += `### ${langHeadings.friction}\n${data.friction_point || ""}\n\n`;
@@ -364,11 +336,20 @@ Now generate the Sambandh Taal-Mel reading.`.trim();
       }
     }
 
-    // Check for forbidden phrases
+    // compatibility_score, if present, must be a real number in range
+    if (
+      fields.compatibility_score !== undefined &&
+      fields.compatibility_score !== null &&
+      (!Number.isFinite(fields.compatibility_score) ||
+        fields.compatibility_score < 0 ||
+        fields.compatibility_score > 100)
+    ) {
+      return false;
+    }
+
+    // Check for forbidden phrases (fatalistic/absolute language only —
+    // the numeric compatibility_score itself is allowed and expected)
     const forbiddenPhrases = [
-      "compatibility score",
-      "percentage",
-      "match rate",
       "soulmate",
       "destined",
       "fate",
@@ -385,7 +366,10 @@ Now generate the Sambandh Taal-Mel reading.`.trim();
       "bad match",
     ];
 
-    const allText = Object.values(fields).join(" ").toLowerCase();
+    const allText = required
+      .map((field) => fields[field])
+      .join(" ")
+      .toLowerCase();
     for (const phrase of forbiddenPhrases) {
       if (allText.includes(phrase.toLowerCase())) {
         return false;
