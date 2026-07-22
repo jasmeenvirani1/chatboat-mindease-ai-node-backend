@@ -7,13 +7,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { generateGeminiResponse } = require("../helper/geminiService.js");
-const { buildMatescanGroupPrompt } = require("../helper/matescan/matescanPromptBuilder.js");
+const {
+  buildMatescanGroupPrompt,
+} = require("../helper/matescan/matescanPromptBuilder.js");
 const MatescanGroupModel = require("../models/MatescanGroupModel.js");
 
 function langInstruction(lang) {
   const map = {
     th: "LANGUAGE RULE: You MUST respond in Thai only.",
     en: "LANGUAGE RULE: You MUST respond in English only.",
+    in: "LANGUAGE RULE: You MUST respond in Indonesian only.",
   };
   return map[lang] || map.en;
 }
@@ -37,17 +40,24 @@ function normalizeResponse(parsed) {
     validate: typeof payload.validate === "string" ? payload.validate : "",
     team_analysis: Array.isArray(payload.team_analysis)
       ? payload.team_analysis
-          .filter((t) => t && typeof t.pair === "string" && typeof t.insight === "string")
+          .filter(
+            (t) =>
+              t && typeof t.pair === "string" && typeof t.insight === "string",
+          )
           .map((t) => ({ pair: t.pair, insight: t.insight }))
       : [],
     advice: {
-      today: Array.isArray(payload.advice?.today) ? payload.advice.today.filter((s) => typeof s === "string") : [],
+      today: Array.isArray(payload.advice?.today)
+        ? payload.advice.today.filter((s) => typeof s === "string")
+        : [],
       this_week: Array.isArray(payload.advice?.this_week)
         ? payload.advice.this_week.filter((s) => typeof s === "string")
         : [],
     },
-    future_mindset: typeof payload.future_mindset === "string" ? payload.future_mindset : "",
-    ending_note: typeof payload.ending_note === "string" ? payload.ending_note : "",
+    future_mindset:
+      typeof payload.future_mindset === "string" ? payload.future_mindset : "",
+    ending_note:
+      typeof payload.ending_note === "string" ? payload.ending_note : "",
   };
 }
 

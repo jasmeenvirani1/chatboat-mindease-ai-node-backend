@@ -446,7 +446,7 @@ function detectHinglish(text) {
   return false;
 }
 
-function detectLangFromMessage(text = "") {
+function detectLangFromMessage(text = "", strict = false) {
   if (/[\u0E00-\u0E7F]/.test(text)) return "th";
   if (
     !/[ñ¿¡]/.test(text) &&
@@ -482,7 +482,64 @@ function detectLangFromMessage(text = "") {
   }
   if (detectHinglish(text)) return "hinglish";
   if (detectSpanish(text)) return "es";
-  return "en";
+  if (
+    /\b(the|is|are|was|were|you|your|i'm|im|hello|hi|hey|thanks|thank|please|what|why|how|when|where|feel|feeling|today|okay|ok|yes|no|good|bad|happy|sad|love|life|help|want|need|can|could|would|should)\b/i.test(
+      text,
+    )
+  ) {
+    return "en";
+  }
+  return strict ? null : "en";
+}
+
+//region based fallback language detection
+function getDefaultLanguageByOrigin(origin) {
+  switch ((origin || "").toLowerCase()) {
+    case "indonesia":
+      return "in";
+
+    case "korea":
+      return "kr";
+
+    case "japan":
+      return "jp";
+
+    case "mexico":
+      return "es";
+
+    case "brazil":
+      return "pt";
+
+    case "vietnam":
+      return "vi";
+
+    case "philippines":
+      return "en";
+
+    case "india":
+      return "en"; // Change to "hi" if Hindi should be the default
+
+    case "gcc":
+      return "ar";
+
+    case "canada":
+      return "en";
+
+    case "uk":
+      return "en";
+
+    case "malaysia":
+      return "en";
+
+    case "spanish":
+      return "es";
+
+    case "thailand":
+      return "th";
+
+    default:
+      return "en";
+  }
 }
 
 function extractThaiDateTime(text = "") {
@@ -2025,17 +2082,19 @@ const chatController = {
       let subscriptionId;
       let subscriptionStatus;
       let roleId;
+      let userRegion;
       let userMusicMemory = null;
 
       if (userId) {
         const user = await User.findById(userId).select(
-          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId",
+          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId preferredLanguage region",
         );
         if (user) {
           dob0 = user.dob;
           dob_time0 = user.dob_time;
           dob_place0 = user.dob_place;
           userName = user.username;
+          userRegion = user.region;
           subscriptionId = user.subscriptionId;
           subscriptionStatus = user.subscriptionStatus;
           roleId = user.roleId;
@@ -2082,8 +2141,11 @@ const chatController = {
       //   }
       // }
 
-      let target = detectLangFromMessage(userMessage);
-
+      // Fallback chain: detected language
+      let target =
+        detectLangFromMessage(userMessage, true) ||
+        getDefaultLanguageByOrigin(userRegion) ||
+        "en";
       // Translate ALL non-English input to English for internal processing
       let translatedMessage;
       if (target !== "en") {
@@ -5411,7 +5473,7 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
             profileSection;
 
           // ── PATH C: Existing Energy Match / chat flow (no 3-box data) ──
-        } else if (isEnergyMatchSubcategoryID(subCategoryName)) {
+        } else if (!indonesia3BoxSelf && isEnergyMatchSubcategoryID(subCategoryName)) {
           const emPartnersID = parseEnergyMatchPartnersID(
             userMessage,
             dob0,
@@ -5493,7 +5555,7 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
         }
         systemPrompt = appendAstriaDobAndMessageContext(
           systemPrompt,
-          selfDob0,
+          (indonesia3BoxSelf && indonesia3BoxSelf.dob) || selfDob0,
           userMessage,
           translatedMessage !== userMessage ? translatedMessage : null,
         );
@@ -5757,7 +5819,7 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
           content: systemPrompt.trim(),
         },
       ];
-      //console.log("System Prompt:", systemPrompt);
+      console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });

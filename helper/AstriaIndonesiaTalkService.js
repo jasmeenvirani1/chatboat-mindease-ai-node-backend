@@ -413,18 +413,14 @@ function astriaTalkIDv2(message, previousContext, mode) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9) SUBCATEGORY NAME → MODE MAP
-// Expected subcategory names (spec: lane_structure.tabs): "Daily Atmosphere",
-// "Companion Talk", "Love & Family", "Life Coach", "Mu & Culture",
-// "Primbon Light" (each optionally suffixed, e.g. "Companion Talk ID").
-// These keywords only activate inside the isAstriaIndonesiaTalk block.
-// Order matters — more specific keyword sets are checked first so e.g.
-// "Love & Family" doesn't fall into the generic "companion" bucket.
-// ─────────────────────────────────────────────────────────────────────────────
+// ASTRIA TALK ID MODE RESOLVER
 const ID_TALK_MODE_MAP = [
   { keywords: ["primbon"], mode: "primbon" },
   { keywords: ["mu", "culture", "budaya"], mode: "culture" },
-  { keywords: ["coach", "life direction", "work"], mode: "coach" },
+  {
+    keywords: ["coach", "life direction", "work", "panduan hidup"],
+    mode: "coach",
+  },
   {
     keywords: [
       "love & family",
@@ -435,6 +431,9 @@ const ID_TALK_MODE_MAP = [
       "hubungan",
       "toxic",
       "patah hati",
+      "cinta & keluarga",
+      "cinta dan keluarga",
+      "keluarga",
     ],
     mode: "love_family",
   },
@@ -442,7 +441,10 @@ const ID_TALK_MODE_MAP = [
     keywords: ["daily atmosphere", "atmosphere", "cuaca"],
     mode: "daily_atmosphere",
   },
-  { keywords: ["companion", "healing"], mode: "companion" },
+  {
+    keywords: ["companion", "healing", "teman bicara"],
+    mode: "companion",
+  },
 ];
 
 function resolveIDTalkMode(subCategoryName) {
@@ -582,7 +584,7 @@ ${toneSignatureLine}
 
 ${HEALJAI_TALK_OVERLAY_RULES}
 
-LANGUAGE RULE: Reply in ${langName} only. Every single word — including all tone/filler phrases — must be in ${langName}.${isIndonesianTarget ? "" : " Do not insert Indonesian words or phrases."}`.trim();
+LANGUAGE RULE (overrides any conflicting instruction above): Reply in ${langName} only. Every single word — including all tone/filler phrases, and any section headings or labels if used — must be in ${langName}. Never keep a heading or label in English "as shown" if ${langName} is not English. Never mix languages within a single response.${isIndonesianTarget ? "" : " Do not insert Indonesian words or phrases."}`.trim();
 }
 
 module.exports = {

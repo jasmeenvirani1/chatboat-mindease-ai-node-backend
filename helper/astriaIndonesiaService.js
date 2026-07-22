@@ -486,6 +486,20 @@ function resolveSubcategoryBuilder(subCategoryName) {
   return null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED LANGUAGE RULE — appended after dbPrompt in every builder below.
+// dbPrompt (from the SubCategory `prompt` field) may itself instruct fixed
+// English section headings (e.g. "Use section headings exactly as shown");
+// this block is placed AFTER dbPrompt and explicitly overrides that, so
+// headings/labels never stay in English while the body is localized.
+// ─────────────────────────────────────────────────────────────────────────────
+function buildLanguageRule(langName) {
+  return `LANGUAGE RULE (overrides any conflicting instruction above):
+- Reply in ${langName} only. Every word — including all section headings, labels, and titles — must be in ${langName}.
+- Never keep section headings in English "exactly as shown" if ${langName} is not English — translate every heading into ${langName}.
+- Never mix languages within a single response.`;
+}
+
 function buildBig3Prompt({ dbPrompt, langName, birthChart }) {
   const chartBlock = formatChartBlock(birthChart, "big3");
   const chartSection = chartBlock
@@ -498,7 +512,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildSignsPrompt({ dbPrompt, langName, birthChart }) {
@@ -526,7 +540,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildPersonalityPrompt({ dbPrompt, langName, birthChart }) {
@@ -541,7 +555,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildCompatibilityPrompt({ dbPrompt, langName, birthChart, birthChartB }) {
@@ -569,7 +583,7 @@ OUTPUT FORMAT (when 3-Box compatibility data is present above):
 4. Keadaan Hari Ini — how their current states affect their dynamic together
 5. Ringkasan Kecocokan — a gentle, grounded summary with soft guidance
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildPlanetsPrompt({ dbPrompt, langName, birthChart }) {
@@ -591,7 +605,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildHousesPrompt({ dbPrompt, langName, birthChart }) {
@@ -613,7 +627,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildAspectsPrompt({ dbPrompt, langName, birthChart }) {
@@ -644,7 +658,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildDailyFlowPrompt({ dbPrompt, langName, birthChart }) {
@@ -659,7 +673,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildLetterNeverSentPrompt({ dbPrompt, langName, birthChart }) {
@@ -674,7 +688,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 function buildEnergyMatchPrompt({ dbPrompt, langName, birthChart, birthChartB }) {
@@ -694,7 +708,7 @@ ${chartsSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -712,7 +726,7 @@ ${chartSection}
 
 ${dbPrompt}
 
-LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
+${buildLanguageRule(langName)}`.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

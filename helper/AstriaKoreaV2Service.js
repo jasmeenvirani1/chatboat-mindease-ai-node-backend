@@ -872,7 +872,14 @@ const KR_V2_REQUIRED_FIELDS = {
   life_map: ["places", "foods", "vibeMessage"],
   relationship_engine: ["currentVibe", "softAdvice", "tinyAction"],
   daily_companion: ["morningMessage", "dayMessage", "nightMessage"],
-  compatibility_v2: ["score", "tone", "summary", "you", "partner"],
+  compatibility_v2: [
+    "score",
+    "tone",
+    "opening",
+    "bloodTypeReading",
+    "birthdayEnergyReading",
+    "rhythmReading",
+  ],
   // Saju KR v3 only — see resolveKRV2TabKey's "saju" branch below. Not part
   // of the original V2 5-tab set; the stem/branch/element facts themselves
   // come from code (computeSajuV4KR), so only the narrative fields are
@@ -914,8 +921,6 @@ function validateAstriaKoreaV2Data(data, subCategoryName) {
 
   if (tabKey === "compatibility_v2") {
     if (typeof data.score !== "number") return false;
-    if (!data.you?.energy || !data.you?.style) return false;
-    if (!data.partner?.energy || !data.partner?.style) return false;
   }
 
   return true;

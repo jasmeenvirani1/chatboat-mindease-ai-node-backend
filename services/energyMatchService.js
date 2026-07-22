@@ -7,13 +7,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { generateGeminiResponse } = require("../helper/geminiService.js");
-const { buildEnergyMatchPrompt } = require("../helper/energyMatch/energyMatchPromptBuilder.js");
+const {
+  buildEnergyMatchPrompt,
+} = require("../helper/energyMatch/energyMatchPromptBuilder.js");
 const EnergyMatchV2Model = require("../models/EnergyMatchV2Model.js");
 
 function langInstruction(lang) {
   const map = {
     th: "LANGUAGE RULE: You MUST respond in Thai only.",
     en: "LANGUAGE RULE: You MUST respond in English only.",
+    in: "LANGUAGE RULE: You MUST respond in Indonesian only.",
   };
   return map[lang] || map.en;
 }
@@ -35,15 +38,21 @@ function normalizeResponse(parsed) {
 
   return {
     validate: typeof payload.validate === "string" ? payload.validate : "",
-    analysis: Array.isArray(payload.analysis) ? payload.analysis.filter((s) => typeof s === "string") : [],
+    analysis: Array.isArray(payload.analysis)
+      ? payload.analysis.filter((s) => typeof s === "string")
+      : [],
     advice: {
-      today: Array.isArray(payload.advice?.today) ? payload.advice.today.filter((s) => typeof s === "string") : [],
+      today: Array.isArray(payload.advice?.today)
+        ? payload.advice.today.filter((s) => typeof s === "string")
+        : [],
       this_week: Array.isArray(payload.advice?.this_week)
         ? payload.advice.this_week.filter((s) => typeof s === "string")
         : [],
     },
-    future_mindset: typeof payload.future_mindset === "string" ? payload.future_mindset : "",
-    ending_note: typeof payload.ending_note === "string" ? payload.ending_note : "",
+    future_mindset:
+      typeof payload.future_mindset === "string" ? payload.future_mindset : "",
+    ending_note:
+      typeof payload.ending_note === "string" ? payload.ending_note : "",
   };
 }
 
@@ -103,4 +112,8 @@ async function getEnergyMatchByUser(userId, limit = 20) {
     .lean();
 }
 
-module.exports = { generateEnergyMatch, getEnergyMatchById, getEnergyMatchByUser };
+module.exports = {
+  generateEnergyMatch,
+  getEnergyMatchById,
+  getEnergyMatchByUser,
+};

@@ -578,6 +578,7 @@ const LANGUAGE_NAME_MAP = {
   ru: "Russian",
   vi: "Vietnamese",
   id: "Indonesian",
+  in: "Indonesian",
 };
 
 // ═════════════════════════════════════════════════════════════════════════

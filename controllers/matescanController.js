@@ -20,22 +20,29 @@ const scan = async (req, res) => {
   try {
     const { valid, errors, sanitized } = validateMatescanGroupInput(req.body);
     if (!valid) {
-      return res.status(400).json({ success: false, message: "Validation failed", errors });
+      return res
+        .status(400)
+        .json({ success: false, message: "Validation failed", errors });
     }
 
     const userId = req.body?.userId || null;
 
     let lang = "en";
     if (userId) {
-      const user = await UserModel.findById(userId).select("preferredLanguage").lean();
-      if (user?.preferredLanguage) lang = user.preferredLanguage;
+      const user = await UserModel.findById(userId)
+        .select("preferredLanguage region")
+        .lean();
+      if (user?.region == "indonesia") lang = "in";
     }
 
     const result = await generateMatescanGroup(sanitized, userId, lang);
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     console.error("[matescanController] scan error:", err?.message || err);
-    return res.status(500).json({ success: false, message: "Failed to run Matescan Group scan. Please try again." });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to run Matescan Group scan. Please try again.",
+    });
   }
 };
 
@@ -44,12 +51,16 @@ const getById = async (req, res) => {
   try {
     const { id } = req.params;
     if (!id || !OBJECT_ID_RE.test(id)) {
-      return res.status(400).json({ success: false, message: "Invalid scan ID" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid scan ID" });
     }
 
     const record = await getMatescanById(id);
     if (!record) {
-      return res.status(404).json({ success: false, message: "Scan not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Scan not found" });
     }
 
     return res.status(200).json({ success: true, record });
@@ -64,7 +75,9 @@ const getByUser = async (req, res) => {
   try {
     const { userId } = req.params;
     if (!userId || !OBJECT_ID_RE.test(userId)) {
-      return res.status(400).json({ success: false, message: "Invalid user ID" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid user ID" });
     }
 
     const records = await getMatescanByUser(userId);
