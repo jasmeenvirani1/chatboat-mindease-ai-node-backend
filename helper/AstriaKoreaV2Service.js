@@ -861,6 +861,15 @@ const KR_V2_REQUIRED_FIELDS = {
   saju: ["overview", "pillarReading", "fiveElementsReading", "yinYangReading"],
 };
 
+// V3 Daily Flow's nested-object fields — each must be a non-empty string at
+// every sub-key, so a partial model response (e.g. moodMessage.reflection
+// missing) fails validation and falls back to plain text instead of
+// rendering an empty bullet on the card.
+const KR_V3_DAILY_FLOW_NESTED_FIELDS = {
+  energyMessage: ["morning", "midday", "evening"],
+  moodMessage: ["feeling", "reflection", "suggestion"],
+};
+
 // isV3: when true, "daily flow" resolves to the V3-only "daily_flow_v3" key
 // instead of V2's "daily_flow_v2" — V3's Daily Flow moved to a nested
 // energyMessage/moodMessage schema (see KrV3_Prompt.txt) while V2's Daily
@@ -896,6 +905,20 @@ function validateAstriaKoreaV2Data(data, subCategoryName, isV3 = false) {
     if (value === undefined || value === null) return false;
     if (typeof value === "string" && value.trim().length === 0) return false;
     if (Array.isArray(value) && value.length === 0) return false;
+  }
+
+  if (tabKey === "daily_flow_v3") {
+    for (const [field, subKeys] of Object.entries(
+      KR_V3_DAILY_FLOW_NESTED_FIELDS,
+    )) {
+      const obj = data[field];
+      if (!obj || typeof obj !== "object") return false;
+      for (const subKey of subKeys) {
+        const subValue = obj[subKey];
+        if (typeof subValue !== "string" || subValue.trim().length === 0)
+          return false;
+      }
+    }
   }
 
   if (tabKey === "compatibility_v2") {
@@ -946,8 +969,8 @@ function deriveCompatibilityV2DisplaySections(data) {
   };
 }
 
-function formatAstriaKoreaV2Response(data, subCategoryName) {
-  const tabKey = resolveKRV2TabKey(subCategoryName);
+function formatAstriaKoreaV2Response(data, subCategoryName, isV3 = false) {
+  const tabKey = resolveKRV2TabKey(subCategoryName, isV3);
   if (!tabKey || !data) return "";
 
   switch (tabKey) {
@@ -955,6 +978,27 @@ function formatAstriaKoreaV2Response(data, subCategoryName) {
       return [data.energyMessage, data.moodMessage, data.softCheckIn]
         .filter(Boolean)
         .join("\n\n");
+    case "daily_flow_v3": {
+      const energy = data.energyMessage || {};
+      const mood = data.moodMessage || {};
+      return [
+        [
+          "에너지 흐름",
+          `- 아침: ${energy.morning || ""}`,
+          `- 낮: ${energy.midday || ""}`,
+          `- 저녁: ${energy.evening || ""}`,
+        ].join("\n"),
+        [
+          "기분의 흐름",
+          `- 기분: ${mood.feeling || ""}`,
+          `- 성찰: ${mood.reflection || ""}`,
+          `- 제안: ${mood.suggestion || ""}`,
+        ].join("\n"),
+        data.softCheckIn ? `오늘의 마음 체크인\n- ${data.softCheckIn}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
     case "life_map":
       return [
         Array.isArray(data.places) ? data.places.join("\n") : "",

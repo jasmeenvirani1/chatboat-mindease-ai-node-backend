@@ -5473,7 +5473,10 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
             profileSection;
 
           // ── PATH C: Existing Energy Match / chat flow (no 3-box data) ──
-        } else if (!indonesia3BoxSelf && isEnergyMatchSubcategoryID(subCategoryName)) {
+        } else if (
+          !indonesia3BoxSelf &&
+          isEnergyMatchSubcategoryID(subCategoryName)
+        ) {
           const emPartnersID = parseEnergyMatchPartnersID(
             userMessage,
             dob0,
@@ -5819,7 +5822,7 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System Prompt:", systemPrompt);
+      //console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -6320,12 +6323,20 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
               if (res.flush) res.flush();
               await new Promise((r) => setTimeout(r, 30));
             }
-          } else if (isAstriaKoreaV3 && resolveKRV2TabKey(subCategoryName)) {
-            // V3's Daily Flow / Life Map / Relationship Engine / Compatibility /
-            // Daily Companion tabs reuse V2's DEFAULT_KR_V2_SUBCATEGORY_PROMPTS
+          } else if (
+            isAstriaKoreaV3 &&
+            resolveKRV2TabKey(subCategoryName, true)
+          ) {
+            // V3's Life Map / Relationship Engine / Compatibility / Daily
+            // Companion tabs reuse V2's DEFAULT_KR_V2_SUBCATEGORY_PROMPTS
             // content verbatim, so they emit the same sentinel-wrapped JSON and
             // need the same extraction (Saju + Companion Talk tabs are excluded
-            // by resolveKRV2TabKey and fall through to plain-text handling below).
+            // by resolveKRV2TabKey and fall through to plain-text handling
+            // below). Daily Flow is V3-only content (KrV3_Prompt.txt) with its
+            // own nested-object schema — the `true` isV3 flag on every
+            // resolveKRV2TabKey/validateAstriaKoreaV2Data/formatAstriaKoreaV2Response
+            // call below routes it to "daily_flow_v3" instead of colliding
+            // with V2's flat-string "daily_flow_v2".
             const krv3Stream = await generateGeminiResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of krv3Stream) {
@@ -6339,7 +6350,11 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
 
             if (
               astriaKoreaV3Data &&
-              validateAstriaKoreaV2Data(astriaKoreaV3Data, subCategoryName)
+              validateAstriaKoreaV2Data(
+                astriaKoreaV3Data,
+                subCategoryName,
+                true,
+              )
             ) {
               if (isCompatibilitySubcategoryKRV3(subCategoryName)) {
                 astriaKoreaV3Data = {
@@ -6365,6 +6380,7 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
               finalAiResponse = formatAstriaKoreaV2Response(
                 astriaKoreaV3Data,
                 subCategoryName,
+                true,
               );
             } else {
               astriaKoreaV3Data = null;
@@ -7094,14 +7110,14 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
       if (
         isAstriaKoreaV3 &&
         !compatibilityMissingQuestionKRV3 &&
-        resolveKRV2TabKey(subCategoryName)
+        resolveKRV2TabKey(subCategoryName, true)
       ) {
         const rawResponse = completion?.trim() || "No response";
         astriaKoreaV3Data = extractAstriaKoreaV2Data(rawResponse);
 
         if (
           astriaKoreaV3Data &&
-          validateAstriaKoreaV2Data(astriaKoreaV3Data, subCategoryName)
+          validateAstriaKoreaV2Data(astriaKoreaV3Data, subCategoryName, true)
         ) {
           if (isCompatibilitySubcategoryKRV3(subCategoryName)) {
             astriaKoreaV3Data = {
@@ -7123,6 +7139,7 @@ Keadaan Saat Ini: ${indonesia3BoxSelf.moment_state || "-"}
           finalAiResponse = formatAstriaKoreaV2Response(
             astriaKoreaV3Data,
             subCategoryName,
+            true,
           );
         } else {
           astriaKoreaV3Data = null;

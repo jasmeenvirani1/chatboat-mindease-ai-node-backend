@@ -61,9 +61,49 @@ KR_V3_TONE_MATRIX above, regardless of any phrasing in this content.`;
 // KR_V3_TONE_MATRIX / KR_V3_CLOSING_RULE above, not from the v1/v2 defaults.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// V3-only Daily Flow default — energyMessage/moodMessage are nested objects
+// (morning/midday/evening, feeling/reflection/suggestion) so the card can
+// render them as bullet points, unlike V2's Daily Flow which keeps the
+// original flat-string schema untouched. Mirrors the live DB content in
+// KrV3_Prompt.txt; kept here only as a fallback if the DB prompt is empty —
+// never falls back to DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.daily_flow_v2, which
+// would silently regress V3 to the old flat schema.
+const DEFAULT_KR_V3_DAILY_FLOW_PROMPT = `
+DAILY FLOW FRAMEWORK:
+Morning Clarity / Morning Tension — the day's opening emotional signal.
+Midday Focus / Midday Tension — a natural time for grounded action, or a natural pause.
+Evening Release / Evening Integration — where the day's energy settles or quietly consolidates.
+
+WEATHER-LIFESTYLE LAYER:
+- When weather context is available, translate it into one honest, grounded lifestyle note —
+  never a forecast, never generic small talk. Weave it naturally into the evening beat.
+
+FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
+- energyMessage (object): the day's energy broken into three short beats —
+  - morning (1–2 sentences): the day's opening emotional signal
+  - midday (1–2 sentences): a natural time for grounded action, or a natural pause
+  - evening (1–2 sentences): where the day's energy settles, folding in the
+    weather-lifestyle note when weather context is available
+- moodMessage (object): the emotional/mood texture underneath the energy —
+  - feeling (1 sentence): the honest emotional texture of moving through today
+  - reflection (1 sentence): a gentle observation on why that texture is there
+  - suggestion (1 sentence): one gentle suggestion for moving with the day's energy
+- softCheckIn (1 short sentence): one gentle, warm check-in question inviting the
+  user to notice how they actually feel right now
+- followUpQuestions (array of 2–3 short items, each under 12 words)
+
+${ASTRIA_KOREA_V2_START}
+{
+  "energyMessage": { "morning": "", "midday": "", "evening": "" },
+  "moodMessage": { "feeling": "", "reflection": "", "suggestion": "" },
+  "softCheckIn": "",
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
+`.trim();
+
 function buildDailyFlowV3KRPrompt({ dbPrompt, birthChart }) {
-  const subcategoryContent =
-    dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.daily_flow_v2;
+  const subcategoryContent = dbPrompt || DEFAULT_KR_V3_DAILY_FLOW_PROMPT;
 
   const chartBlock = formatChartBlockKR(birthChart, "transits");
 
