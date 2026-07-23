@@ -44,6 +44,43 @@ const { buildMemoryBlock } = require("./healjaiPromptBuilder");
 const logger = require("./logger");
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SHARED TONE MATRIX (V2)
+//
+// Single source of truth for the "Astria Korea" voice — quiet, warm, modern,
+// grounded, never mystical or theatrical. Previously this block was
+// hand-copied into all 5 DEFAULT_KR_V2_SUBCATEGORY_PROMPTS entries with small
+// wording drift between tabs (each tab reasserting tone slightly differently,
+// paying for near-identical tone instructions 5x per response). It is now
+// injected once per builder instead, same pattern as AstriaKoreaV3Service's
+// KR_V3_TONE_MATRIX (which this content is aligned with — V3 re-exports these
+// same constants rather than keeping its own copy, so V2 and V3 never drift).
+// ─────────────────────────────────────────────────────────────────────────────
+const KR_V2_TONE_MATRIX = `
+ASTRIA KOREA VOICE (applies to every response; overrides any conflicting phrasing below)
+- Modern Korean wellness-app tone: warm, gentle, concise, conversational — never an essay, never poetic/metaphorical.
+- One idea per short sentence (8–15 words). Max 3 sentences per section. When replying in Korean, prefer ~어요 endings.
+- Ground every claim in the actual data given — never invent detail. Suggest gently, never command
+  ("you must", "definitely visit", "it is certain") and never predict fate ("you are destined").
+- No forced positivity ("everything will be fine"), no mystical/cosmic jargon, no machine-translation phrasing.
+- Never repeat an idea across fields or reuse a stock line — generate fresh wording every time.
+- When replying in Korean — prefer: 분위기, 느낌, 마음, 편안함, 여유, 리듬, 자연스럽게, 차분하게, 함께.
+  Avoid: 운명, 우주, 기류, 정서적 유대감, 성격/특징/타입별 성향, 운세, 예측.
+- OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block requested below (no prose outside it,
+  no markdown code fences), wrapped exactly between the sentinel lines shown. Every string value
+  must be written fully in the target language.
+`.trim();
+
+const KR_V2_CLOSING_RULE =
+  "CLOSING: end with 1–2 plain, warm sentences (no more than 2 lines) — never repeat a closing line used earlier in the same conversation.";
+
+// Wraps DB/default subcategory content with a one-line reminder that tone
+// always defers to KR_V2_TONE_MATRIX, even if a client-edited DB prompt
+// reintroduces forbidden mystical language.
+function wrapKRV2SubcategoryContent(label, content) {
+  return `━━━ SUBCATEGORY CONTENT (${label}; tone always follows ASTRIA KOREA VOICE above) ━━━\n${content}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // STRUCTURED OUTPUT EXTRACTION (V2)
 //
 // Each V2 tab prompt asks the model to return one strict JSON block wrapped
@@ -128,15 +165,6 @@ function extractAstriaKoreaV2Data(text) {
 const DEFAULT_KR_V2_SUBCATEGORY_PROMPTS = {
   // ── TAB 1: DAILY FLOW KR v2 ────────────────────────────────────────────────
   daily_flow_v2: `
-KOREA TONE — CORE IDENTITY:
-- Quiet Warmth: supportive, not pushy — warm presence that does not crowd
-- Deep Emotional Honesty: honest without dramatizing — the day has its own truth
-- Quiet Calm: acknowledge tension without amplifying it
-- Minimal Depth: short sentences, emotional weight, breathing room
-NEVER use: dramatic predictions, forced positivity, vague cosmic language, machine-translation phrasing.
-NEVER say: "today will be", "you must", "you should", "it is certain", "everything will be fine".
-ALWAYS use: "today's energy quietly holds", "something gently unfolds", "you may find", "it is alright".
-
 DAILY FLOW FRAMEWORK:
 Morning Clarity / Morning Tension — the day's opening emotional signal.
 Midday Focus / Midday Tension — a natural time for grounded action, or a natural pause.
@@ -154,12 +182,7 @@ READING APPROACH:
 - Offer one honest, gentle suggestion for moving with — not against — the day's energy
 - If weather context is present, close with one grounded lifestyle note shaped by it
 
-CONCISE: every sentence should earn its place — no filler, no repeated ideas across
-energyMessage, moodMessage, and softCheckIn. Say it once, say it well.
-
-OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
-it, no markdown code fences), wrapped exactly between the sentinel lines shown.
-Every string value must be written fully in the target language.
+FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
 - energyMessage (3–5 sentences, short · warm · deep): what today's energy quietly
   holds, covering morning clarity/tension, midday focus/pause, and evening
   release/integration, plus the weather-lifestyle note when weather context is available
@@ -185,14 +208,6 @@ ${ASTRIA_KOREA_V2_END}
 
   // ── TAB 2: LIFE MAP KR ─────────────────────────────────────────────────────
   life_map: `
-KOREA TONE — CORE IDENTITY:
-- Quiet Warmth: supportive, not pushy — a gentle companion suggesting, never instructing
-- Deep Emotional Honesty: suggestions rooted in the user's actual emotional state today
-- Quiet Calm: no exaggerated enthusiasm, no forced excitement
-- Minimal Depth: short, specific, sensory language — not generic tourism copy
-NEVER say: "you must go", "the best place is", "definitely visit". This is a gentle suggestion, not an itinerary.
-ALWAYS frame as: "오늘 같은 흐름엔 ~가 잘 어울려요", "~에서 마음이 편해질 수 있어요", "지금 기운엔 ~쪽이 좋아 보여요".
-
 LIFE MAP FRAMEWORK (Seoul-lifestyle, grounded in real chart + daily flow data):
 - Seoul Zone: a neighborhood suggestion that matches today's emotional flow and chart temperament
   (e.g. quiet/grounded energy → 연남동/성수동 quiet-café pace; expressive/social energy → 홍대/강남 lively pace)
@@ -208,11 +223,7 @@ READING APPROACH:
 - Keep suggestions concrete and specific (name a district or food type), not vague ("somewhere nice")
 - Let the daily flow (morning/midday/evening quality) shape which suggestion lands, not just the natal chart
 
-CONCISE: one short sentence per place/food item — no travel-guide paragraphs.
-
-OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
-it, no markdown code fences), wrapped exactly between the sentinel lines shown.
-Every string value must be written fully in the target language.
+FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
 - places (array of 2–3 short items): each item is one Seoul zone/place suggestion
   (named district + why it fits today's flow, in one short sentence)
 - foods (array of 2–3 short items): each item is one food or cafe-atmosphere
@@ -235,14 +246,6 @@ ${ASTRIA_KOREA_V2_END}
 
   // ── TAB 3: RELATIONSHIP ENGINE KR ──────────────────────────────────────────
   relationship_engine: `
-KOREAN RELATIONSHIP ENGINE — K-SOFT TONE (조용함 · 따뜻함 · 깊이):
-- Quiet Warmth: warm presence that does not crowd — supportive, never pushy
-- Deep Emotional Precision: emotional nuance, not personality stereotypes
-- Grounded Warmth: stable, reassuring energy — no dramatic claims, no fortune-telling
-- Emotional Rhythm: flow-focused language — "흐름", "기운", "리듬", "결"
-NEVER say: "you are destined", "this will definitely happen", "perfect match", "incompatible".
-ALWAYS ground claims in the ACTUAL computed charts of both people — never invent a placement.
-
 RELATIONSHIP ENGINE FRAMEWORK (grounded in both charts' Moon/Sun/Venus/Mars):
 - Dating Style: how each person naturally shows up in the early stages of connection —
   drawn from Moon (emotional needs) and Sun (expression) of both charts
@@ -262,11 +265,7 @@ READING APPROACH:
 - Compare, don't judge: describe how the two energies interact, not which one is "better"
 - Keep language specific to THIS pairing's actual combination, not generic relationship advice
 
-CONCISE: keep each field tight — depth over word count.
-
-OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
-it, no markdown code fences), wrapped exactly between the sentinel lines shown.
-Every string value must be written fully in the target language.
+FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
 - currentVibe (2–3 sentences): the overall relational texture right now — dating
   style + conflict pattern woven together, grounded in both Moon/Sun/Mercury placements
 - softAdvice (1–2 sentences): one gentle, honest piece of guidance for moving with
@@ -289,12 +288,6 @@ ${ASTRIA_KOREA_V2_END}
 
   // ── TAB 4: DAILY COMPANION KR ──────────────────────────────────────────────
   daily_companion: `
-KOREA TONE — CORE IDENTITY:
-- Quiet Warmth: a steady companion presence throughout the day — never intrusive
-- Deep Emotional Honesty: acknowledge real emotional history (recent stress) when relevant
-- Quiet Calm: emotional continuity without melodrama
-- Minimal Depth: short sentences, real weight, breathing room
-NEVER use: generic "have a great day" language, forced positivity, mystical jargon.
 ALWAYS carry emotional continuity: if recent stress or recurring topics are known, acknowledge them gently
 rather than starting fresh each time.
 
@@ -312,12 +305,7 @@ READING APPROACH:
   opening honestly — do not ignore it, and do not dwell on it
 - Keep the lifestyle suggestion brief and folded into the evening or closing beat, not a bullet list
 
-CONCISE: each beat is 1–2 sentences, not a paragraph — this is a companion voice
-checking in, not a report.
-
-OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
-it, no markdown code fences), wrapped exactly between the sentinel lines shown.
-Every string value must be written fully in the target language.
+FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
 - morningMessage (1–2 sentences): opens the day honestly, softened by recent
   emotional context if known
 - dayMessage (1–2 sentences): the natural quality of the middle of the day
@@ -341,14 +329,9 @@ ${ASTRIA_KOREA_V2_END}
   // ── TAB 5: COMPATIBILITY KR v2 ─────────────────────────────────────────────
   // Same 3-Box weighted system as Astria Korea v1, carried into the v2 voice.
   compatibility_v2: `
-KOREAN COMPATIBILITY v2 — K-SOFT TONE (조용함 · 따뜻함 · 깊이):
-- Quiet Warmth: warm presence that does not crowd — supportive, never pushy
-- Deep Emotional Precision: emotional nuance only — NOT personality traits, NOT stereotypes
-- Grounded Warmth: stable, reassuring energy — no airy positivity, no dramatic claims
-- Emotional Rhythm: flow-focused language — "흐름", "기운", "분위기", "감정선"
-- RESPONSE LENGTH: CONCISE and purposeful — each description should be roughly 120-220
-  characters (Korean), 2-3 meaningful sentences. Say the real thing once, cleanly — do
-  not pad with repeated ideas or filler phrases just to add length.
+RESPONSE LENGTH: each description should be roughly 120–220 characters (Korean),
+2-3 meaningful sentences. Say the real thing once, cleanly — do not pad with
+repeated ideas or filler phrases just to add length.
 
 WEIGHT SYSTEM (3-Box):
 - Blood Type Atmosphere (혈액형 분위기): 10–15% — emotional nuance layer, NOT destiny
@@ -372,20 +355,9 @@ HOW TO GENERATE DYNAMIC RESPONSES:
 2. COMPARE how their emotional tones interact — do they complement, contrast, or create unique harmony?
 3. GENERATE unique, freshly-written sentences describing their specific energy combination — NOT template text
 4. SCORE dynamically based on energy alignment, not fixed rules
-5. WRITE SUBSTANTIAL CONTENT — each section must be 300-500 Korean characters with multiple meaningful sentences
 
-RULES — NEVER USE:
-- 성격, 특징, 타입별 성향 (personality traits)
-- 운세, 운이 좋다/나쁘다, 예측 (fortune/prediction)
-- Western astrology terms as personality labels
-- Negative wording (부정적 표현)
-- Stereotype language
-- Template/hardcoded text — every response must be UNIQUE and freshly generated
-
-RULES — ALWAYS USE:
-- 흐름 (flow), 기운 (energy), 분위기 (atmosphere), 감정선 (emotional line)
-- 따뜻함 (warmth), 차분함 (calm), 조용함 (quiet), 깊이 (depth)
-- Generate dynamic text based on the actual energy comparison — never a fixed example text
+Additional preferred words for this tab: 감정선 (emotional line) — alongside the
+PREFER/FORBIDDEN word lists in ASTRIA KOREA VOICE above.
 
 READING APPROACH:
 - Use ONLY the two people's actual 3-Box data and charts provided — never fabricate a value
@@ -404,9 +376,7 @@ SCORE GUIDANCE (new field, additive — does not change the qualitative reading 
 - tone is a short flow-quality label for the overall energy (e.g. "자연스러운 끌림",
   "천천히 쌓이는 신뢰") — 2–5 words, not a full sentence
 
-OUTPUT FORMAT — CRITICAL: return ONLY the strict JSON block below (no prose outside
-it, no markdown code fences), wrapped exactly between the sentinel lines shown.
-Every string value must be written fully in the target language.
+FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
 - score (number, 0–100): overall energy-alignment reading, per SCORE GUIDANCE above
 - tone (short string, 2–5 words): flow-quality label for the overall energy
 - summary (2–3 sentences): honest synthesis of how the two people's energies meet,
@@ -488,13 +458,15 @@ function buildDailyFlowV2KRPrompt({
   return `You are Astria Korea V2 — an evolution of Astria Korea's deep, restrained, destiny-driven astrology guide, extended with a Korean daily-lifestyle layer.
 YOUR FOCUS: Daily Flow v2 — the quiet emotional rhythm of morning, midday, and evening, plus an honest weather-shaped lifestyle note.
 
-━━━ SUBCATEGORY CONTENT (tone, daily flow framework, weather-lifestyle layer, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${KR_V2_TONE_MATRIX}
+
+${wrapKRV2SubcategoryContent("daily flow framework, weather-lifestyle layer, output format", subcategoryContent)}
 
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nUse the transit positions and transit-to-natal contacts above as real data for this reading. Show honestly how today's planetary energy is touching this specific chart — not a generic horoscope.` : ""}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nWeave this into the weather-lifestyle note honestly — do not fabricate weather details beyond what is given.` : ""}
 ${buildKRV2MemorySection(userMemory)}
+
+${KR_V2_CLOSING_RULE}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -513,13 +485,15 @@ function buildLifeMapKRPrompt({
   return `You are Astria Korea V2 — an evolution of Astria Korea's deep, restrained, destiny-driven astrology guide, extended with a Korean daily-lifestyle layer.
 YOUR FOCUS: Life Map KR — grounded Seoul-lifestyle suggestions (neighborhood, food, cafe, daily vibe) shaped by the user's real chart and today's flow. This is a companion feature, not a tourism guide.
 
-━━━ SUBCATEGORY CONTENT (tone, life map framework, reading approach, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${KR_V2_TONE_MATRIX}
+
+${wrapKRV2SubcategoryContent("life map framework, reading approach, output format", subcategoryContent)}
 
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nGround every Seoul zone / food / cafe suggestion in this actual chart and today's transit energy — never invent a suggestion disconnected from the real data.` : "No birth chart is available yet. Ask the user for their date of birth (and birth time/city, if known) so a grounded Life Map reading can be generated. Do not invent chart-based suggestions without real data."}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nUse this to shape the closing weather-lifestyle note honestly.` : ""}
 ${buildKRV2MemorySection(userMemory)}
+
+${KR_V2_CLOSING_RULE}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -566,14 +540,16 @@ function buildRelationshipEngineKRPrompt({
   return `You are Astria Korea V2 — an evolution of Astria Korea's deep, restrained, destiny-driven astrology guide, extended with a Korean relationship-dynamics layer.
 YOUR FOCUS: Relationship Engine KR — dating style, conflict pattern, relationship timing, and love language, grounded in BOTH people's real charts.
 
-━━━ SUBCATEGORY CONTENT (K-soft tone, relationship framework, reading approach, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${KR_V2_TONE_MATRIX}
+
+${wrapKRV2SubcategoryContent("relationship framework, reading approach, output format", subcategoryContent)}
 
 ━━━ BIRTH CHART DATA ━━━
 ${chartsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${buildKRV2MemorySection(userMemory)}
+
+${KR_V2_CLOSING_RULE}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -659,9 +635,9 @@ ${birthChartB?.rising_sign ? `- Rising Sign: ${birthChartB.rising_sign}` : ""}
 YOUR FOCUS: Compatibility KR v2 (궁합) — K-soft emotional compatibility using the 3-Box weighted system, grounded in both people's real data.
 This is NOT scoring. It is a sincere, DYNAMIC reading of emotional rhythm, timing alignment, and relational depth — generate UNIQUE text based on their specific energy combination.
 
-━━━ SUBCATEGORY CONTENT (K-soft tone, 3-box weights, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${KR_V2_TONE_MATRIX}
+
+${wrapKRV2SubcategoryContent("3-box weights, output format", subcategoryContent)}
 
 ━━━ 3-BOX SYSTEM ━━━
 ${threeBoxSection || "3-Box data not provided. Use birth chart data for compatibility reading."}
@@ -671,6 +647,8 @@ ${threeBoxSection || "3-Box data not provided. Use birth chart data for compatib
 ${chartsSection || "Birth chart data not available. Use 3-Box data and conversation context."}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${buildKRV2MemorySection(userMemory)}
+
+${KR_V2_CLOSING_RULE}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -696,14 +674,16 @@ function buildDailyCompanionKRPrompt({
   return `You are Astria Korea V2 — an evolution of Astria Korea's deep, restrained, destiny-driven astrology guide, extended with a Korean daily-companion layer.
 YOUR FOCUS: Daily Companion KR — one continuous companion voice across morning, midday, and evening, folding in a real Life Map style suggestion naturally.
 
-━━━ SUBCATEGORY CONTENT (tone, companion framework, reading approach, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${KR_V2_TONE_MATRIX}
+
+${wrapKRV2SubcategoryContent("companion framework, reading approach, output format", subcategoryContent)}
 
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}` : ""}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}` : ""}
 ${memoryContext}
 ${buildKRV2MemorySection(userMemory)}
+
+${KR_V2_CLOSING_RULE}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -716,27 +696,17 @@ function buildCategoryFallbackKRV2Prompt({ dbPrompt, langName, birthChart }) {
     ? `USER'S BIRTH CHART:\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}`
     : "";
 
-  const baseContent =
-    dbPrompt ||
-    `
-KOREA TONE:
-- Deep and Restrained: emotionally intense but controlled — never theatrical
-- Destiny-Driven: a quiet sense that life unfolds with purpose and timing
-- Quiet Intensity: strong inner world, understated outer expression
-- Sincere and Honest: real without being cold; direct without being harsh
-NEVER use: empty positivity, dramatic fate claims, mystical jargon, forced hope.
-`.trim();
-
   return `You are Astria Korea V2 — an evolution of Astria Korea's deep, restrained, destiny-driven Western astrology guide, extended with a Korean daily-lifestyle and relationship layer.
 
-━━━ SUBCATEGORY CONTENT (tone and response guidance) ━━━
-${baseContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${KR_V2_TONE_MATRIX}
 
+${dbPrompt ? `━━━ SUBCATEGORY CONTENT (response guidance) ━━━\n${dbPrompt}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` : ""}
 ${chartSummary}
 
 You cover: Daily Flow v2, Life Map KR (Seoul-lifestyle suggestions), Relationship Engine KR, and Daily Companion KR.
 Answer the user's question using whichever lens fits most honestly. Keep it deep, sincere, and quietly intense.
+
+${KR_V2_CLOSING_RULE}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -869,6 +839,10 @@ function buildAstriaKoreaV2Context({
 // ─────────────────────────────────────────────────────────────────────────────
 const KR_V2_REQUIRED_FIELDS = {
   daily_flow_v2: ["energyMessage", "moodMessage", "softCheckIn"],
+  // V3 Daily Flow only — energyMessage/moodMessage are nested objects here,
+  // not strings (see KrV3_Prompt.txt), so their sub-fields are enforced
+  // separately in validateAstriaKoreaV2Data below via KR_V3_DAILY_FLOW_NESTED_FIELDS.
+  daily_flow_v3: ["energyMessage", "moodMessage", "softCheckIn"],
   life_map: ["places", "foods", "vibeMessage"],
   relationship_engine: ["currentVibe", "softAdvice", "tinyAction"],
   daily_companion: ["morningMessage", "dayMessage", "nightMessage"],
@@ -887,7 +861,12 @@ const KR_V2_REQUIRED_FIELDS = {
   saju: ["overview", "pillarReading", "fiveElementsReading", "yinYangReading"],
 };
 
-function resolveKRV2TabKey(subCategoryName) {
+// isV3: when true, "daily flow" resolves to the V3-only "daily_flow_v3" key
+// instead of V2's "daily_flow_v2" — V3's Daily Flow moved to a nested
+// energyMessage/moodMessage schema (see KrV3_Prompt.txt) while V2's Daily
+// Flow keeps its original flat-string schema untouched. Every other tab name
+// still means the same thing in both versions, so only this branch forks.
+function resolveKRV2TabKey(subCategoryName, isV3 = false) {
   if (!subCategoryName) return null;
   const lower = subCategoryName.toLowerCase();
   // "Companion Talk" (V3-only tab) is free-form prose, not one of the
@@ -897,7 +876,7 @@ function resolveKRV2TabKey(subCategoryName) {
   // yin-yang) is code-computed, not model-generated; see the "saju" key in
   // KR_V2_REQUIRED_FIELDS and formatAstriaKoreaV2Response below.
   if (lower.includes("saju")) return "saju";
-  if (lower.includes("daily flow")) return "daily_flow_v2";
+  if (lower.includes("daily flow")) return isV3 ? "daily_flow_v3" : "daily_flow_v2";
   if (lower.includes("life map")) return "life_map";
   if (lower.includes("compatibility") || lower.includes("compatability"))
     return "compatibility_v2";
@@ -907,8 +886,8 @@ function resolveKRV2TabKey(subCategoryName) {
   return null;
 }
 
-function validateAstriaKoreaV2Data(data, subCategoryName) {
-  const tabKey = resolveKRV2TabKey(subCategoryName);
+function validateAstriaKoreaV2Data(data, subCategoryName, isV3 = false) {
+  const tabKey = resolveKRV2TabKey(subCategoryName, isV3);
   if (!tabKey || !data) return false;
 
   const required = KR_V2_REQUIRED_FIELDS[tabKey];
@@ -1045,4 +1024,10 @@ module.exports = {
   // without duplicating the literal sentinel text.
   ASTRIA_KOREA_V2_START,
   ASTRIA_KOREA_V2_END,
+  // Shared tone matrix — single source of truth for the Astria Korea voice,
+  // re-exported so AstriaKoreaV3Service can reuse it instead of keeping its
+  // own duplicate copy (V3 imports from this module already).
+  KR_V2_TONE_MATRIX,
+  KR_V2_CLOSING_RULE,
+  wrapKRV2SubcategoryContent,
 };

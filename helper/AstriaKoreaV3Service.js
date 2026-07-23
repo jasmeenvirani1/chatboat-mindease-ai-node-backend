@@ -1,36 +1,6 @@
 "use strict";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ASTRIA KOREA V3 SERVICE
-// Combines Astria Korea V2's 5 tabs (Daily Flow v2, Life Map, Relationship
-// Engine, Daily Companion, Compatibility v2) with v1's Saju tab, and adds a
-// Companion Talk tab powered by the Astria Korea Talk (Astria Talk KR v3)
-// engine — all under one category, always replying in Korean only.
-//
-// Activated ONLY when categoryName === "Astria Korea V3".
-//
-// This module does NOT duplicate chart/Saju/Talk computation. It reuses the
-// real engines from astriaKoreaService.js, astriaKoreaSajuService.js,
-// AstriaKoreaV2Service.js, and AstriaKoreaTalkService.js, and only adds the
-// routing + Korean-only language enforcement on top.
-//
-// 7 Subcategories (V3):
-//   1. Daily Flow KR v3        — same as V2's Daily Flow v2
-//   2. Life Map KR v3          — same as V2's Life Map
-//   3. Relationship Engine KR v3 — same as V2's Relationship Engine (needs 2 charts)
-//   4. Daily Companion KR v3   — same as V2's Daily Companion
-//   5. Compatibility KR v3     — same as V2's Compatibility v2 (needs 2 charts)
-//   6. Saju KR v3              — real Four Pillars (사주), same as v1's Saju tab
-//   7. Companion Talk KR v3    — Astria Talk KR v3 (Relationship/Comfort/
-//                                Healing/Daily/Love modes)
-//
-// LANGUAGE: V3 always replies in Korean, regardless of the detected message
-// language — English/Thai (and every other language) are never produced.
-//
-// Zero impact on "Astria Korea" (v1), "Astria Korea V2", or "Astria Korea
-// Talk" — separate category name, separate builder map. Existing KR code is
-// untouched.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const {
   computeWesternBirthChartKR,
@@ -52,6 +22,8 @@ const {
   DEFAULT_KR_V2_SUBCATEGORY_PROMPTS,
   ASTRIA_KOREA_V2_START,
   ASTRIA_KOREA_V2_END,
+  KR_V2_TONE_MATRIX,
+  KR_V2_CLOSING_RULE,
 } = require("./AstriaKoreaV2Service");
 
 const { buildAstriaKoreaTalkContext } = require("./AstriaKoreaTalkService");
@@ -59,26 +31,28 @@ const { buildAstriaKoreaTalkContext } = require("./AstriaKoreaTalkService");
 // Korean is the only language V3 is ever allowed to reply in.
 const KR_V3_LANG_NAME = "Korean";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// KR V3 TONE MATRIX — modern Korean consumer-app tone (client fix pack v3)
-// Single shared constant, same pattern as INDIA_TONE_MATRIX in
-// astriaIndiaModule.js: declared once, spliced into every V3 builder via
-// ${KR_V3_TONE_MATRIX}. Replaces the old per-tab "KOREA TONE — CORE IDENTITY"
-// blocks (poetic, metaphor-heavy) inherited from v1/v2 defaults — V3 no
-// longer falls back to those for tone; every V3 builder uses this instead.
-// ─────────────────────────────────────────────────────────────────────────────
-const KR_V3_TONE_MATRIX = `
-KOREA TONE (modern KR consumer app — apply to every response in this lane):
-- Soft, gentle, warm, concise — short-form, like a modern Korean consumer app, not an essay
-- Non-dramatic, non-poetic, non-textbook — say the real thing plainly, once
-- Max 2 lines per paragraph, max 3 paragraphs per section
-- No metaphor (no forest/sunlight/flame/cold-air imagery, no poetic scene-setting)
-NEVER use: 형상, 축성, 사색, 기류, 울림(시적 맥락), 온기(시적 맥락), 생동감, 정서적 유대감, forest/sunlight/flame metaphors, sentences 3+ lines long, essay-style structure.
-ALWAYS prefer plain words: 분위기, 느낌, 마음, 속도, 균형, 편안함, 여유, 리듬.
-`.trim();
+// TONE MATRIX (V3)
+// Single source of truth for KR tone/forbidden-word rules lives in
+// AstriaKoreaV2Service (KR_V2_TONE_MATRIX) so V2 and V3 never drift apart —
+// aliased here under the V3 names every builder below already references.
+// DB/subcategory prompt content (KrV3_Prompt.txt) intentionally carries ONLY
+// framework + output-format instructions, not tone, so these rules are never
+// paid for twice in the same request.
+const KR_V3_TONE_MATRIX = KR_V2_TONE_MATRIX;
+const KR_V3_CLOSING_RULE = KR_V2_CLOSING_RULE;
 
-const KR_V3_CLOSING_RULE =
-  "CLOSING: end with 1–2 plain, warm sentences (no more than 2 lines) — never repeat a closing line used earlier in the same conversation, never poetic or dramatic.";
+const KR_V3_LANGUAGE_RULE =
+  "LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.";
+
+// Wraps DB/v2-fallback subcategory content with a note that tone/vocabulary
+// always defer to KR_V3_TONE_MATRIX, regardless of what the fallback content says.
+function wrapSubcategoryContent(label, content) {
+  return `━━━ SUBCATEGORY CONTENT (${label}) ━━━
+${content}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Use the content above only for the framework and output format described. Tone always follows
+KR_V3_TONE_MATRIX above, regardless of any phrasing in this content.`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUB-CATEGORY PROMPT BUILDERS (V3)
@@ -87,26 +61,32 @@ const KR_V3_CLOSING_RULE =
 // KR_V3_TONE_MATRIX / KR_V3_CLOSING_RULE above, not from the v1/v2 defaults.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildDailyFlowV3KRPrompt({ dbPrompt, birthChart, weatherContext }) {
+function buildDailyFlowV3KRPrompt({ dbPrompt, birthChart }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.daily_flow_v2;
+
   const chartBlock = formatChartBlockKR(birthChart, "transits");
 
-  return `You are Astria Korea V3 — the full Korean astrology + Saju + companion experience, built on Astria Korea V2's daily-lifestyle layer.
-YOUR FOCUS: Daily Flow v3 — the quiet emotional rhythm of morning, midday, and evening, plus an honest weather-shaped lifestyle note.
+  return `
+You are Astria Korea V3.
 
 ${KR_V3_TONE_MATRIX}
 
-━━━ SUBCATEGORY CONTENT (daily flow framework, weather-lifestyle layer, output format) ━━━
 ${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nUse the transit positions and transit-to-natal contacts above as real data for this reading. Show honestly how today's planetary energy is touching this specific chart — not a generic horoscope.` : ""}
-${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nWeave this into the weather-lifestyle note honestly — do not fabricate weather details beyond what is given.` : ""}
+${
+  chartBlock
+    ? `
+USER'S BIRTH CHART
 
-${KR_V3_CLOSING_RULE}
+${chartBlock}
 
-LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
+Generate today's Daily Flow using ONLY this chart and today's transits.
+Do not generate generic horoscope text.
+`
+    : ""
+}
+`.trim();
 }
 
 function buildLifeMapV3KRPrompt({ dbPrompt, birthChart, weatherContext }) {
@@ -119,16 +99,14 @@ YOUR FOCUS: Life Map KR v3 — grounded Seoul-lifestyle suggestions (neighborhoo
 
 ${KR_V3_TONE_MATRIX}
 
-━━━ SUBCATEGORY CONTENT (life map framework, reading approach, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${wrapSubcategoryContent("life map framework, reading approach, output format", subcategoryContent)}
 
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nGround every Seoul zone / food / cafe suggestion in this actual chart and today's transit energy — never invent a suggestion disconnected from the real data.` : "No birth chart is available yet. Ask the user for their date of birth (and birth time/city, if known) so a grounded Life Map reading can be generated. Do not invent chart-based suggestions without real data."}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nUse this to shape the closing weather-lifestyle note honestly.` : ""}
 
 ${KR_V3_CLOSING_RULE}
 
-LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
+${KR_V3_LANGUAGE_RULE}`.trim();
 }
 
 function buildRelationshipEngineV3KRPrompt({
@@ -164,9 +142,7 @@ YOUR FOCUS: Relationship Engine KR v3 — dating style, conflict pattern, relati
 
 ${KR_V3_TONE_MATRIX}
 
-━━━ SUBCATEGORY CONTENT (relationship framework, reading approach, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${wrapSubcategoryContent("relationship framework, reading approach, output format", subcategoryContent)}
 
 ━━━ BIRTH CHART DATA ━━━
 ${chartsSection}
@@ -174,7 +150,7 @@ ${chartsSection}
 
 ${KR_V3_CLOSING_RULE}
 
-LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
+${KR_V3_LANGUAGE_RULE}`.trim();
 }
 
 function buildCompatibilityV3KRPrompt({
@@ -247,12 +223,9 @@ This is NOT scoring. It is a sincere, DYNAMIC reading of emotional rhythm, timin
 
 ${KR_V3_TONE_MATRIX}
 
-━━━ SUBCATEGORY CONTENT (3-box weights, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-REMINDER: keep each JSON field's text to 1–2 short sentences (max 2 lines) —
-never pad with extra sentences, and keep the exact JSON structure/sentinels
-from the subcategory content's OUTPUT FORMAT unchanged.
+${wrapSubcategoryContent("3-box weights, output format", subcategoryContent)}
+Fields stay 1–2 short sentences (max 2 lines) per KR_V3_TONE_MATRIX, and the exact JSON
+structure/sentinels from the OUTPUT FORMAT above stay unchanged.
 
 ━━━ 3-BOX SYSTEM ━━━
 ${threeBoxSection || "3-Box data not provided. Use birth chart data for compatibility reading."}
@@ -264,7 +237,7 @@ ${chartsSection || "Birth chart data not available. Use 3-Box data and conversat
 
 ${KR_V3_CLOSING_RULE}
 
-LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
+${KR_V3_LANGUAGE_RULE}`.trim();
 }
 
 function buildDailyCompanionV3KRPrompt({
@@ -288,9 +261,7 @@ YOUR FOCUS: Daily Companion KR v3 — one continuous companion voice across morn
 
 ${KR_V3_TONE_MATRIX}
 
-━━━ SUBCATEGORY CONTENT (companion framework, reading approach, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${wrapSubcategoryContent("companion framework, reading approach, output format", subcategoryContent)}
 
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}` : ""}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}` : ""}
@@ -298,7 +269,7 @@ ${memoryContext}
 
 ${KR_V3_CLOSING_RULE}
 
-LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
+${KR_V3_LANGUAGE_RULE}`.trim();
 }
 
 // ── SAJU KR v3 — real Four Pillars (사주), reused from v1 ──────────────────
@@ -373,9 +344,7 @@ YOUR FOCUS: Saju KR v3 (사주) — real Four Pillars destiny reading. This is t
 
 ${KR_V3_TONE_MATRIX}
 
-━━━ SUBCATEGORY CONTENT (safety rules, framework, output format) ━━━
-${subcategoryContent}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${wrapSubcategoryContent("safety rules, framework, output format", subcategoryContent)}
 
 ${sajuDataSection || "Saju data not available yet. Ask the user for their date of birth (and birth time, if known) so the Four Pillars can be computed. Do not invent stems/branches."}
 
@@ -388,7 +357,7 @@ ${outputFormatSection}
 TOTAL LENGTH: keep the full Saju reading (all fields combined) under 400 Korean characters.
 ${KR_V3_CLOSING_RULE}
 
-LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
+${KR_V3_LANGUAGE_RULE}`.trim();
 }
 
 // ── COMPANION TALK KR v3 — Astria Talk KR v3 (Relationship/Comfort/Healing/Daily/Love) ──
@@ -435,7 +404,7 @@ Answer the user's question using whichever lens fits most honestly. Keep it soft
 
 ${KR_V3_CLOSING_RULE}
 
-LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.`.trim();
+${KR_V3_LANGUAGE_RULE}`.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -477,27 +446,29 @@ function resolveKRV3SubcategoryBuilder(subCategoryName) {
   return null;
 }
 
-function isRelationshipEngineSubcategoryKRV3(subCategoryName) {
+function subcategoryNameMatches(subCategoryName, { anyOf, noneOf }) {
   if (!subCategoryName) return false;
   const lower = subCategoryName.toLowerCase();
-  return lower.includes("relationship") && !lower.includes("talk");
+  if (noneOf?.some((kw) => lower.includes(kw))) return false;
+  return anyOf.some((kw) => lower.includes(kw));
 }
 
-function isCompatibilitySubcategoryKRV3(subCategoryName) {
-  if (!subCategoryName) return false;
-  const lower = subCategoryName.toLowerCase();
-  return lower.includes("compatibility") || lower.includes("compatability");
-}
+const isRelationshipEngineSubcategoryKRV3 = (subCategoryName) =>
+  subcategoryNameMatches(subCategoryName, {
+    anyOf: ["relationship"],
+    noneOf: ["talk"],
+  });
 
-function isSajuSubcategoryKRV3(subCategoryName) {
-  if (!subCategoryName) return false;
-  return subCategoryName.toLowerCase().includes("saju");
-}
+const isCompatibilitySubcategoryKRV3 = (subCategoryName) =>
+  subcategoryNameMatches(subCategoryName, {
+    anyOf: ["compatibility", "compatability"],
+  });
 
-function isCompanionTalkSubcategoryKRV3(subCategoryName) {
-  if (!subCategoryName) return false;
-  return subCategoryName.toLowerCase().includes("talk");
-}
+const isSajuSubcategoryKRV3 = (subCategoryName) =>
+  subcategoryNameMatches(subCategoryName, { anyOf: ["saju"] });
+
+const isCompanionTalkSubcategoryKRV3 = (subCategoryName) =>
+  subcategoryNameMatches(subCategoryName, { anyOf: ["talk"] });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN EXPORT
