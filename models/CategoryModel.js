@@ -23,6 +23,10 @@ const CategorySchema = new Schema(
       type: String,
       required: true,
     },
+    name_id: {
+      type: String,
+      required: true,
+    },
     description: {
       type: String,
       default: "",
@@ -40,6 +44,10 @@ const CategorySchema = new Schema(
       default: "",
     },
     description_ko: {
+      type: String,
+      default: "",
+    },
+    description_id: {
       type: String,
       default: "",
     },

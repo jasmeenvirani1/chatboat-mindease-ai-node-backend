@@ -10,17 +10,19 @@ const CategoryController = {
         name_es,
         name_ja,
         name_ko,
+        name_id,
         description,
         description_th,
         description_es,
         description_ja,
         description_ko,
+        description_id,
         prompt,
         freeUserPrompt,
         icon,
       } = req.body;
       console.log("prompt loggg ->>", prompt);
-      if (!name && !name_th && !name_es && !name_ja && !name_ko) {
+      if (!name && !name_th && !name_es && !name_ja && !name_ko && !name_id) {
         logger.log("⚠️ Category name missing");
         return res.status(400).json({
           success: false,
@@ -34,11 +36,13 @@ const CategoryController = {
         name_es,
         name_ja,
         name_ko,
+        name_id,
         description,
         description_th,
         description_es,
         description_ja,
         description_ko,
+        description_id,
         prompt: prompt || "",
         freeUserPrompt: freeUserPrompt || "",
         icon: icon || "💬",
@@ -116,11 +120,13 @@ const CategoryController = {
         "name_es",
         "name_ja",
         "name_ko",
+        "name_id",
         "description",
         "description_th",
         "description_es",
         "description_ja",
         "description_ko",
+        "description_id",
         "prompt",
         "freeUserPrompt",
         "icon",
