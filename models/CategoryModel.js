@@ -27,6 +27,9 @@ const CategorySchema = new Schema(
       type: String,
       required: true,
     },
+    name_vi: {
+      type: String,
+    },
     description: {
       type: String,
       default: "",
@@ -48,6 +51,10 @@ const CategorySchema = new Schema(
       default: "",
     },
     description_id: {
+      type: String,
+      default: "",
+    },
+    description_vi: {
       type: String,
       default: "",
     },

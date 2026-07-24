@@ -40,6 +40,10 @@ const SubCategorySchema = new Schema(
       required: true,
       trim: true,
     },
+    name_vi: {
+      type: String,
+      trim: true,
+    },
 
     description: {
       type: String,
@@ -62,6 +66,10 @@ const SubCategorySchema = new Schema(
       default: "",
     },
     description_id: {
+      type: String,
+      default: "",
+    },
+    description_vi: {
       type: String,
       default: "",
     },
