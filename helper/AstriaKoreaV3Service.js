@@ -23,6 +23,7 @@ const {
   ASTRIA_KOREA_V2_START,
   ASTRIA_KOREA_V2_END,
   KR_V2_TONE_MATRIX,
+  KR_V2_VOICE_RULES,
   KR_V2_CLOSING_RULE,
 } = require("./AstriaKoreaV2Service");
 
@@ -39,6 +40,7 @@ const KR_V3_LANG_NAME = "Korean";
 // framework + output-format instructions, not tone, so these rules are never
 // paid for twice in the same request.
 const KR_V3_TONE_MATRIX = KR_V2_TONE_MATRIX;
+const KR_V3_VOICE_RULES = KR_V2_VOICE_RULES;
 const KR_V3_CLOSING_RULE = KR_V2_CLOSING_RULE;
 
 const KR_V3_LANGUAGE_RULE =
@@ -78,6 +80,16 @@ WEATHER-LIFESTYLE LAYER:
 - When weather context is available, translate it into one honest, grounded lifestyle note —
   never a forecast, never generic small talk. Weave it naturally into the evening beat.
 
+REFERENCE TONE (KR v3 style — do not copy verbatim; ground the real wording in this user's
+actual chart/transits and message below):
+- energyMessage: { "morning": "오전에는 생각이 많아져 집중이 조금 어려울 수 있어요.",
+  "midday": "오후에는 흐름이 안정되며 필요한 일들을 차분히 이어가기 좋을 거예요.",
+  "evening": "오늘은 속도를 조금만 늦추면 부담이 줄어들 거예요." }
+- moodMessage: { "feeling": "감정이 깊어져 집중이 잘 되지 않을 수 있어요.",
+  "reflection": "잠시 쉬어가면 마음의 무게가 조금 가벼워질 거예요.",
+  "suggestion": "가벼운 스트레칭이나 음악이 긴장을 풀어줄 거예요." }
+- softCheckIn: "지금 가장 신경 쓰이는 생각을 가볍게 떠올려 보세요."
+
 FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
 - energyMessage (object): the day's energy broken into three short beats —
   - morning (1–2 sentences): the day's opening emotional signal
@@ -88,18 +100,10 @@ FIELDS (JSON — see ASTRIA KOREA VOICE above for the output-format rule):
   - feeling (1 sentence): the honest emotional texture of moving through today
   - reflection (1 sentence): a gentle observation on why that texture is there
   - suggestion (1 sentence): one gentle suggestion for moving with the day's energy
-- softCheckIn (1 short sentence): one gentle, warm check-in question inviting the
-  user to notice how they actually feel right now
+- softCheckIn (1 short sentence): one gentle invitation for the user to notice how
+  they feel right now, phrased as a soft request — never a question (e.g. "지금 마음이
+  어떤지 말해줘." not "지금 마음이 어떤가요?")
 - followUpQuestions (array of 2–3 short items, each under 12 words)
-
-${ASTRIA_KOREA_V2_START}
-{
-  "energyMessage": { "morning": "", "midday": "", "evening": "" },
-  "moodMessage": { "feeling": "", "reflection": "", "suggestion": "" },
-  "softCheckIn": "",
-  "followUpQuestions": []
-}
-${ASTRIA_KOREA_V2_END}
 `.trim();
 
 function buildDailyFlowV3KRPrompt({ dbPrompt, birthChart }) {
@@ -113,6 +117,15 @@ You are Astria Korea V3.
 ${KR_V3_TONE_MATRIX}
 
 ${subcategoryContent}
+
+${ASTRIA_KOREA_V2_START}
+{
+  "energyMessage": { "morning": "", "midday": "", "evening": "" },
+  "moodMessage": { "feeling": "", "reflection": "", "suggestion": "" },
+  "softCheckIn": "",
+  "followUpQuestions": []
+}
+${ASTRIA_KOREA_V2_END}
 
 ${
   chartBlock
@@ -434,7 +447,7 @@ function buildCategoryFallbackKRV3Prompt({ dbPrompt, birthChart }) {
 
   return `You are Astria Korea V3 — the full Korean astrology + Saju + companion experience, combining Astria Korea V2's daily-lifestyle/relationship layer, v1's Saju (사주), and the Astria Talk KR v3 companion engine.
 
-${KR_V3_TONE_MATRIX}
+${KR_V3_VOICE_RULES}
 
 ${baseContent ? `━━━ SUBCATEGORY CONTENT (response guidance) ━━━\n${baseContent}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` : ""}
 ${chartSummary}

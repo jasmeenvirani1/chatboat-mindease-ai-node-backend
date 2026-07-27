@@ -2,9 +2,7 @@ const mongoose = require("mongoose");
 const ChatHistory = require("../models/ChatModel.js");
 const Category = require("../models/CategoryModel.js");
 const SubCategory = require("../models/SubCategoryModel.js");
-const openai = require("../helper/openAi.js");
 const logger = require("../helper/logger.js");
-const Case = require("../models/CasesModel.js");
 const {
   generateGeminiResponse,
   generateGeminiResponseStream,
@@ -15,8 +13,6 @@ const User = require("../models/UserModel.js");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 const { generateClaudeResponseStream } = require("../helper/claudeService.js");
 const {
-  EmotionDetection,
-  SentencesGenerator,
   detectEmotion,
   getSentencesForEmotion,
 } = require("../helper/SentencesGenerator.js");
@@ -31,8 +27,6 @@ const {
 const {
   detectFoodIntent,
   recommendFoodForMessage,
-  detectTeasingMode,
-  detectFlavorMode,
 } = require("../helper/foodRecommendationService.js");
 const { applyPurpleDotBranding } = require("../helper/brandingService");
 const {
@@ -140,6 +134,17 @@ const {
   resolveCountry,
 } = require("../helper/astriaPSMService");
 const {
+  buildAstriaSingaporeV2Context,
+  computeWesternBirthChartPSM: computeWesternBirthChartSGV2,
+  parseCompatibilityPartnersPSM: parseCompatibilityPartnersSGV2,
+  buildCompatibilityMissingQuestionPSM: buildCompatibilityMissingQuestionSGV2,
+  isCompatibilitySubcategorySGV2,
+  extractAstriaSingaporeV2Data,
+  validateSingaporeV2Data,
+  deriveSingaporeV2DisplaySections,
+  formatSingaporeV2Response,
+} = require("../helper/astriaSingaporeV2Service");
+const {
   buildAstriaGCCContext,
   computeWesternBirthChartGCC,
   parseCompatibilityPartnersGCC,
@@ -215,8 +220,9 @@ function appendAstriaDobAndMessageContext(
 
 ━━━ USER CONTEXT (attached last — use as primary grounding) ━━━
 Date of Birth: ${dob ? String(dob).trim() : "unknown"}
-Latest User Message: "${String(userMessage || "").trim()}"
-${extra ? `Additional Context: ${extra}\n` : ""}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+Latest User Message: "${String(userMessage || "").trim()} 
+Use this msg and provide answer based on what user asked"
+${extra ? `Additional Context: ${extra}\n` : ""}`;
 }
 
 function getKolkataMidnightDate() {
@@ -715,84 +721,66 @@ const VIVAH_MUHURAT_END = "<<<END_VIVAH_MUHURAT_DATA>>>";
 const SAMBANDH_TAALMEL_START = "<<<SAMBANDH_TAALMEL_DATA>>>";
 const SAMBANDH_TAALMEL_END = "<<<END_SAMBANDH_TAALMEL_DATA>>>";
 
-function extractSamayPravahGraph(text) {
+// Shared shape behind all `<<<MARKER>>>...<<<END_MARKER>>>` JSON extractors
+// below. `fallbackToWholeText: true` additionally tries `JSON.parse` on the
+// entire trimmed input when the markers are missing or malformed — some
+// extractors need this (the model sometimes omits the markers and returns
+// bare JSON), others intentionally return null in that case.
+function extractDelimitedJson(text, startMarker, endMarker, options = {}) {
+  const { fallbackToWholeText = false } = options;
   const src = String(text || "");
-  const start = src.indexOf(SAMAY_GRAPH_START);
-  const end = src.indexOf(SAMAY_GRAPH_END);
-  if (start === -1 || end === -1 || end < start) return null;
+  const start = src.indexOf(startMarker);
+  const end = src.indexOf(endMarker);
+
+  if (start !== -1 && end !== -1 && end > start) {
+    try {
+      return JSON.parse(src.slice(start + startMarker.length, end).trim());
+    } catch {
+      if (!fallbackToWholeText) return null;
+    }
+  } else if (!fallbackToWholeText) {
+    return null;
+  }
+
+  if (!fallbackToWholeText) return null;
   try {
-    return JSON.parse(src.slice(start + SAMAY_GRAPH_START.length, end).trim());
+    return JSON.parse(src.trim());
   } catch {
     return null;
   }
+}
+
+function extractSamayPravahGraph(text) {
+  return extractDelimitedJson(text, SAMAY_GRAPH_START, SAMAY_GRAPH_END);
 }
 
 function extractVyaktivaDarshanData(text) {
-  const src = String(text || "");
-  const start = src.indexOf(VYAKTITVA_DARSHAN_START);
-  const end = src.indexOf(VYAKTITVA_DARSHAN_END);
-  if (start === -1 || end === -1 || end < start) return null;
-  try {
-    return JSON.parse(
-      src.slice(start + VYAKTITVA_DARSHAN_START.length, end).trim(),
-    );
-  } catch {
-    return null;
-  }
+  return extractDelimitedJson(
+    text,
+    VYAKTITVA_DARSHAN_START,
+    VYAKTITVA_DARSHAN_END,
+  );
 }
 
 function extractBhavnaDrishtiData(text) {
-  const src = String(text || "");
-  const start = src.indexOf(BHAVNA_DRISHTI_START);
-  const end = src.indexOf(BHAVNA_DRISHTI_END);
-  if (start !== -1 && end !== -1 && end > start) {
-    try {
-      return JSON.parse(
-        src.slice(start + BHAVNA_DRISHTI_START.length, end).trim(),
-      );
-    } catch {}
-  }
-  try {
-    return JSON.parse(src.trim());
-  } catch {
-    return null;
-  }
+  return extractDelimitedJson(text, BHAVNA_DRISHTI_START, BHAVNA_DRISHTI_END, {
+    fallbackToWholeText: true,
+  });
 }
 
 function extractVivahMuhuratData(text) {
-  const src = String(text || "");
-  const start = src.indexOf(VIVAH_MUHURAT_START);
-  const end = src.indexOf(VIVAH_MUHURAT_END);
-  if (start !== -1 && end !== -1 && end > start) {
-    try {
-      return JSON.parse(
-        src.slice(start + VIVAH_MUHURAT_START.length, end).trim(),
-      );
-    } catch {}
-  }
-  try {
-    return JSON.parse(src.trim());
-  } catch {
-    return null;
-  }
+  return extractDelimitedJson(text, VIVAH_MUHURAT_START, VIVAH_MUHURAT_END, {
+    fallbackToWholeText: true,
+  });
 }
 
 function extractSambandhTaalMelData(text) {
-  const src = String(text || "");
-  const start = src.indexOf(SAMBANDH_TAALMEL_START);
-  const end = src.indexOf(SAMBANDH_TAALMEL_END);
-  if (start !== -1 && end !== -1 && end > start) {
-    try {
-      return JSON.parse(
-        src.slice(start + SAMBANDH_TAALMEL_START.length, end).trim(),
-      );
-    } catch {}
-  }
-  try {
-    return JSON.parse(src.trim());
-  } catch {
-    return null;
-  }
+  return extractDelimitedJson(
+    text,
+    SAMBANDH_TAALMEL_START,
+    SAMBANDH_TAALMEL_END,
+    { fallbackToWholeText: true },
+  );
 }
 
 function buildVivahMuhuratSecondPrompt(vmData, target, userMessage) {
@@ -2045,6 +2033,24 @@ async function saveUserMusicGenrePreferences({
 }
 
 // ============================================
+// SSE STREAMING HELPER
+// ============================================
+// Word-chunks `text` over an already-open SSE response at the same 30ms
+// per-word cadence used everywhere in createChat, so every lane (fallback
+// text, missing-fields prompts, formatted responses) streams identically
+// from the client's point of view. `isClosed` is polled each iteration so
+// an in-flight stream stops as soon as the client disconnects.
+async function streamWordsSSE(res, text, isClosed) {
+  const words = String(text || "").split(" ");
+  for (const word of words) {
+    if (isClosed()) break;
+    res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
+    if (res.flush) res.flush();
+    await new Promise((r) => setTimeout(r, 30));
+  }
+}
+
+// ============================================
 // MAIN CONTROLLER
 // ============================================
 const chatController = {
@@ -2076,8 +2082,6 @@ const chatController = {
         mexicoV2Wizard,
         saveChat,
       } = req.body;
-
-      //console.log("spanishTone:", spanishTone);
 
       if (!userMessage) {
         return res
@@ -2172,7 +2176,7 @@ const chatController = {
       const emotionType = emotionData.emotion;
       const emotionIntensity = emotionData.intensity;
 
-      const allSentences = getSentencesForEmotion(emotionType);
+      const allSentences = await getSentencesForEmotion(emotionType, 20);
       const sentences = pickRandomUnique(allSentences, 10);
 
       // Get category, subcategory, and chat details
@@ -2212,12 +2216,6 @@ const chatController = {
           }
         }
       }
-      // console.log(
-      //   "Subcategory Name:",
-      //   subCategoryName,
-      //   "Prompt: ",
-      //   subCategoryPrompt,
-      // );
 
       const HEALJAI_ACTIVE_CATEGORIES = new Set([
         "HealJai Talk",
@@ -2243,12 +2241,8 @@ const chatController = {
             .lean();
 
           healjaiUserProfile = profileDoc?.userProfileMetadata || null;
-          // console.log(
-          //   "[HealJai] Loaded user profile (session-scoped):",
-          //   JSON.stringify(healjaiUserProfile),
-          // );
         } catch (e) {
-          console.error("[HealJai] Profile fetch error:", e.message);
+          logger.error("[HealJai] Profile fetch error:", e);
           healjaiUserProfile = null;
         }
       }
@@ -2359,7 +2353,6 @@ const chatController = {
         !isAstriaKorea &&
         !isAstriaKoreaV2 &&
         !isAstriaKoreaTalk;
-      //console.log("Astria Korea V3:", isAstriaKoreaV3);
 
       // Astria Japan Talk Engine — isolated flag for "Astria Japan Talk" (companion voice)
       const isAstriaJapanTalk =
@@ -2448,6 +2441,24 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil;
 
+      // Astria Singapore V2 Engine — Compatibility Engine v2 (practical, direct,
+      // weighted 0-100 score). Separate category from "Astria Singapore" (PSM) —
+      // v1 stays untouched, same pattern as Astria Korea V2 / GCC V2.
+      const isAstriaSingaporeV2 =
+        categoryName === "Astria Singapore V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM;
+
       // Astria GCC Engine — Spiritual, elegant, respectful Western astrology (GCC lane)
       const isAstriaGCC =
         categoryName === "Astria GCC" &&
@@ -2462,8 +2473,8 @@ const chatController = {
         !isAstriaJapanV3 &&
         !isAstriaSpanish &&
         !isAstriaBrazil &&
-        !isAstriaPSM;
-      //console.log("Astria GCC:", isAstriaGCC);
+        !isAstriaPSM &&
+        !isAstriaSingaporeV2;
 
       // Astria GCC v2 Engine — "Global Lane v2" soft-premium emotional AI (GCC v2 lane, 7 tabs)
       const isAstriaGCCV2 =
@@ -2480,6 +2491,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC;
 
       // Astria UK Engine — Calm, understated, warm-polite Western astrology (UK lane)
@@ -2497,6 +2509,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2;
 
@@ -2515,6 +2528,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK;
@@ -2534,6 +2548,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -2554,6 +2569,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -2575,6 +2591,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -2597,6 +2614,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -2620,6 +2638,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -2648,6 +2667,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -2673,6 +2693,7 @@ const chatController = {
         !isAstriaSpanish &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -2700,6 +2721,7 @@ const chatController = {
         !isAstriaBrazil &&
         !isAstriaBrazilV2 &&
         !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaUK &&
@@ -3491,6 +3513,10 @@ RULES:
       // ASTRIA KOREA V3 — structured per-tab data for frontend dataBinding
       // (same shape/sentinels as V2, reused directly — see resolveKRV2TabKey).
       let astriaKoreaV3Data = null;
+      // ASTRIA SINGAPORE V2 — structured compatibility data (score/summary/
+      // strengths/friction_points/action_steps/singapore_context) for
+      // frontend dataBinding, see helper/astriaSingaporeV2Service.js.
+      let astriaSingaporeV2Data = null;
       // Saju KR v3 — code-computed Four Pillars facts
       let astriaKoreaV3SajuFacts = null;
 
@@ -4870,6 +4896,100 @@ RULES:
         );
       }
 
+      // ASTRIA SINGAPORE V2 ENGINE — Compatibility Engine v2 (weighted score)
+      let compatibilityMissingQuestionSGV2 = null;
+      if (isAstriaSingaporeV2) {
+        if (isCompatibilitySubcategorySGV2(subCategoryName)) {
+          // Compatibility: needs two birth charts
+          const compatPartnersSGV2 = parseCompatibilityPartnersSGV2(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (compatPartnersSGV2.missingFields.length > 0) {
+            compatibilityMissingQuestionSGV2 =
+              buildCompatibilityMissingQuestionSGV2(
+                compatPartnersSGV2.missingFields,
+                !!(dob0 && String(dob0).trim()),
+                "singapore",
+              );
+          } else {
+            let chartASGV2 = null;
+            let chartBSGV2 = null;
+            try {
+              if (compatPartnersSGV2.personA.dob) {
+                chartASGV2 = computeWesternBirthChartSGV2({
+                  dob: compatPartnersSGV2.personA.dob,
+                  dob_time: compatPartnersSGV2.personA.time || null,
+                  dob_place: compatPartnersSGV2.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error(
+                "Astria Singapore V2 Compatibility - chartA error:",
+                err,
+              );
+            }
+            try {
+              if (compatPartnersSGV2.personB.dob) {
+                chartBSGV2 = computeWesternBirthChartSGV2({
+                  dob: compatPartnersSGV2.personB.dob,
+                  dob_time: compatPartnersSGV2.personB.time || null,
+                  dob_place: compatPartnersSGV2.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error(
+                "Astria Singapore V2 Compatibility - chartB error:",
+                err,
+              );
+            }
+
+            systemPrompt = buildAstriaSingaporeV2Context({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              birthChart: chartASGV2,
+              birthChartB: chartBSGV2,
+              selfName: userName || null,
+            });
+          }
+        } else {
+          // All other Singapore V2 subcategories — single user chart (e.g. Personality)
+          let astriaSingaporeV2BirthChart = null;
+          if (selfDob0) {
+            try {
+              astriaSingaporeV2BirthChart = computeWesternBirthChartSGV2({
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
+              });
+            } catch (chartErr) {
+              logger.error(
+                "Astria Singapore V2 birth chart error:",
+                chartErr,
+              );
+            }
+          }
+
+          systemPrompt = buildAstriaSingaporeV2Context({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            birthChart: astriaSingaporeV2BirthChart,
+            birthChartB: null,
+          });
+        }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+
       // ASTRIA GCC ENGINE — Astria GCC category ONLY
       let compatibilityMissingQuestionGCC = null;
       if (isAstriaGCC) {
@@ -5769,8 +5889,8 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
+      console.log("System prompt: ", systemPrompt);
 
-      //console.log("System Prompt:", systemPrompt);
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
@@ -5899,24 +6019,12 @@ RULES:
             // chunked over SSE with the same timing as every other lane
             // below, so the frontend's streaming UI behaves identically.
             finalAiResponse = phVnIdV2FinalResponse;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (musicRecommendation?.shouldRecommend) {
             const completion = await generateGeminiResponse(messages);
             finalAiResponse = completion?.trim() || "No response";
 
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isUpayMarg) {
             // Collect the full response first
             const completion = await generateGeminiResponse(messages);
@@ -5938,23 +6046,11 @@ RULES:
             }
 
             // Stream the formatted response word by word
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isSambandhTaalMel) {
             if (sambandhMissingFields) {
               finalAiResponse = sambandhMissingFields;
-              const words = finalAiResponse.split(" ");
-              for (const word of words) {
-                if (clientClosed) break;
-                res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-                if (res.flush) res.flush();
-                await new Promise((r) => setTimeout(r, 30));
-              }
+              await streamWordsSSE(res, finalAiResponse, () => clientClosed);
             } else {
               const stStream = await generateGeminiResponseStream(messages);
               let rawResponse = "";
@@ -5981,15 +6077,7 @@ RULES:
                   );
 
                 // Stream the formatted response to the user
-                const words = finalAiResponse.split(" ");
-                for (const word of words) {
-                  if (clientClosed) break;
-                  res.write(
-                    `data: ${JSON.stringify({ text: word + " " })}\n\n`,
-                  );
-                  if (res.flush) res.flush();
-                  await new Promise((r) => setTimeout(r, 30));
-                }
+                await streamWordsSSE(res, finalAiResponse, () => clientClosed);
               } else {
                 // If validation fails, clean the response (remove JSON markers)
                 finalAiResponse =
@@ -5998,15 +6086,7 @@ RULES:
                     .replace(/<<<END_SAMBANDH_TAALMEL_DATA>>>/g, "")
                     .trim() || "No response";
 
-                const words = finalAiResponse.split(" ");
-                for (const word of words) {
-                  if (clientClosed) break;
-                  res.write(
-                    `data: ${JSON.stringify({ text: word + " " })}\n\n`,
-                  );
-                  if (res.flush) res.flush();
-                  await new Promise((r) => setTimeout(r, 30));
-                }
+                await streamWordsSSE(res, finalAiResponse, () => clientClosed);
               }
             }
           } else if (foodRecommendation?.shouldRecommend) {
@@ -6025,13 +6105,7 @@ RULES:
             );
             finalAiResponse = text;
 
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (v4Classification.domain && v4Classification.label) {
             const completion = await generateGeminiResponse(messages);
             let text = completion?.trim() || "No response";
@@ -6048,13 +6122,7 @@ RULES:
             );
             finalAiResponse = text;
 
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isVyaktivaDarshan) {
             // Step 1: non-streaming call — AI generates Nakshatra analysis + JSON block
             const firstCompletion = await generateGeminiResponse(messages);
@@ -6083,13 +6151,7 @@ RULES:
               finalAiResponse = applyVyaktivaDarshanFormat(
                 firstCompletion || "No response",
               );
-              const words = finalAiResponse.split(" ");
-              for (const word of words) {
-                if (clientClosed) break;
-                res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-                if (res.flush) res.flush();
-                await new Promise((r) => setTimeout(r, 30));
-              }
+              await streamWordsSSE(res, finalAiResponse, () => clientClosed);
             }
           } else if (isBhavnaDrishti) {
             // Step 1: non-streaming call — AI returns ONLY JSON
@@ -6122,13 +6184,7 @@ RULES:
           } else if (isVivahMuhurat) {
             if (vivahMissingFieldsQuestion) {
               finalAiResponse = vivahMissingFieldsQuestion;
-              const words = finalAiResponse.split(" ");
-              for (const word of words) {
-                if (clientClosed) break;
-                res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-                if (res.flush) res.flush();
-                await new Promise((r) => setTimeout(r, 30));
-              }
+              await streamWordsSSE(res, finalAiResponse, () => clientClosed);
             } else {
               const vmStream = await generateGeminiResponseStream(messages);
               for await (const chunk of vmStream) {
@@ -6142,62 +6198,26 @@ RULES:
             }
           } else if (isAstriaUS && energyMatchMissingQuestion) {
             finalAiResponse = energyMatchMissingQuestion;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (
             isAstriaSpanish &&
             !isAstriaUS &&
             energyMatchMissingQuestionES
           ) {
             finalAiResponse = energyMatchMissingQuestionES;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaJapan && energyMatchMissingQuestionJP) {
             finalAiResponse = energyMatchMissingQuestionJP;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaJapanV3 && energyMatchMissingQuestionJPV3) {
             finalAiResponse = energyMatchMissingQuestionJPV3;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaKorea && compatibilityMissingQuestionKR) {
             finalAiResponse = compatibilityMissingQuestionKR;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaKoreaV2 && compatibilityMissingQuestionKRV2) {
             finalAiResponse = compatibilityMissingQuestionKRV2;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaKoreaV2) {
             const krv2Stream = await generateGeminiResponseStream(messages);
             let rawResponse = "";
@@ -6233,22 +6253,10 @@ RULES:
                   .trim() || "No response";
             }
 
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaKoreaV3 && compatibilityMissingQuestionKRV3) {
             finalAiResponse = compatibilityMissingQuestionKRV3;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (
             isAstriaKoreaV3 &&
             resolveKRV2TabKey(subCategoryName, true)
@@ -6317,31 +6325,53 @@ RULES:
                   .trim() || "No response";
             }
 
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaBrazil && compatibilityMissingQuestionBR) {
             finalAiResponse = compatibilityMissingQuestionBR;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaPSM && compatibilityMissingQuestionPSM) {
             finalAiResponse = compatibilityMissingQuestionPSM;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isAstriaSingaporeV2 && compatibilityMissingQuestionSGV2) {
+            finalAiResponse = compatibilityMissingQuestionSGV2;
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isAstriaSingaporeV2) {
+            const sgv2Stream = await generateGeminiResponseStream(messages);
+            let rawResponse = "";
+            for await (const chunk of sgv2Stream) {
               if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
+              const text = chunk?.text || "";
+              if (!text) continue;
+              rawResponse += text;
             }
+
+            astriaSingaporeV2Data = extractAstriaSingaporeV2Data(rawResponse);
+
+            if (
+              astriaSingaporeV2Data &&
+              validateSingaporeV2Data(astriaSingaporeV2Data, subCategoryName)
+            ) {
+              astriaSingaporeV2Data = {
+                ...astriaSingaporeV2Data,
+                ...deriveSingaporeV2DisplaySections(
+                  astriaSingaporeV2Data,
+                  subCategoryName,
+                ),
+              };
+              finalAiResponse = formatSingaporeV2Response(
+                astriaSingaporeV2Data,
+                subCategoryName,
+              );
+            } else {
+              astriaSingaporeV2Data = null;
+              finalAiResponse =
+                rawResponse
+                  .replace(/<<<ASTRIA_SINGAPORE_V2_DATA>>>/g, "")
+                  .replace(/<<<END_ASTRIA_SINGAPORE_V2_DATA>>>/g, "")
+                  .trim() || "No response";
+            }
+
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaGCC && compatibilityMissingQuestionGCC) {
             // Return structured response for frontend to show 3-Box form
             const needsPartnerForm = {
@@ -6393,40 +6423,16 @@ RULES:
             if (res.flush) res.flush();
           } else if (isAstriaUK && energyMatchMissingQuestionUK) {
             finalAiResponse = energyMatchMissingQuestionUK;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaCanada && energyMatchMissingQuestionCanada) {
             finalAiResponse = energyMatchMissingQuestionCanada;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaIndonesia && energyMatchMissingQuestionIndonesia) {
             finalAiResponse = energyMatchMissingQuestionIndonesia;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
             finalAiResponse = sambandhMissingQuestionIN;
-            const words = finalAiResponse.split(" ");
-            for (const word of words) {
-              if (clientClosed) break;
-              res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
-              if (res.flush) res.flush();
-              await new Promise((r) => setTimeout(r, 30));
-            }
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else {
             let stream;
             if (
@@ -6544,15 +6550,7 @@ RULES:
                 );
                 finalAiResponse = formattedResponse;
 
-                const words = finalAiResponse.split(" ");
-                for (const word of words) {
-                  if (clientClosed) break;
-                  res.write(
-                    `data: ${JSON.stringify({ text: word + " " })}\n\n`,
-                  );
-                  if (res.flush) res.flush();
-                  await new Promise((r) => setTimeout(r, 30));
-                }
+                await streamWordsSSE(res, finalAiResponse, () => clientClosed);
               }
               // no else: keep finalAiResponse as-is when no JSON found
             } catch (err) {
@@ -6632,6 +6630,9 @@ RULES:
               : isAstriaKoreaV3
                 ? astriaKoreaV3Data
                 : null,
+            astriaSingaporeV2Data: isAstriaSingaporeV2
+              ? astriaSingaporeV2Data
+              : null,
             phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
           };
 
@@ -6830,6 +6831,9 @@ RULES:
                   : isAstriaKoreaV3
                     ? astriaKoreaV3Data
                     : null,
+                astriaSingaporeV2Data: isAstriaSingaporeV2
+                  ? astriaSingaporeV2Data
+                  : null,
                 gccCompatibilityData:
                   isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
                     ? gccCompatibilityDataStream
@@ -6966,6 +6970,10 @@ RULES:
         finalAiResponse = compatibilityMissingQuestionPSM;
       }
 
+      if (isAstriaSingaporeV2 && compatibilityMissingQuestionSGV2) {
+        finalAiResponse = compatibilityMissingQuestionSGV2;
+      }
+
       if (isAstriaGCC && compatibilityMissingQuestionGCC) {
         finalAiResponse = compatibilityMissingQuestionGCC;
       }
@@ -7093,6 +7101,37 @@ RULES:
             rawResponse
               .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
               .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
+              .trim() || "No response";
+        }
+      }
+
+      // ASTRIA SINGAPORE V2 RESPONSE PROCESSING (NON-STREAMING)
+      if (isAstriaSingaporeV2 && !compatibilityMissingQuestionSGV2) {
+        const rawResponse = completion?.trim() || "No response";
+
+        astriaSingaporeV2Data = extractAstriaSingaporeV2Data(rawResponse);
+
+        if (
+          astriaSingaporeV2Data &&
+          validateSingaporeV2Data(astriaSingaporeV2Data, subCategoryName)
+        ) {
+          astriaSingaporeV2Data = {
+            ...astriaSingaporeV2Data,
+            ...deriveSingaporeV2DisplaySections(
+              astriaSingaporeV2Data,
+              subCategoryName,
+            ),
+          };
+          finalAiResponse = formatSingaporeV2Response(
+            astriaSingaporeV2Data,
+            subCategoryName,
+          );
+        } else {
+          astriaSingaporeV2Data = null;
+          finalAiResponse =
+            rawResponse
+              .replace(/<<<ASTRIA_SINGAPORE_V2_DATA>>>/g, "")
+              .replace(/<<<END_ASTRIA_SINGAPORE_V2_DATA>>>/g, "")
               .trim() || "No response";
         }
       }
@@ -7258,6 +7297,9 @@ RULES:
           : isAstriaKoreaV3
             ? astriaKoreaV3Data
             : null,
+        astriaSingaporeV2Data: isAstriaSingaporeV2
+          ? astriaSingaporeV2Data
+          : null,
         phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
       };
 
@@ -7346,6 +7388,9 @@ RULES:
           : isAstriaKoreaV3
             ? astriaKoreaV3Data
             : null,
+        astriaSingaporeV2Data: isAstriaSingaporeV2
+          ? astriaSingaporeV2Data
+          : null,
         gccCompatibilityData:
           isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
             ? gccCompatibilityData
@@ -7436,3 +7481,44 @@ RULES:
 };
 
 module.exports = chatController;
+
+if (process.env.NODE_ENV === "test") {
+  module.exports.__testHelpers = {
+    appendAstriaDobAndMessageContext,
+    getKolkataMidnightDate,
+    detectSpanish,
+    detectHinglish,
+    detectLangFromMessage,
+    getDefaultLanguageByOrigin,
+    extractThaiDateTime,
+    containsDate,
+    parseCaseIdOnly,
+    pickSupportLineByLang,
+    pickRandomUnique,
+    buildTrendingTopicContext,
+    extractSamayPravahGraph,
+    extractVyaktivaDarshanData,
+    extractBhavnaDrishtiData,
+    extractVivahMuhuratData,
+    extractSambandhTaalMelData,
+    buildVivahMuhuratSecondPrompt,
+    detectVivahIntention,
+    monthNameToNumber,
+    extractDOBFromText,
+    extractBirthTimeFromText,
+    extractBirthPlaceFromText,
+    parseVivahPartners,
+    buildVivahMissingFieldsQuestion,
+    buildVyaktivaDarshanCard,
+    applyVyaktivaDarshanFormat,
+    buildBhavnaDrishtiSecondPrompt,
+    buildVyaktivaDarshanSecondPrompt,
+    formatUpayMargResponse,
+    buildUpayMargPrompt,
+    pushRecentUnique,
+    detectToneMode,
+    getAgeInfo,
+    formatRecentConversationContext,
+    getCulturalLocalizationPrompt,
+  };
+}

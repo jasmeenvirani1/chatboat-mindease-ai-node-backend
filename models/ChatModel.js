@@ -35,6 +35,15 @@ const ChatMessageSchema = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
+    // Structured compatibility data for Astria Singapore V2 (score / summary /
+    // strengths / friction_points / action_steps / singapore_context — see
+    // helper/astriaSingaporeV2Service.js). Persisted so results survive page
+    // reload and so later turns can avoid repeating the same strengths/friction
+    // points. Null/absent for every other category's messages.
+    astriaSingaporeV2Data: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
   },
   { _id: false },
 );

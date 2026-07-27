@@ -142,10 +142,18 @@ function validateMarriageInput(body) {
   sanitized.need_checklist = sanitizeBoolean(body?.need_checklist);
   sanitized.need_vastu_direction = sanitizeBoolean(body?.need_vastu_direction);
 
+  // Both partners need a birth time AND place for a full (non-"limited")
+  // astrological chart view — see marriageContextBuilder.js / spec 5.3.
+  const hasFullBirthData = Boolean(
+    partA.time_of_birth && partA.place_of_birth &&
+    partB.time_of_birth && partB.place_of_birth,
+  );
+
   return {
     valid: errors.length === 0,
     errors,
     sanitized,
+    hasFullBirthData,
   };
 }
 

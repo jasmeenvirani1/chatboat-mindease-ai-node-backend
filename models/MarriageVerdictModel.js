@@ -55,12 +55,19 @@ const MarriageVerdictSchema = new Schema(
     },
     formInput: { type: MarriageInputSchema },
     aiVerdict: { type: Schema.Types.Mixed, default: null },
+    astroCore: { type: Schema.Types.Mixed, default: null },
     rawResponse: { type: String, default: null },
     status: {
       type: String,
       enum: ["pending", "completed", "failed"],
       default: "pending",
     },
+    selectedTab: {
+      type: String,
+      enum: ["life_guidance", "astro_chart_view"],
+      default: "life_guidance",
+    },
+    isLimited: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

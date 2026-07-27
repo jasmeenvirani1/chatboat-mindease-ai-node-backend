@@ -653,6 +653,174 @@ const { buildUtcDate } = require("./uranianPlanets");
 const NAKSHATRA_PADA_PROFILES = require("../data/nakshatraPadaProfiles.json");
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CITY DATA — lat/lng/timezone-offset lookup for Lagna/house/planet-position
+// calculations, which (unlike Nakshatra/Rashi/Dasha) require a birth place.
+// Same table shape as astriaUSService.js / astriaJapanService.js etc.
+// [lat, lng, tzOffsetMinutes]
+// ─────────────────────────────────────────────────────────────────────────────
+const CITY_DATA = {
+  // Major Indian metros
+  delhi: [28.6139, 77.209, 330],
+  "new delhi": [28.6139, 77.209, 330],
+  mumbai: [19.076, 72.8777, 330],
+  bombay: [19.076, 72.8777, 330],
+  bangalore: [12.9716, 77.5946, 330],
+  bengaluru: [12.9716, 77.5946, 330],
+  hyderabad: [17.385, 78.4867, 330],
+  chennai: [13.0827, 80.2707, 330],
+  madras: [13.0827, 80.2707, 330],
+  kolkata: [22.5726, 88.3639, 330],
+  calcutta: [22.5726, 88.3639, 330],
+  pune: [18.5204, 73.8567, 330],
+  ahmedabad: [23.0225, 72.5714, 330],
+  jaipur: [26.9124, 75.7873, 330],
+  surat: [21.1702, 72.8311, 330],
+  lucknow: [26.8467, 80.9462, 330],
+  kanpur: [26.4499, 80.3319, 330],
+  nagpur: [21.1458, 79.0882, 330],
+  indore: [22.7196, 75.8577, 330],
+  thane: [19.2183, 72.9781, 330],
+  bhopal: [23.2599, 77.4126, 330],
+  visakhapatnam: [17.6868, 83.2185, 330],
+  patna: [25.5941, 85.1376, 330],
+  vadodara: [22.3072, 73.1812, 330],
+  ghaziabad: [28.6692, 77.4538, 330],
+  ludhiana: [30.901, 75.8573, 330],
+  agra: [27.1767, 78.0081, 330],
+  nashik: [19.9975, 73.7898, 330],
+  faridabad: [28.4089, 77.3178, 330],
+  meerut: [28.9845, 77.7064, 330],
+  rajkot: [22.3039, 70.8022, 330],
+  varanasi: [25.3176, 82.9739, 330],
+  srinagar: [34.0837, 74.7973, 330],
+  amritsar: [31.634, 74.8723, 330],
+  chandigarh: [30.7333, 76.7794, 330],
+  guwahati: [26.1445, 91.7362, 330],
+  bhubaneswar: [20.2961, 85.8245, 330],
+  dehradun: [30.3165, 78.0322, 330],
+  coimbatore: [11.0168, 76.9558, 330],
+  kochi: [9.9312, 76.2673, 330],
+  cochin: [9.9312, 76.2673, 330],
+  thiruvananthapuram: [8.5241, 76.9366, 330],
+  trivandrum: [8.5241, 76.9366, 330],
+  madurai: [9.9252, 78.1198, 330],
+  jodhpur: [26.2389, 73.0243, 330],
+  ranchi: [23.3441, 85.3096, 330],
+  raipur: [21.2514, 81.6296, 330],
+  gurgaon: [28.4595, 77.0266, 330],
+  gurugram: [28.4595, 77.0266, 330],
+  noida: [28.5355, 77.391, 330],
+  mysore: [12.2958, 76.6394, 330],
+  mysuru: [12.2958, 76.6394, 330],
+  // Additional tier-2/3 Indian cities — reduces (but can never eliminate)
+  // how often a birth place falls through to "unresolved" below.
+  vijayawada: [16.5062, 80.648, 330],
+  guntur: [16.3067, 80.4365, 330],
+  warangal: [17.9689, 79.5941, 330],
+  nizamabad: [18.6725, 78.0941, 330],
+  tirupati: [13.6288, 79.4192, 330],
+  kurnool: [15.8281, 78.0373, 330],
+  rajahmundry: [17.0005, 81.804, 330],
+  jamshedpur: [22.8046, 86.2029, 330],
+  dhanbad: [23.7957, 86.4304, 330],
+  bokaro: [23.6693, 86.1511, 330],
+  asansol: [23.6739, 86.9524, 330],
+  siliguri: [26.7271, 88.3953, 330],
+  durgapur: [23.5204, 87.3119, 330],
+  howrah: [22.5958, 88.2636, 330],
+  cuttack: [20.4625, 85.8828, 330],
+  rourkela: [22.2604, 84.8536, 330],
+  puri: [19.8135, 85.8312, 330],
+  bhilai: [21.2094, 81.4285, 330],
+  bilaspur: [22.0797, 82.1409, 330],
+  jalandhar: [31.326, 75.5762, 330],
+  bikaner: [28.0229, 73.3119, 330],
+  ajmer: [26.4499, 74.6399, 330],
+  kota: [25.2138, 75.8648, 330],
+  udaipur: [24.5854, 73.7125, 330],
+  ujjain: [23.1765, 75.7885, 330],
+  gwalior: [26.2183, 78.1828, 330],
+  jabalpur: [23.1815, 79.9864, 330],
+  aurangabad: [19.8762, 75.3433, 330],
+  solapur: [17.6599, 75.9064, 330],
+  kolhapur: [16.705, 74.2433, 330],
+  amravati: [20.9374, 77.7796, 330],
+  nanded: [19.1383, 77.321, 330],
+  vellore: [12.9165, 79.1325, 330],
+  erode: [11.341, 77.7172, 330],
+  tirunelveli: [8.7139, 77.7567, 330],
+  tiruppur: [11.1085, 77.3411, 330],
+  salem: [11.6643, 78.146, 330],
+  thanjavur: [10.7867, 79.1378, 330],
+  kottayam: [9.5916, 76.5222, 330],
+  kollam: [8.8932, 76.6141, 330],
+  kannur: [11.8745, 75.3704, 330],
+  kozhikode: [11.2588, 75.7804, 330],
+  calicut: [11.2588, 75.7804, 330],
+  thrissur: [10.5276, 76.2144, 330],
+  alappuzha: [9.4981, 76.3388, 330],
+  palakkad: [10.7867, 76.6548, 330],
+  mangalore: [12.9141, 74.856, 330],
+  hubli: [15.3647, 75.124, 330],
+  belgaum: [15.8497, 74.4977, 330],
+  gulbarga: [17.3297, 76.8343, 330],
+  panaji: [15.4909, 73.8278, 330],
+  shimla: [31.1048, 77.1734, 330],
+  dharamshala: [32.219, 76.3234, 330],
+  rohtak: [28.895, 76.6066, 330],
+  hisar: [29.1492, 75.7217, 330],
+  panipat: [29.3909, 76.9635, 330],
+  karnal: [29.6857, 76.9905, 330],
+  ambala: [30.3752, 76.7821, 330],
+  bathinda: [30.211, 74.9455, 330],
+  imphal: [24.817, 93.9368, 330],
+  shillong: [25.5788, 91.8933, 330],
+  agartala: [23.8315, 91.2868, 330],
+  aizawl: [23.7271, 92.7176, 330],
+  kohima: [25.6751, 94.1086, 330],
+  itanagar: [27.0844, 93.6053, 330],
+  gangtok: [27.3389, 88.6065, 330],
+  jamnagar: [22.4707, 70.0577, 330],
+  bhavnagar: [21.7645, 72.1519, 330],
+  gandhinagar: [23.2156, 72.6369, 330],
+  bhuj: [23.242, 69.6669, 330],
+  bharatpur: [27.2152, 77.4909, 330],
+  alwar: [27.5665, 76.6249, 330],
+  sikar: [27.6094, 75.1399, 330],
+  muzaffarpur: [26.1197, 85.3910, 330],
+  gaya: [24.7955, 84.9994, 330],
+  bhagalpur: [25.2425, 86.9842, 330],
+  darbhanga: [26.1542, 85.8918, 330],
+  // A handful of major global cities for the NRI diaspora
+  "new york": [40.7128, -74.006, -300],
+  london: [51.5072, -0.1276, 0],
+  toronto: [43.6532, -79.3832, -300],
+  singapore: [1.3521, 103.8198, 480],
+  dubai: [25.2048, 55.2708, 240],
+  sydney: [-33.8688, 151.2093, 600],
+};
+
+// Resolves a free-text birth place to coordinates, or null when it can't be
+// confidently matched — callers must NOT substitute a default city on null,
+// since that would silently compute a Lagna/houses for the wrong location
+// and present it as accurate. No place text and no match both return null.
+function lookupCityData(cityName) {
+  if (!cityName) return null;
+  const key = String(cityName).toLowerCase().trim();
+  if (CITY_DATA[key]) {
+    const [lat, lng, tz] = CITY_DATA[key];
+    return { lat, lng, tz };
+  }
+  for (const [city, coords] of Object.entries(CITY_DATA)) {
+    if (key.includes(city) || city.includes(key)) {
+      const [lat, lng, tz] = coords;
+      return { lat, lng, tz };
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 1. VIMSHOTTARI DASHA SYSTEM
 //    Total cycle: 120 years
 //    Sequence starting lord: same as birth Nakshatra lord
@@ -717,12 +885,15 @@ const RASHI_LORDS = {
 };
 
 /**
- * Derive Rashi (Moon sign) from sidereal Moon longitude. Each Rashi = 30°.
+ * Derive Rashi (sign) + exact degree-within-sign from any sidereal longitude
+ * (Moon, Lagna, or a planet — all 30°-wide signs). `degree` is the real
+ * computed position (0-30), never a placeholder.
  */
-function computeRashi(siderealMoon) {
-  const idx = Math.min(Math.floor(siderealMoon / 30), 11);
+function computeRashi(siderealLon) {
+  const idx = Math.min(Math.floor(siderealLon / 30), 11);
   const name = RASHI_NAMES[idx];
-  return { index: idx, name, lord: RASHI_LORDS[name] };
+  const degree = Math.round((siderealLon - idx * 30) * 100) / 100;
+  return { index: idx, name, lord: RASHI_LORDS[name], degree };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1083,15 +1254,153 @@ function getMoonTropicalLongitude(utcDate) {
 }
 
 /**
- * Moon's sidereal longitude: tropical − Lahiri ayanamsa.
+ * Generic tropical → sidereal conversion (subtract Lahiri ayanamsa).
+ * Used for the Moon, the Ascendant, and every other planet so the whole
+ * chart shares one consistent sidereal zodiac.
  */
-function getMoonSiderealLongitude(utcDate) {
-  const tropical = getMoonTropicalLongitude(utcDate);
+function toSiderealLongitude(tropicalLon, utcDate) {
   const ayanamsa = getLahiriAyanamsa(utcDate);
-  let sidereal = tropical - ayanamsa;
+  let sidereal = tropicalLon - ayanamsa;
   if (sidereal < 0) sidereal += 360;
   if (sidereal >= 360) sidereal -= 360;
   return sidereal;
+}
+
+/**
+ * Moon's sidereal longitude: tropical − Lahiri ayanamsa.
+ */
+function getMoonSiderealLongitude(utcDate) {
+  return toSiderealLongitude(getMoonTropicalLongitude(utcDate), utcDate);
+}
+
+// Classical planet bodies used for planetary highlights / house influences.
+// Rahu/Ketu (lunar nodes) are intentionally omitted — astronomy-engine has no
+// direct node ephemeris and an approximation isn't worth the accuracy risk here.
+const CHART_PLANET_BODIES = [
+  { name: "Sun", body: Astronomy.Body.Sun },
+  { name: "Moon", body: Astronomy.Body.Moon },
+  { name: "Mars", body: Astronomy.Body.Mars },
+  { name: "Mercury", body: Astronomy.Body.Mercury },
+  { name: "Jupiter", body: Astronomy.Body.Jupiter },
+  { name: "Venus", body: Astronomy.Body.Venus },
+  { name: "Saturn", body: Astronomy.Body.Saturn },
+];
+
+/**
+ * Tropical ecliptic longitude for any body (Sun/Mars/Mercury/Jupiter/Venus/
+ * Saturn) — same pattern as getMoonTropicalLongitude, generalized.
+ */
+function getPlanetTropicalLongitude(body, utcDate) {
+  const geoVector = Astronomy.GeoVector(body, utcDate, false);
+  const ecliptic = Astronomy.Ecliptic(geoVector);
+  let deg = ecliptic.elon;
+  while (deg < 0) deg += 360;
+  while (deg >= 360) deg -= 360;
+  return deg;
+}
+
+/**
+ * Sidereal longitudes for the 7 classical grahas, each resolved to its Rashi.
+ * @returns {{ [planetName]: { longitude: number, rashi: object } }}
+ */
+function computePlanetPositions(utcDate) {
+  const positions = {};
+  for (const { name, body } of CHART_PLANET_BODIES) {
+    const siderealLon = toSiderealLongitude(
+      getPlanetTropicalLongitude(body, utcDate),
+      utcDate,
+    );
+    positions[name] = {
+      longitude: siderealLon,
+      rashi: computeRashi(siderealLon),
+    };
+  }
+  return positions;
+}
+
+/**
+ * Ascendant (Lagna) — tropical longitude of the eastern horizon at birth,
+ * via sidereal time + birth latitude. Same trig as astriaUSService.js /
+ * astriaJapanService.js's computeAscendant, generalized for any country.
+ */
+function computeAscendant(utcDate, lat, lng) {
+  const gmst = Astronomy.SiderealTime(utcDate); // hours
+  const lmst = (((gmst + lng / 15) % 24) + 24) % 24;
+  const RAMC = lmst * 15; // degrees
+  const obliquity = 23.4392911;
+  const ramcRad = (RAMC * Math.PI) / 180;
+  const oblRad = (obliquity * Math.PI) / 180;
+  const latRad = (lat * Math.PI) / 180;
+
+  const y = -Math.cos(ramcRad);
+  const x =
+    Math.sin(ramcRad) * Math.cos(oblRad) + Math.tan(latRad) * Math.sin(oblRad);
+  let asc = (Math.atan2(y, x) * 180) / Math.PI;
+  if (Math.sin(ramcRad) > 0 && asc < 90) asc += 180;
+  if (Math.sin(ramcRad) < 0 && asc > 180) asc -= 180;
+  return ((asc % 360) + 360) % 360;
+}
+
+/**
+ * Sidereal Ascendant (Lagna) resolved to its Rashi — the Vedic Lagna.
+ */
+function computeSiderealAscendant(utcDate, lat, lng) {
+  const tropicalAsc = computeAscendant(utcDate, lat, lng);
+  const siderealAsc = toSiderealLongitude(tropicalAsc, utcDate);
+  return { longitude: siderealAsc, rashi: computeRashi(siderealAsc) };
+}
+
+/**
+ * 12 whole-sign houses counted from the Lagna sign (standard Vedic house
+ * system — each house = one full Rashi, no intermediate cusps).
+ */
+function computeWholeSignHouses(siderealAscLon) {
+  const ascSignIdx = Math.min(Math.floor(siderealAscLon / 30), 11);
+  const houses = {};
+  for (let i = 1; i <= 12; i++) {
+    const idx = (ascSignIdx + i - 1) % 12;
+    houses[String(i)] = { house: i, sign: RASHI_NAMES[idx], signIndex: idx };
+  }
+  return houses;
+}
+
+function houseOfSign(signIndex, ascSignIdx) {
+  return ((signIndex - ascSignIdx + 12) % 12) + 1;
+}
+
+// Classical Mangal (Manglik) Dosha houses — Mars placed here (from Lagna or
+// from Moon) is considered afflicting for marriage compatibility.
+const MANGLIK_HOUSES = new Set([1, 2, 4, 7, 8, 12]);
+
+/**
+ * Real Manglik Dosha check: which houses (from Lagna and from Moon) Mars
+ * occupies, replacing the old birth-date-parity heuristic entirely.
+ * @returns {{ status: "none"|"anshik"|"manglik", housesTriggered: number[], marsHouseFromLagna: number|null, marsHouseFromMoon: number|null }}
+ */
+function computeManglikStatus({ marsRashiIndex, ascRashiIndex, moonRashiIndex }) {
+  if (marsRashiIndex == null) {
+    return {
+      status: "unknown",
+      housesTriggered: [],
+      marsHouseFromLagna: null,
+      marsHouseFromMoon: null,
+    };
+  }
+
+  const marsHouseFromLagna =
+    ascRashiIndex != null ? houseOfSign(marsRashiIndex, ascRashiIndex) : null;
+  const marsHouseFromMoon =
+    moonRashiIndex != null ? houseOfSign(marsRashiIndex, moonRashiIndex) : null;
+
+  const housesTriggered = [marsHouseFromLagna, marsHouseFromMoon].filter(
+    (h) => h != null && MANGLIK_HOUSES.has(h),
+  );
+
+  let status = "none";
+  if (housesTriggered.length === 2) status = "manglik";
+  else if (housesTriggered.length === 1) status = "anshik"; // partial/mild
+
+  return { status, housesTriggered, marsHouseFromLagna, marsHouseFromMoon };
 }
 
 /**
@@ -1341,27 +1650,57 @@ LANGUAGE RULE (ABSOLUTE): Reply only in ${langName}. Every word must be in ${lan
  * computeAstriaIndiaChart — structured (non-prompt-text) birth chart data.
  * Used wherever real math is needed (e.g. Ashtakoot compatibility scoring)
  * instead of parsing values back out of prompt text.
- * @returns {{ nakshatraResult: object|null, dashaResult: object|null, rashiResult: object|null, gana: string|null, hasTime: boolean }}
+ *
+ * `dob_place` must resolve to a KNOWN city (see CITY_DATA/lookupCityData) —
+ * an unrecognized place is never silently substituted with a default
+ * location. `placeResolved` reports whether that actually happened.
+ * `ascendantResult`/`houses` (and each planet's `.house`) are only computed
+ * when `dob_time` is supplied AND the place resolved — Lagna is meaningless
+ * without real coordinates. `planetPositions` (sign only, no `.house`) and a
+ * Moon-only `manglikResult` are computed from `dob_time` alone, since planet
+ * *sign* positions never depend on the observer's location. Callers that
+ * only ever passed { dob, dob_time } keep getting exactly the same
+ * nakshatra/dasha/rashi/gana/hasTime shape as before; the new fields are
+ * additive and default to null/false.
+ * @returns {{ nakshatraResult: object|null, dashaResult: object|null, rashiResult: object|null, gana: string|null, hasTime: boolean, hasPlace: boolean, placeResolved: boolean, ascendantResult: object|null, houses: object|null, planetPositions: object|null, manglikResult: object|null }}
  */
 function computeAstriaIndiaChart({
   dob,
   dob_time,
-  timezoneOffsetMinutes = 330, // default: IST (UTC+5:30)
+  dob_place = null,
+  timezoneOffsetMinutes,
 }) {
   let nakshatraResult = null;
   let dashaResult = null;
   let rashiResult = null;
+  let ascendantResult = null;
+  let houses = null;
+  let planetPositions = null;
+  let manglikResult = null;
   let hasTime = false;
+  const hasPlace = !!(dob_place && String(dob_place).trim());
+  let placeResolved = false;
 
   if (dob && typeof dob === "string" && dob.trim()) {
     try {
       const timeStr = dob_time && dob_time.trim() ? dob_time.trim() : "12:00";
       hasTime = !!(dob_time && dob_time.trim());
 
+      // city is null both when no place was given AND when the given place
+      // couldn't be matched — never a fake/default location (see
+      // lookupCityData). Only IST is assumed as a timezone fallback, which
+      // is safe for Nakshatra/Rashi/Dasha (all of India shares one zone).
+      const city = hasPlace ? lookupCityData(dob_place) : null;
+      placeResolved = !!city;
+      const resolvedTzOffset =
+        typeof timezoneOffsetMinutes === "number"
+          ? timezoneOffsetMinutes
+          : (city ? city.tz : 330); // default: IST (UTC+5:30)
+
       const utcBirthDate = buildUtcDate({
         dateOfBirth: dob.trim(),
         timeOfBirth: timeStr,
-        timezoneOffsetMinutes,
+        timezoneOffsetMinutes: resolvedTzOffset,
         dateFormat: "DMY",
       });
 
@@ -1369,6 +1708,31 @@ function computeAstriaIndiaChart({
       nakshatraResult = computeNakshatra(siderealMoon);
       dashaResult = computeVimshottariDasha(nakshatraResult, utcBirthDate);
       rashiResult = computeRashi(siderealMoon);
+
+      // Planet sign positions only need date+time (no coordinates), so
+      // compute them whenever birth time is known even if the place can't
+      // be resolved — only the HOUSE number (below) needs real coordinates.
+      if (hasTime) {
+        planetPositions = computePlanetPositions(utcBirthDate);
+      }
+
+      if (hasTime && placeResolved) {
+        ascendantResult = computeSiderealAscendant(utcBirthDate, city.lat, city.lng);
+        houses = computeWholeSignHouses(ascendantResult.longitude);
+        for (const pos of Object.values(planetPositions)) {
+          pos.house = houseOfSign(pos.rashi.index, ascendantResult.rashi.index);
+        }
+      }
+
+      if (hasTime) {
+        // Manglik-from-Moon never needs coordinates; Manglik-from-Lagna is
+        // only included when the Lagna itself was actually computed above.
+        manglikResult = computeManglikStatus({
+          marsRashiIndex: planetPositions.Mars.rashi.index,
+          ascRashiIndex: ascendantResult ? ascendantResult.rashi.index : null,
+          moonRashiIndex: rashiResult.index,
+        });
+      }
     } catch (_err) {
       // Silent fallback — respond without birth chart
     }
@@ -1378,7 +1742,19 @@ function computeAstriaIndiaChart({
     ? getNakshatraGana(nakshatraResult.nakshatra.name)
     : null;
 
-  return { nakshatraResult, dashaResult, rashiResult, gana, hasTime };
+  return {
+    nakshatraResult,
+    dashaResult,
+    rashiResult,
+    gana,
+    hasTime,
+    hasPlace,
+    placeResolved,
+    ascendantResult,
+    houses,
+    planetPositions,
+    manglikResult,
+  };
 }
 
 /**
@@ -1587,4 +1963,9 @@ module.exports = {
   RASHI_NAMES,
   RASHI_LORDS,
   NAKSHATRA_GANA,
+  lookupCityData,
+  computeSiderealAscendant,
+  computeWholeSignHouses,
+  computePlanetPositions,
+  computeManglikStatus,
 };
