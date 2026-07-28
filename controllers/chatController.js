@@ -145,6 +145,17 @@ const {
   formatSingaporeV2Response,
 } = require("../helper/astriaSingaporeV2Service");
 const {
+  buildAstriaUKV2Context,
+  computeWesternBirthChartUKV2,
+  parseEnergyMatchPartnersUKV2,
+  buildEnergyMatchMissingQuestionUKV2,
+  isEnergyMatchSubcategoryUKV2,
+  extractAstriaUKV2Data,
+  validateAstriaUKV2Data,
+  deriveAstriaUKV2DisplaySections,
+  formatAstriaUKV2Response,
+} = require("../helper/astriaUKV2Service");
+const {
   buildAstriaGCCContext,
   computeWesternBirthChartGCC,
   parseCompatibilityPartnersGCC,
@@ -2072,6 +2083,7 @@ const chatController = {
         korea3BoxPartner,
         gcc3BoxSelf,
         gcc3BoxPartner,
+        gccToneMode,
         indonesia3BoxSelf,
         indonesia3BoxPartner,
         philippinesV2Wizard,
@@ -2097,11 +2109,12 @@ const chatController = {
       let subscriptionStatus;
       let roleId;
       let userRegion;
+      let userGccToneMode;
       let userMusicMemory = null;
 
       if (userId) {
         const user = await User.findById(userId).select(
-          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId preferredLanguage region",
+          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId preferredLanguage region gccToneMode",
         );
         if (user) {
           dob0 = user.dob;
@@ -2112,6 +2125,7 @@ const chatController = {
           subscriptionId = user.subscriptionId;
           subscriptionStatus = user.subscriptionStatus;
           roleId = user.roleId;
+          userGccToneMode = user.gccToneMode;
         }
         userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
@@ -2160,6 +2174,14 @@ const chatController = {
         detectLangFromMessage(userMessage, true) ||
         getDefaultLanguageByOrigin(userRegion) ||
         "en";
+
+      // GCC Gulf tone engine: request body override wins (frontend switcher),
+      // then the user's saved profile setting, then the spec default ("gulf").
+      const GCC_VALID_TONE_MODES = new Set(["msa_fusha", "gulf", "kuwaiti"]);
+      const resolvedGccToneMode =
+        [gccToneMode, userGccToneMode].find((m) =>
+          GCC_VALID_TONE_MODES.has(m),
+        ) || "gulf";
       // Translate ALL non-English input to English for internal processing
       let translatedMessage;
       if (target !== "en") {
@@ -2732,6 +2754,39 @@ const chatController = {
         !isAstriaIndonesiaTalk &&
         !isAstriaVietnamV2 &&
         !isAstriaVietnam;
+
+      // Astria UK V2 Engine — UK Room: calm-warm, understated, dry humour,
+      // soft-direct British emotional precision (Energy Match, MateScan,
+      // Companion Talk, Cosmic UK, Relationship, Daily Flow, Zodiac
+      // Personality). Separate category from "Astria UK" (v1) — v1 stays
+      // untouched, same pattern as Astria Korea V2 / Singapore V2.
+      const isAstriaUKV2 =
+        categoryName === "Astria UK V2" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
+        !isAstriaGCC &&
+        !isAstriaGCCV2 &&
+        !isAstriaUK &&
+        !isAstriaCanada &&
+        !isAstriaIndonesia &&
+        !isAstriaPhilippinesV2 &&
+        !isAstriaIndonesiaV2 &&
+        !isAstriaIndonesiaTalk &&
+        !isAstriaVietnamV2 &&
+        !isAstriaVietnam &&
+        !isAstriaBrazilV2 &&
+        !isAstriaMexicoV2;
 
       // Astria Talk Engine - FLAG
       const isAstriaTalk =
@@ -3517,6 +3572,10 @@ RULES:
       // strengths/friction_points/action_steps/singapore_context) for
       // frontend dataBinding, see helper/astriaSingaporeV2Service.js.
       let astriaSingaporeV2Data = null;
+      // ASTRIA UK V2 — structured per-tab data (Energy Match, MateScan,
+      // Companion Talk, Cosmic UK, Relationship, Daily Flow, Zodiac
+      // Personality) for frontend dataBinding, see helper/astriaUKV2Service.js.
+      let astriaUKV2Data = null;
       // Saju KR v3 — code-computed Four Pillars facts
       let astriaKoreaV3SajuFacts = null;
 
@@ -4773,6 +4832,7 @@ RULES:
               userMessage,
               birthChart: chartABR,
               birthChartB: chartBBR,
+              recentConversationContext,
             });
           }
         } else {
@@ -4797,6 +4857,7 @@ RULES:
             target,
             userMessage,
             birthChart: astriaBrazilBirthChart,
+            recentConversationContext,
           });
         }
         systemPrompt = appendAstriaDobAndMessageContext(
@@ -4967,10 +5028,7 @@ RULES:
                 dob_place: selfDobPlace0 || null,
               });
             } catch (chartErr) {
-              logger.error(
-                "Astria Singapore V2 birth chart error:",
-                chartErr,
-              );
+              logger.error("Astria Singapore V2 birth chart error:", chartErr);
             }
           }
 
@@ -4979,6 +5037,92 @@ RULES:
             categoryPrompt: categoryPrompt || null,
             subCategoryPrompt: subCategoryPrompt || null,
             birthChart: astriaSingaporeV2BirthChart,
+            birthChartB: null,
+          });
+        }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+
+      // ASTRIA UK V2 ENGINE — UK Room (Energy Match needs two birth charts;
+      // every other tab uses a single self chart)
+      let energyMatchMissingQuestionUKV2 = null;
+      if (isAstriaUKV2) {
+        if (isEnergyMatchSubcategoryUKV2(subCategoryName)) {
+          // Energy Match: needs two birth charts
+          const energyMatchPartnersUKV2 = parseEnergyMatchPartnersUKV2(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (energyMatchPartnersUKV2.missingFields.length > 0) {
+            energyMatchMissingQuestionUKV2 =
+              buildEnergyMatchMissingQuestionUKV2(
+                energyMatchPartnersUKV2.missingFields,
+                !!(dob0 && String(dob0).trim()),
+                "en",
+              );
+          } else {
+            let chartAUKV2 = null;
+            let chartBUKV2 = null;
+            try {
+              if (energyMatchPartnersUKV2.personA.dob) {
+                chartAUKV2 = computeWesternBirthChartUKV2({
+                  dob: energyMatchPartnersUKV2.personA.dob,
+                  dob_time: energyMatchPartnersUKV2.personA.time || null,
+                  dob_place: energyMatchPartnersUKV2.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria UK V2 Energy Match - chartA error:", err);
+            }
+            try {
+              if (energyMatchPartnersUKV2.personB.dob) {
+                chartBUKV2 = computeWesternBirthChartUKV2({
+                  dob: energyMatchPartnersUKV2.personB.dob,
+                  dob_time: energyMatchPartnersUKV2.personB.time || null,
+                  dob_place: energyMatchPartnersUKV2.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error("Astria UK V2 Energy Match - chartB error:", err);
+            }
+
+            systemPrompt = buildAstriaUKV2Context({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              birthChart: chartAUKV2,
+              birthChartB: chartBUKV2,
+              selfName: userName || null,
+            });
+          }
+        } else {
+          // All other UK V2 subcategories — single user chart
+          let astriaUKV2BirthChart = null;
+          if (selfDob0) {
+            try {
+              astriaUKV2BirthChart = computeWesternBirthChartUKV2({
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria UK V2 birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaUKV2Context({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            birthChart: astriaUKV2BirthChart,
             birthChartB: null,
           });
         }
@@ -5058,6 +5202,7 @@ RULES:
               partnerDestinyTime: gcc3BoxPartner.destiny_time || null,
               calculatedScore,
               scoreLabel,
+              toneMode: resolvedGccToneMode,
             });
           } else {
             // Fallback: text-based compatibility parsing (original flow)
@@ -5108,6 +5253,7 @@ RULES:
                 userMessage,
                 birthChart: chartAGCC,
                 birthChartB: chartBGCC,
+                toneMode: resolvedGccToneMode,
               });
             }
           }
@@ -5133,6 +5279,7 @@ RULES:
             target,
             userMessage,
             birthChart: astriaGCCBirthChart,
+            toneMode: resolvedGccToneMode,
           });
         }
         systemPrompt = appendAstriaDobAndMessageContext(
@@ -5166,6 +5313,7 @@ RULES:
           target,
           userMessage,
           birthChart: astriaGCCV2BirthChart,
+          toneMode: resolvedGccToneMode,
         });
 
         systemPrompt = appendAstriaDobAndMessageContext(
@@ -6372,6 +6520,46 @@ RULES:
             }
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isAstriaUKV2 && energyMatchMissingQuestionUKV2) {
+            finalAiResponse = energyMatchMissingQuestionUKV2;
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isAstriaUKV2) {
+            const ukv2Stream = await generateGeminiResponseStream(messages);
+            let rawResponse = "";
+            for await (const chunk of ukv2Stream) {
+              if (clientClosed) break;
+              const text = chunk?.text || "";
+              if (!text) continue;
+              rawResponse += text;
+            }
+
+            astriaUKV2Data = extractAstriaUKV2Data(rawResponse);
+
+            if (
+              astriaUKV2Data &&
+              validateAstriaUKV2Data(astriaUKV2Data, subCategoryName)
+            ) {
+              astriaUKV2Data = {
+                ...astriaUKV2Data,
+                ...deriveAstriaUKV2DisplaySections(
+                  astriaUKV2Data,
+                  subCategoryName,
+                ),
+              };
+              finalAiResponse = formatAstriaUKV2Response(
+                astriaUKV2Data,
+                subCategoryName,
+              );
+            } else {
+              astriaUKV2Data = null;
+              finalAiResponse =
+                rawResponse
+                  .replace(/<<<ASTRIA_UK_V2_DATA>>>/g, "")
+                  .replace(/<<<END_ASTRIA_UK_V2_DATA>>>/g, "")
+                  .trim() || "No response";
+            }
+
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaGCC && compatibilityMissingQuestionGCC) {
             // Return structured response for frontend to show 3-Box form
             const needsPartnerForm = {
@@ -6633,6 +6821,7 @@ RULES:
             astriaSingaporeV2Data: isAstriaSingaporeV2
               ? astriaSingaporeV2Data
               : null,
+            astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
             phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
           };
 
@@ -6834,6 +7023,7 @@ RULES:
                 astriaSingaporeV2Data: isAstriaSingaporeV2
                   ? astriaSingaporeV2Data
                   : null,
+                astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
                 gccCompatibilityData:
                   isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
                     ? gccCompatibilityDataStream
@@ -7136,6 +7326,34 @@ RULES:
         }
       }
 
+      // ASTRIA UK V2 RESPONSE PROCESSING (NON-STREAMING)
+      if (isAstriaUKV2 && !energyMatchMissingQuestionUKV2) {
+        const rawResponse = completion?.trim() || "No response";
+
+        astriaUKV2Data = extractAstriaUKV2Data(rawResponse);
+
+        if (
+          astriaUKV2Data &&
+          validateAstriaUKV2Data(astriaUKV2Data, subCategoryName)
+        ) {
+          astriaUKV2Data = {
+            ...astriaUKV2Data,
+            ...deriveAstriaUKV2DisplaySections(astriaUKV2Data, subCategoryName),
+          };
+          finalAiResponse = formatAstriaUKV2Response(
+            astriaUKV2Data,
+            subCategoryName,
+          );
+        } else {
+          astriaUKV2Data = null;
+          finalAiResponse =
+            rawResponse
+              .replace(/<<<ASTRIA_UK_V2_DATA>>>/g, "")
+              .replace(/<<<END_ASTRIA_UK_V2_DATA>>>/g, "")
+              .trim() || "No response";
+        }
+      }
+
       // ASTRIA KOREA V3 RESPONSE PROCESSING (NON-STREAMING)
       if (
         isAstriaKoreaV3 &&
@@ -7300,6 +7518,7 @@ RULES:
         astriaSingaporeV2Data: isAstriaSingaporeV2
           ? astriaSingaporeV2Data
           : null,
+        astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
         phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
       };
 
@@ -7391,6 +7610,7 @@ RULES:
         astriaSingaporeV2Data: isAstriaSingaporeV2
           ? astriaSingaporeV2Data
           : null,
+        astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
         gccCompatibilityData:
           isAstriaGCC && isCompatibilitySubcategoryGCC(subCategoryName)
             ? gccCompatibilityData
@@ -7481,44 +7701,3 @@ RULES:
 };
 
 module.exports = chatController;
-
-if (process.env.NODE_ENV === "test") {
-  module.exports.__testHelpers = {
-    appendAstriaDobAndMessageContext,
-    getKolkataMidnightDate,
-    detectSpanish,
-    detectHinglish,
-    detectLangFromMessage,
-    getDefaultLanguageByOrigin,
-    extractThaiDateTime,
-    containsDate,
-    parseCaseIdOnly,
-    pickSupportLineByLang,
-    pickRandomUnique,
-    buildTrendingTopicContext,
-    extractSamayPravahGraph,
-    extractVyaktivaDarshanData,
-    extractBhavnaDrishtiData,
-    extractVivahMuhuratData,
-    extractSambandhTaalMelData,
-    buildVivahMuhuratSecondPrompt,
-    detectVivahIntention,
-    monthNameToNumber,
-    extractDOBFromText,
-    extractBirthTimeFromText,
-    extractBirthPlaceFromText,
-    parseVivahPartners,
-    buildVivahMissingFieldsQuestion,
-    buildVyaktivaDarshanCard,
-    applyVyaktivaDarshanFormat,
-    buildBhavnaDrishtiSecondPrompt,
-    buildVyaktivaDarshanSecondPrompt,
-    formatUpayMargResponse,
-    buildUpayMargPrompt,
-    pushRecentUnique,
-    detectToneMode,
-    getAgeInfo,
-    formatRecentConversationContext,
-    getCulturalLocalizationPrompt,
-  };
-}

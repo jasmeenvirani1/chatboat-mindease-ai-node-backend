@@ -219,6 +219,71 @@ function computeCurrentTransits() {
   return transits;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MOON PHASE — used by the Daily Flow / Astrology Engine v2 "lunar mood" layer.
+// ─────────────────────────────────────────────────────────────────────────────
+const MOON_PHASE_NAMES_BR = [
+  { max: 22.5, name: "Lua Nova", mood: "início, intenção, sementes plantadas em silêncio" },
+  { max: 67.5, name: "Lua Crescente", mood: "construção, coragem para agir, momentum suave" },
+  { max: 112.5, name: "Quarto Crescente", mood: "tensão produtiva, decisão, ajuste de rumo" },
+  { max: 157.5, name: "Lua Gibosa Crescente", mood: "refinamento, paciência, quase lá" },
+  { max: 202.5, name: "Lua Cheia", mood: "clareza, emoção em alta, revelação" },
+  { max: 247.5, name: "Lua Gibosa Minguante", mood: "gratidão, compartilhar o que foi colhido" },
+  { max: 292.5, name: "Quarto Minguante", mood: "soltar, liberar o que não serve mais" },
+  { max: 337.5, name: "Lua Minguante", mood: "descanso, introspecção, fechamento de ciclo" },
+  { max: 360.01, name: "Lua Nova", mood: "início, intenção, sementes plantadas em silêncio" },
+];
+
+function computeMoonPhase(date = new Date()) {
+  try {
+    const sunLon = getEclipticLon(Astronomy.Body.Sun, date);
+    const moonLon = getEclipticLon(Astronomy.Body.Moon, date);
+    const angle = normLon(moonLon - sunLon);
+    const phaseInfo = MOON_PHASE_NAMES_BR.find((p) => angle <= p.max);
+    return {
+      angle: parseFloat(angle.toFixed(2)),
+      name: phaseInfo?.name || "Lua Nova",
+      mood: phaseInfo?.mood || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SATURN RETURN — real transit-to-natal check (Saturn's ~29.5yr cycle).
+// Flags when transiting Saturn is within orb of a conjunction/opposition/square
+// to natal Saturn, i.e. the 1st (~29), 2nd (~59), or approaching 3rd (~88) return.
+// ─────────────────────────────────────────────────────────────────────────────
+function computeSaturnReturnStatusBR(natalPlanets, currentTransits) {
+  const natalSaturn = natalPlanets?.saturn;
+  const transitSaturn = currentTransits?.saturn;
+  if (!natalSaturn || !transitSaturn) return null;
+
+  const diff = Math.abs(normLon(transitSaturn.longitude) - normLon(natalSaturn.longitude));
+  const angle = diff > 180 ? 360 - diff : diff;
+
+  const RETURN_ORB = 6; // degrees — wide enough to catch "approaching/exact/separating"
+  let contact = null;
+  if (angle <= RETURN_ORB) contact = "conjunction";
+  else if (Math.abs(angle - 90) <= RETURN_ORB) contact = "square";
+  else if (Math.abs(angle - 180) <= RETURN_ORB) contact = "opposition";
+
+  if (!contact) {
+    return { active: false, contact: null, natal_sign: natalSaturn.sign, transit_sign: transitSaturn.sign };
+  }
+
+  return {
+    active: true,
+    contact,
+    natal_sign: natalSaturn.sign,
+    transit_sign: transitSaturn.sign,
+    orb: parseFloat(
+      (contact === "conjunction" ? angle : Math.abs(angle - (contact === "square" ? 90 : 180))).toFixed(2),
+    ),
+  };
+}
+
 function computeTransitToNatalAspects(natalPlanets, transitPlanets) {
   const aspects = [];
   for (const [tName, tPos] of Object.entries(transitPlanets)) {
@@ -281,6 +346,8 @@ function computeWesternBirthChartBR({ dob, dob_time, dob_place, timezoneOffsetMi
   const aspects = computeNatalAspects(planets);
   const currentTransits = computeCurrentTransits();
   const transitAspects = computeTransitToNatalAspects(planets, currentTransits);
+  const moonPhase = computeMoonPhase();
+  const saturnReturn = computeSaturnReturnStatusBR(planets, currentTransits);
 
   return {
     sun_sign: planets.sun.sign,
@@ -292,6 +359,8 @@ function computeWesternBirthChartBR({ dob, dob_time, dob_place, timezoneOffsetMi
     aspects,
     current_transits: currentTransits,
     transit_aspects: transitAspects,
+    moon_phase: moonPhase,
+    saturn_return: saturnReturn,
     meta: {
       dob,
       dob_time: dob_time || "unknown",
@@ -350,6 +419,12 @@ function formatChartBlockBR(chart, focus = "full") {
     for (const [name, t] of Object.entries(chart.current_transits)) {
       if (t) lines.push(`  ${cap(name)}: ${t.sign} ${t.degree}°`);
     }
+    if (chart.moon_phase) {
+      lines.push(`\nFase da Lua de Hoje: ${chart.moon_phase.name} (${chart.moon_phase.angle}°) — ${chart.moon_phase.mood}`);
+    }
+    if (chart.saturn_return?.active) {
+      lines.push(`\nRetorno de Saturno ATIVO: trânsito de Saturno em ${chart.saturn_return.transit_sign} faz ${chart.saturn_return.contact} com o Saturno natal em ${chart.saturn_return.natal_sign} (orbe ${chart.saturn_return.orb}°). Trate como um marco real de reestruturação — não genérico.`);
+    }
     if (chart.transit_aspects.length > 0) {
       lines.push("\nContatos Ativos de Trânsito:");
       for (const a of chart.transit_aspects.slice(0, 10)) {
@@ -372,6 +447,12 @@ function formatChartBlockBR(chart, focus = "full") {
     lines.push(`\nTrânsitos de Hoje:`);
     for (const [name, t] of Object.entries(chart.current_transits)) {
       if (t) lines.push(`  ${cap(name)}: ${t.sign} ${t.degree}°`);
+    }
+    if (chart.moon_phase) {
+      lines.push(`\nFase da Lua de Hoje: ${chart.moon_phase.name} — ${chart.moon_phase.mood}`);
+    }
+    if (chart.saturn_return?.active) {
+      lines.push(`\nRetorno de Saturno ATIVO: trânsito de Saturno em ${chart.saturn_return.transit_sign} faz ${chart.saturn_return.contact} com o Saturno natal em ${chart.saturn_return.natal_sign} (orbe ${chart.saturn_return.orb}°). Se o usuário perguntar sobre isso, trate como um marco real de reestruturação — não genérico.`);
     }
     if (chart.transit_aspects.length > 0) {
       lines.push("\nContatos de Trânsito Ativos:");
@@ -536,19 +617,82 @@ const LANG_NAME_MAP_BR = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EMOTIONAL RHYTHM v2 — time-of-day blocks (Brazil local time, America/Sao_Paulo)
+// ─────────────────────────────────────────────────────────────────────────────
+const BR_TIME_BLOCKS = {
+  morning: { tone: "gentle, grounding, therapist-like but light", focus: "rotina, corpo, pequenas vitórias", style: "curto, claro, caloroso — 1–2 parágrafos no máximo" },
+  afternoon: { tone: "practical, motivating, direct but kind", focus: "trabalho, tarefas, limites", style: "orientado a solução, sem loops espirituais" },
+  evening: { tone: "reflective, emotional, intimate", focus: "relacionamentos, autoestima, sentimentos", style: "mais profundo mas ainda conciso — evite repetir os insights da manhã" },
+  night: { tone: "soft, closing, safe-space", focus: "descanso, sistema nervoso, deixar ir", style: "orientação breve de fechamento, não uma nova leitura longa" },
+};
+
+function resolveBrazilTimeBlock(date = new Date()) {
+  const hour = parseInt(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false }).format(date),
+    10,
+  );
+  let block;
+  if (hour >= 5 && hour < 12) block = "morning";
+  else if (hour >= 12 && hour < 18) block = "afternoon";
+  else if (hour >= 18 && hour < 23) block = "evening";
+  else block = "night";
+  return { block, ...BR_TIME_BLOCKS[block] };
+}
+
+function formatRhythmSectionBR(timeBlock) {
+  if (!timeBlock) return "";
+  return `RITMO EMOCIONAL AGORA (${timeBlock.block}): tom ${timeBlock.tone}; foco em ${timeBlock.focus}; estilo: ${timeBlock.style}.`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TONE PATCH v2 + LANGUAGE STABILITY — shared block injected into every builder.
+// Conversation-continuity (no repeated insight, shorter follow-ups) and the
+// Portuguese-lock / anti-drift rule both need per-request data (recent turns,
+// target language) that only the controller has, so they live here as a single
+// composable section rather than duplicated inside each dbPrompt.
+// ─────────────────────────────────────────────────────────────────────────────
+function formatContinuityAndLanguageSectionBR({ recentConversationContext, langName }) {
+  const parts = [];
+
+  if (recentConversationContext) {
+    parts.push(
+      `CONTINUIDADE DA CONVERSA (últimos turnos):\n${recentConversationContext}\n\n` +
+      `REGRA ANTI-REPETIÇÃO: não repita nem reexplique um insight já dado nos turnos acima. ` +
+      `Se o usuário continuar o mesmo assunto, construa em cima do que já foi dito — não resuma de novo. ` +
+      `Respostas de continuação devem ser 40–60% mais curtas que a resposta inicial.`,
+    );
+  } else {
+    parts.push(
+      `MENSAGEM INICIAL: pode ser mais longa e profunda, mas no máximo 3 parágrafos.`,
+    );
+  }
+
+  parts.push(
+    `TRAVA DE IDIOMA: o idioma desta conversa é ${langName}. Nunca troque de idioma sozinho(a) — ` +
+    `mesmo que entenda outra língua na mensagem do usuário, responda somente em ${langName}, ` +
+    `a menos que o usuário troque explicitamente de idioma primeiro. Nunca use francês a menos que pedido explicitamente.`,
+  );
+
+  return parts.join("\n\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BUILDER ARCHITECTURE
 // Each builder is a thin wrapper that only injects:
 //   1. System identity line
 //   2. Birth chart block (computed data — cannot live in DB prompt)
 //   3. dbPrompt — the subcategory prompt from DB (carries ALL tone/format/rules)
 //   4. Language rule
+//   5. Tone Patch v2 / Emotional Rhythm v2 / Language Stability section
+//      (conversation continuity + time-of-day rhythm + language lock —
+//      needs per-request data, so it's code, not DB prompt text)
 //
 // ALL tone rules, output format, response rules, section structure live in
 // brazil_subcategory_prompts.js and are stored in the SubCategory.prompt field.
 // To change any behavior, update the DB prompt — no code change needed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildBig3PromptBR({ dbPrompt, langName, birthChart }) {
+function buildBig3PromptBR({ dbPrompt, langName, birthChart, continuityLanguageSection }) {
   const chartBlock = formatChartBlockBR(birthChart, "big3");
   const chartSection = chartBlock
     ? `CARTA NATAL CALCULADA (use as the basis — translate into human language, never recite raw degrees):\n${chartBlock}`
@@ -560,10 +704,12 @@ ${chartSection}
 
 ${dbPrompt}
 
+${continuityLanguageSection}
+
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildSignsPromptBR({ dbPrompt, langName, birthChart }) {
+function buildSignsPromptBR({ dbPrompt, langName, birthChart, continuityLanguageSection }) {
   const signsBlock = Object.entries(BR_SIGNS)
     .map(([sign, data]) =>
       `${sign.charAt(0).toUpperCase() + sign.slice(1)}:\n` +
@@ -589,10 +735,12 @@ ${chartSection}
 
 ${dbPrompt}
 
+${continuityLanguageSection}
+
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildPersonalityPromptBR({ dbPrompt, langName, birthChart }) {
+function buildPersonalityPromptBR({ dbPrompt, langName, birthChart, continuityLanguageSection }) {
   const chartBlock = formatChartBlockBR(birthChart, "full");
   const chartSection = chartBlock
     ? `CARTA NATAL CALCULADA (use to personalize — translate into lived emotional experience, never recite raw data):\n${chartBlock}`
@@ -604,10 +752,12 @@ ${chartSection}
 
 ${dbPrompt}
 
+${continuityLanguageSection}
+
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildCompatibilityPromptBR({ dbPrompt, langName, birthChart, birthChartB }) {
+function buildCompatibilityPromptBR({ dbPrompt, langName, birthChart, birthChartB, continuityLanguageSection }) {
   const signsRef = Object.entries(BR_SIGNS)
     .map(([sign, data]) =>
       `${sign.charAt(0).toUpperCase() + sign.slice(1)}: ${data.relationship_style} | emotional: ${data.emotional_style} | shadow: ${data.shadow}`,
@@ -633,10 +783,12 @@ ${chartsSection}
 
 ${dbPrompt}
 
+${continuityLanguageSection}
+
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildDailyFlowPromptBR({ dbPrompt, langName, birthChart }) {
+function buildDailyFlowPromptBR({ dbPrompt, langName, birthChart, continuityLanguageSection, rhythmSection }) {
   const chartBlock = formatChartBlockBR(birthChart, "transits");
   const chartSection = chartBlock
     ? `CARTA NATAL COM TRÂNSITOS DE HOJE (use transit-to-natal contacts as real data — not generic energy):\n${chartBlock}`
@@ -646,12 +798,16 @@ function buildDailyFlowPromptBR({ dbPrompt, langName, birthChart }) {
 
 ${chartSection}
 
+${rhythmSection}
+
 ${dbPrompt}
+
+${continuityLanguageSection}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildLetterNeverSentPromptBR({ dbPrompt, langName, birthChart }) {
+function buildLetterNeverSentPromptBR({ dbPrompt, langName, birthChart, continuityLanguageSection }) {
   const emotionalContext = birthChart
     ? `CONTEXTO EMOCIONAL (use softly as background — never recite to the user):\nSol: ${birthChart.sun_sign}\nLua: ${birthChart.moon_sign}\nVênus: ${birthChart.planets?.venus?.sign || "unknown"}`
     : "";
@@ -660,10 +816,12 @@ function buildLetterNeverSentPromptBR({ dbPrompt, langName, birthChart }) {
 
 ${emotionalContext ? `${emotionalContext}\n` : ""}${dbPrompt}
 
+${continuityLanguageSection}
+
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildEnergyMatchPromptBR({ dbPrompt, langName, birthChart, birthChartB }) {
+function buildEnergyMatchPromptBR({ dbPrompt, langName, birthChart, birthChartB, continuityLanguageSection }) {
   const signsRef = Object.entries(BR_SIGNS)
     .map(([sign, data]) =>
       `${sign.charAt(0).toUpperCase() + sign.slice(1)}: ${data.relationship_style} | emotional: ${data.emotional_style} | shadow: ${data.shadow}`,
@@ -689,6 +847,8 @@ ${chartsSection}
 
 ${dbPrompt}
 
+${continuityLanguageSection}
+
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
@@ -696,7 +856,7 @@ LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 // CATEGORY-LEVEL FALLBACK PROMPT
 // Used when no subcategory is matched — dbPrompt is the category-level prompt.
 // ─────────────────────────────────────────────────────────────────────────────
-function buildCategoryFallbackPromptBR({ dbPrompt, langName, birthChart }) {
+function buildCategoryFallbackPromptBR({ dbPrompt, langName, birthChart, continuityLanguageSection }) {
   const chartBlock = formatChartBlockBR(birthChart, "full");
   const chartSection = chartBlock
     ? `CARTA NATAL DO USUÁRIO (use as foundation — translate into human language, never expose raw degrees):\n${chartBlock}`
@@ -707,6 +867,8 @@ function buildCategoryFallbackPromptBR({ dbPrompt, langName, birthChart }) {
 ${chartSection}
 
 ${dbPrompt}
+
+${continuityLanguageSection}
 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
@@ -746,17 +908,31 @@ function buildAstriaBrazilContext({
   userMessage,
   birthChart,
   birthChartB,
+  recentConversationContext,
 }) {
   const langName = LANG_NAME_MAP_BR[target] || "English";
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
-  const params = { userMessage, dbPrompt, langName, birthChart, birthChartB };
+  const continuityLanguageSection = formatContinuityAndLanguageSectionBR({
+    recentConversationContext,
+    langName,
+  });
+  const rhythmSection = formatRhythmSectionBR(resolveBrazilTimeBlock());
+  const params = {
+    userMessage,
+    dbPrompt,
+    langName,
+    birthChart,
+    birthChartB,
+    continuityLanguageSection,
+    rhythmSection,
+  };
 
   const builder = resolveSubcategoryBuilderBR(subCategoryName);
   if (builder) {
     return builder(params);
   }
 
-  return buildCategoryFallbackPromptBR({ dbPrompt, langName, birthChart });
+  return buildCategoryFallbackPromptBR({ dbPrompt, langName, birthChart, continuityLanguageSection });
 }
 
 module.exports = {
@@ -765,4 +941,7 @@ module.exports = {
   parseCompatibilityPartnersBR,
   buildCompatibilityMissingQuestionBR,
   isCompatibilitySubcategoryBR,
+  computeMoonPhase,
+  computeSaturnReturnStatusBR,
+  resolveBrazilTimeBlock,
 };

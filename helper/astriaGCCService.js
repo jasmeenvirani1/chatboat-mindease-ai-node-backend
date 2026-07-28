@@ -961,7 +961,7 @@ function isCompatibilitySubcategoryGCC(subCategoryName) {
 // inherit the same v2 behavior. Additive only — does not change chart math,
 // subcategory frameworks, or output schemas below.
 // ─────────────────────────────────────────────────────────────────────────────
-const GCC_LANE_V2_BLOCK = `
+const GCC_LANE_V2_BLOCK_BASE = `
 ━━━ GCC LANE v2 — MASTER BEHAVIOR SPEC ━━━
 
 TONE ROUTER — pick ONE tone for this response based on the user's message and context:
@@ -999,21 +999,68 @@ EMOTIONAL INTELLIGENCE — interpret signals correctly:
 - Soft words → respect and care, not weakness.
 - Asking for space → need for grounding, not a break in connection.
 Respond with calm, stable, supportive language. Offer grounded perspectives without drama, mysticism, or spirituality. Every response should leave the user feeling more emotionally grounded.
+
+TOPIC ROUTING — stay on the user's actual topic:
+- Detect the user's intent from their message: emotional_state, life_decisions, relationships, work_stress, self_reflection, general_chat, or astrology.
+- NEVER proactively introduce astrology, zodiac signs, horoscopes, or fate/destiny framing unless the user explicitly asks about astrology, their sign, or a horoscope-style reading in THIS message or earlier in this conversation.
+- If the user is talking about work stress, relationships, decisions, or feelings, stay fully on that topic — do not redirect them toward zodiac traits or astrological explanations.
+- If the user's intent is unclear, ask one short, gentle clarifying question that stays within the same topic area (e.g. "Would you like to focus more on work, or on how you're feeling right now?") — never default to an astrology angle to fill the gap.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `.trim();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GULF TONE ENGINE — dialect register layered on top of the master spec above.
+// Client spec: user-selectable tone_mode (msa_fusha | gulf | kuwaiti), default
+// "gulf" for GCC traffic, falling back to "msa_fusha" when unset. Purely a
+// register/voice instruction — never mixed with other dialects mid-response.
+// ─────────────────────────────────────────────────────────────────────────────
+const GCC_TONE_MODE_BLOCKS = {
+  msa_fusha: `
+━━━ DIALECT REGISTER: MSA (Modern Standard Arabic / فصحى) ━━━
+Register: formal, neutral, pan-Arab. Use when the audience is mixed-region or pan-Arab.
+Style: calm, respectful, elegant. Avoid harsh judgment, overly therapeutic language, and overly casual slang.
+When replying in Arabic, use fully formal فصحى — no regional dialect words, no colloquialisms.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`.trim(),
+  gulf: `
+━━━ DIALECT REGISTER: GULF (خليجي) — default for GCC users ━━━
+Register: friendly, local, warm without being casual-slang. Primary register for GCC audiences.
+Style: calm, respectful, elegant. Avoid harsh judgment, overly therapeutic language, and overly casual slang.
+When replying in Arabic, use natural Gulf-dialect phrasing (e.g. "شلونك اليوم؟", ".خل نرتب أفكارك بهدوء") rather than stiff formal فصحى.
+Never mix Gulf dialect with Kuwaiti-specific or other regional expressions in the same response.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`.trim(),
+  kuwaiti: `
+━━━ DIALECT REGISTER: KUWAITI (كويتي) ━━━
+Register: intimate, friend-like, local. Use only for Kuwait-based users.
+Style: calm, respectful, elegant. Avoid harsh judgment, overly therapeutic language, and overly casual slang.
+When replying in Arabic, use natural Kuwaiti-dialect phrasing (e.g. "ها شخبارك؟", ".نمشي خطوة خطوة سوا") — warmer and more familiar than general Gulf phrasing, while staying respectful.
+Never mix Kuwaiti dialect with general Gulf or formal فصحى expressions in the same response.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`.trim(),
+};
+
+function resolveGCCToneModeBlock(toneMode) {
+  return GCC_TONE_MODE_BLOCKS[toneMode] || GCC_TONE_MODE_BLOCKS.msa_fusha;
+}
+
+// Builds the full lane block: master behavior spec + dialect register.
+// toneMode only shapes Arabic-language responses; English replies stay
+// unaffected by the dialect choice but still receive the same topic-routing
+// and tone-router rules.
+function GCC_LANE_V2_BLOCK(toneMode) {
+  return `${GCC_LANE_V2_BLOCK_BASE}\n\n${resolveGCCToneModeBlock(toneMode)}`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUB-CATEGORY PROMPT BUILDERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildBig3GCCPrompt({ userMessage, dbPrompt, langName, birthChart }) {
+function buildBig3GCCPrompt({ userMessage, dbPrompt, langName, birthChart, toneMode }) {
   const subcategoryContent = dbPrompt || DEFAULT_GCC_SUBCATEGORY_PROMPTS.big3;
   const chartBlock = formatChartBlockGCC(birthChart, "big3");
 
   return `You are Astria GCC — a spiritual, elegant, respectful astrology guide for the GCC lane.
 YOUR FOCUS: The Big 3 — Sun (outer expression), Moon (inner emotion), and Rising (social presence).
 
-${GCC_LANE_V2_BLOCK}
+${GCC_LANE_V2_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, framework, output format) ━━━
 ${subcategoryContent}
@@ -1024,14 +1071,14 @@ ${chartBlock ? `USER'S COMPUTED BIRTH CHART:\n${chartBlock}\n\nUse the computed 
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-function buildSignsGCCPrompt({ userMessage, dbPrompt, langName, birthChart }) {
+function buildSignsGCCPrompt({ userMessage, dbPrompt, langName, birthChart, toneMode }) {
   const subcategoryContent = dbPrompt || DEFAULT_GCC_SUBCATEGORY_PROMPTS.signs;
   const chartBlock = formatChartBlockGCC(birthChart, "signs");
 
   return `You are Astria GCC — a spiritual, elegant, respectful astrology guide for the GCC lane.
 YOUR FOCUS: Zodiac Signs — spiritually elegant, sincere readings.
 
-${GCC_LANE_V2_BLOCK}
+${GCC_LANE_V2_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, sign data, reading approach, output format) ━━━
 ${subcategoryContent}
@@ -1047,6 +1094,7 @@ function buildPersonalityGCCPrompt({
   dbPrompt,
   langName,
   birthChart,
+  toneMode,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_SUBCATEGORY_PROMPTS.personality;
@@ -1057,7 +1105,7 @@ function buildPersonalityGCCPrompt({
   return `You are Astria GCC — a spiritual, elegant, respectful astrology guide for the GCC lane.
 YOUR FOCUS: Personality — a calm, honest, and emotionally deep look at who the user truly is.
 
-${GCC_LANE_V2_BLOCK}
+${GCC_LANE_V2_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, personality framework, emotional depth language, output format) ━━━
 ${subcategoryContent}
@@ -1254,6 +1302,7 @@ function buildCompatibilityGCCPrompt({
   // 3-Box inputs for Partner
   partnerEnergySignature,
   partnerDestinyTime,
+  toneMode,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_SUBCATEGORY_PROMPTS.compatibility;
@@ -1306,7 +1355,7 @@ YOUR FOCUS: Compatibility — GCC-style emotional compatibility using 3-Box syst
 Tone: spiritual, elegant, respectful, premium minimal
 This is NOT scoring. It is a sincere reading of emotional rhythm, timing alignment, and relational depth.
 
-${GCC_LANE_V2_BLOCK}
+${GCC_LANE_V2_BLOCK(toneMode)}
 
 ${scoreSection}
 ━━━ 3-BOX SYSTEM ━━━
@@ -1329,6 +1378,7 @@ function buildDailyFlowGCCPrompt({
   dbPrompt,
   langName,
   birthChart,
+  toneMode,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_SUBCATEGORY_PROMPTS.daily_flow;
@@ -1337,7 +1387,7 @@ function buildDailyFlowGCCPrompt({
   return `You are Astria GCC — a spiritual, elegant, respectful astrology guide for the GCC lane.
 YOUR FOCUS: Daily Flow — the calm emotional rhythm of morning clarity, midday focus, and evening release.
 
-${GCC_LANE_V2_BLOCK}
+${GCC_LANE_V2_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, daily flow framework, reading approach, output format) ━━━
 ${subcategoryContent}
@@ -1356,6 +1406,7 @@ function buildEnergyMatchGCCPrompt({
   birthChartB,
   selfEnergySignature,
   partnerEnergySignature,
+  toneMode,
 }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_SUBCATEGORY_PROMPTS.energy_match;
@@ -1384,7 +1435,7 @@ ${partnerEnergySignature ? `Person B: ${partnerEnergySignature}` : "Person B: no
   return `You are Astria GCC — a spiritual, elegant, respectful astrology guide for the GCC lane.
 YOUR FOCUS: Energy Match — a deep compatibility reading exploring how two people's energies naturally interact.
 
-${GCC_LANE_V2_BLOCK}
+${GCC_LANE_V2_BLOCK(toneMode)}
 
 ━━━ ENERGY SIGNATURE DATA ━━━
 ${energySection || "Energy Signature data not provided."}
@@ -1404,7 +1455,7 @@ LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY-LEVEL FALLBACK
 // ─────────────────────────────────────────────────────────────────────────────
-function buildCategoryFallbackGCCPrompt({ dbPrompt, langName, birthChart }) {
+function buildCategoryFallbackGCCPrompt({ dbPrompt, langName, birthChart, toneMode }) {
   const chartSummary = birthChart
     ? `USER'S BIRTH CHART:\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}`
     : "";
@@ -1423,7 +1474,7 @@ ALWAYS sound like: a thoughtful presence with spiritual elegance and calm clarit
 
   return `You are Astria GCC — a spiritual, elegant, respectful Western astrology guide for the GCC lane.
 
-${GCC_LANE_V2_BLOCK}
+${GCC_LANE_V2_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone and response guidance) ━━━
 ${baseContent}
@@ -1507,6 +1558,8 @@ function buildAstriaGCCContext({
   // Pre-calculated score
   calculatedScore,
   scoreLabel,
+  // Gulf tone engine — msa_fusha | gulf | kuwaiti (defaults inside resolveGCCToneModeBlock)
+  toneMode,
 }) {
   const langName = LANG_NAME_MAP[target] || "English";
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
@@ -1522,11 +1575,12 @@ function buildAstriaGCCContext({
     partnerDestinyTime,
     calculatedScore,
     scoreLabel,
+    toneMode,
   };
 
   const builder = resolveGCCSubcategoryBuilder(subCategoryName);
   if (builder) return builder(params);
-  return buildCategoryFallbackGCCPrompt({ dbPrompt, langName, birthChart });
+  return buildCategoryFallbackGCCPrompt({ dbPrompt, langName, birthChart, toneMode });
 }
 
 module.exports = {

@@ -21,6 +21,11 @@ const userSchema = new Schema(
     dob: { type: String, required: false },
     dob_time: { type: String, required: false },
     dob_place: { type: String, required: false },
+    gccToneMode: {
+      type: String,
+      enum: ["msa_fusha", "gulf", "kuwaiti"],
+      default: "gulf",
+    },
     otp: { type: String },
     otpExpiry: { type: Date },
     fcmToken: { type: String, default: "" },

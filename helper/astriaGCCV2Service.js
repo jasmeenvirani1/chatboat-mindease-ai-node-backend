@@ -1,32 +1,6 @@
 "use strict";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ASTRIA GCC V2 SERVICE
-// "Global Lane v2 / GCC v2" — client spec: Uranian-baseline emotional AI lane,
-// 7 tabs, GCC soft-premium tone, English/Arabic only.
-// Activated when categoryName === "Astria GCC V2"
-//
-// Does NOT touch astriaGCCService.js (v1) — v1 stays fully intact for existing
-// GCC users. This module re-uses v1's birth-chart engine, chart formatter,
-// compatibility parsing/scoring, and the GCC_LANE_V2_BLOCK tone spec, since
-// those already match this client's requirements almost verbatim.
-//
-// 7 Subcategories (per client spec — one JSON master spec, 7 tabs):
-//   1. GCC Timing v2                — life rhythm / today's timing
-//   2. GCC Kyusei v2                — core / context / growth pattern
-//   3. GCC Companion v2             — daily companion tone + check-in
-//   4. GCC Emotional Intelligence v2 — emotional state / regulation / expression
-//   5. GCC Personality Engine v2    — traits / interaction style / growth edge
-//   6. GCC Adaptive Memory v2       — conversational emotional-pattern reflection
-//   7. GCC Letter Never Sent v2     — private unsent-letter journaling + AI reflection
-//
-// ARCHITECTURE (same convention as v1 / Korea V2 / UK-Canada):
-//   - Code provides: structural skeleton, chart computation, output rules
-//   - DB subcategory `prompt` field provides: tone rules, per-tab content —
-//     everything the client can edit without a code deploy.
-//   - DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS holds default content for each tab.
-// ─────────────────────────────────────────────────────────────────────────────
-
 const {
   computeWesternBirthChartGCC,
   formatChartBlockGCC,
@@ -37,14 +11,8 @@ const {
   getCompatibilityScoreLabel,
 } = require("./astriaGCCService");
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GCC LANE v2 — MASTER BEHAVIOR SPEC
-// Identical tone_router / variation_engine / adaptive_memory / personality
-// spec as GCC v1's GCC_LANE_V2_BLOCK, kept as its own constant here so this
-// module has no hidden coupling to v1's internals beyond the explicit imports
-// above (chart math + compatibility scoring only).
-// ─────────────────────────────────────────────────────────────────────────────
-const GCC_V2_LANE_BLOCK = `
+// GCC LANE v2 — MASTER BEHAVIOR SPEC BLOCK
+const GCC_V2_LANE_BLOCK_BASE = `
 ━━━ GCC LANE v2 — MASTER BEHAVIOR SPEC ━━━
 
 TONE ROUTER — pick ONE tone for this response based on the user's message and context:
@@ -82,17 +50,57 @@ EMOTIONAL INTELLIGENCE — interpret signals correctly:
 - Soft words → respect and care, not weakness.
 - Asking for space → need for grounding, not a break in connection.
 Respond with calm, stable, supportive language. Offer grounded perspectives without drama, mysticism, or spirituality. Every response should leave the user feeling more emotionally grounded.
+
+TOPIC ROUTING — stay on the user's actual topic:
+- Detect the user's intent from their message: emotional_state, life_decisions, relationships, work_stress, self_reflection, general_chat, or astrology.
+- NEVER proactively introduce astrology, zodiac signs, horoscopes, or fate/destiny framing unless the user explicitly asks about astrology, their sign, or a horoscope-style reading in THIS message or earlier in this conversation.
+- If the user is talking about work stress, relationships, decisions, or feelings, stay fully on that topic — do not redirect them toward zodiac traits or astrological explanations.
+- If the user's intent is unclear, ask one short, gentle clarifying question that stays within the same topic area (e.g. "Would you like to focus more on work, or on how you're feeling right now?") — never default to an astrology angle to fill the gap.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `.trim();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GCC LANE v2 — MASTER BEHAVIOR SPEC (JAPANESE)
-// Full Japanese translation of GCC_V2_LANE_BLOCK above, used only by the
-// Timing and Kyusei builders when target === "ja". Every instruction the
-// model receives for these two tabs must be in Japanese — mixing this English
-// block into an otherwise-Japanese prompt is what was causing English words
-// to leak into the model's Japanese output.
+// GULF TONE ENGINE — dialect register layered on top of the master spec above.
+// Client spec: user-selectable tone_mode (msa_fusha | gulf | kuwaiti), default
+// "gulf" for GCC traffic, falling back to "msa_fusha" when unset. Purely a
+// register/voice instruction — never mixed with other dialects mid-response.
 // ─────────────────────────────────────────────────────────────────────────────
+const GCC_V2_TONE_MODE_BLOCKS = {
+  msa_fusha: `
+━━━ DIALECT REGISTER: MSA (Modern Standard Arabic / فصحى) ━━━
+Register: formal, neutral, pan-Arab. Use when the audience is mixed-region or pan-Arab.
+Style: calm, respectful, elegant. Avoid harsh judgment, overly therapeutic language, and overly casual slang.
+When replying in Arabic, use fully formal فصحى — no regional dialect words, no colloquialisms.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`.trim(),
+  gulf: `
+━━━ DIALECT REGISTER: GULF (خليجي) — default for GCC users ━━━
+Register: friendly, local, warm without being casual-slang. Primary register for GCC audiences.
+Style: calm, respectful, elegant. Avoid harsh judgment, overly therapeutic language, and overly casual slang.
+When replying in Arabic, use natural Gulf-dialect phrasing (e.g. "شلونك اليوم؟", ".خل نرتب أفكارك بهدوء") rather than stiff formal فصحى.
+Never mix Gulf dialect with Kuwaiti-specific or other regional expressions in the same response.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`.trim(),
+  kuwaiti: `
+━━━ DIALECT REGISTER: KUWAITI (كويتي) ━━━
+Register: intimate, friend-like, local. Use only for Kuwait-based users.
+Style: calm, respectful, elegant. Avoid harsh judgment, overly therapeutic language, and overly casual slang.
+When replying in Arabic, use natural Kuwaiti-dialect phrasing (e.g. "ها شخبارك؟", ".نمشي خطوة خطوة سوا") — warmer and more familiar than general Gulf phrasing, while staying respectful.
+Never mix Kuwaiti dialect with general Gulf or formal فصحى expressions in the same response.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`.trim(),
+};
+
+function resolveGCCV2ToneModeBlock(toneMode) {
+  return GCC_V2_TONE_MODE_BLOCKS[toneMode] || GCC_V2_TONE_MODE_BLOCKS.msa_fusha;
+}
+
+// Builds the full lane block: master behavior spec + dialect register.
+// toneMode only shapes Arabic-language responses; English replies stay
+// unaffected by the dialect choice but still receive the same topic-routing
+// and tone-router rules.
+function GCC_V2_LANE_BLOCK(toneMode) {
+  return `${GCC_V2_LANE_BLOCK_BASE}\n\n${resolveGCCV2ToneModeBlock(toneMode)}`;
+}
+
+// GCC LANE v2 — MASTER BEHAVIOR SPEC (JAPANESE)
 const GCC_V2_LANE_BLOCK_JA = `
 ━━━ GCCレーン v2 ―― 基本ふるまい仕様 ━━━
 
@@ -134,11 +142,9 @@ const GCC_V2_LANE_BLOCK_JA = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 `.trim();
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DEFAULT SUBCATEGORY PROMPTS — 7 TABS
-// ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS = {
-  // ── TAB 1: GCC TIMING V2 ────────────────────────────────────────────────────
+  // TAB 1: GCC TIMING V2
   timing: `
 GCC V2 TONE — soft-premium, spiritually elegant, never predictive.
 NEVER use: luck, fortune, destiny, fate, "will happen", astrology jargon.
@@ -158,7 +164,8 @@ SECTION STRUCTURE:
 1-2 sentences on whether to observe or act right now — never a command.
 
 OUTPUT RULES:
-- Use section headings exactly as above
+- Use section headings exactly as above — exactly these 3 sections, nothing more
+- Plain prose only: NO markdown bold/italic (**, *), NO bullet or numbered lists, NO "---" dividers
 - NO predictions, NO "will happen" language, NO raw chart data
 - Speak directly to the user as "you"
 - NEVER return JSON
@@ -182,7 +189,8 @@ SECTION STRUCTURE:
 1-2 sentences on inner/outer alignment, gently framed.
 
 OUTPUT RULES:
-- Use section headings exactly as above
+- Use section headings exactly as above — exactly these 3 sections, nothing more
+- Plain prose only: NO markdown bold/italic (**, *), NO bullet or numbered lists, NO "---" dividers
 - NO predictions, NO astrology jargon, NO raw data
 - Speak directly to the user as "you"
 - NEVER return JSON
@@ -211,7 +219,8 @@ GCC V2のトーン――上品で落ち着いており、占星術的に洗練�
 今、観察すべきか行動すべきかを1〜2文で――決して命令形にしないこと。
 
 出力ルール：
-- 上記のセクション見出しをそのまま使用すること
+- 上記のセクション見出しをそのまま使用すること――この3セクションのみで、それ以上追加しないこと
+- 平文のみで書くこと：Markdownの太字・斜体（**、*）、箇条書きや番号付きリスト、「---」区切り線は一切使わないこと
 - 予言、「〜が起こるだろう」という表現、生のチャートデータは一切使わないこと
 - ユーザーに直接「あなた」と語りかけること
 - JSON形式では絶対に返さないこと
@@ -235,7 +244,8 @@ GCC V2のトーン――上品で落ち着いており、占星術的に洗練�
 内面と外面の整合について、優しく表現し1〜2文。
 
 出力ルール：
-- 上記のセクション見出しをそのまま使用すること
+- 上記のセクション見出しをそのまま使用すること――この3セクションのみで、それ以上追加しないこと
+- 平文のみで書くこと：Markdownの太字・斜体（**、*）、箇条書きや番号付きリスト、「---」区切り線は一切使わないこと
 - 予言、占星術用語、生のデータは一切使わないこと
 - ユーザーに直接「あなた」と語りかけること
 - JSON形式では絶対に返さないこと
@@ -259,7 +269,8 @@ SECTION STRUCTURE:
 1-2 sentences acknowledging quiet depth or care, without inventing details.
 
 OUTPUT RULES:
-- Use section headings exactly as above
+- Use section headings exactly as above — exactly these 3 sections, nothing more
+- Plain prose only: NO markdown bold/italic (**, *), NO bullet or numbered lists, NO "---" dividers
 - NO advice-giving, NO diagnosis, NO assumptions about specific life events
 - Speak directly to the user as "you"
 - NEVER return JSON
@@ -283,7 +294,8 @@ SECTION STRUCTURE:
 1-2 sentences honoring careful word choice as strength, not distance.
 
 OUTPUT RULES:
-- Use section headings exactly as above
+- Use section headings exactly as above — exactly these 3 sections, nothing more
+- Plain prose only: NO markdown bold/italic (**, *), NO bullet or numbered lists, NO "---" dividers
 - NO diagnosis, NO clinical language, NO assumptions beyond the conversation
 - Speak directly to the user as "you"
 - NEVER return JSON
@@ -307,7 +319,8 @@ SECTION STRUCTURE:
 1-2 sentences offering a gentle invitation to grow, never a command.
 
 OUTPUT RULES:
-- Use section headings exactly as above
+- Use section headings exactly as above — exactly these 3 sections, nothing more
+- Plain prose only: NO markdown bold/italic (**, *), NO bullet or numbered lists, NO "---" dividers
 - NO labels-as-verdicts, NO dramatic language
 - Speak directly to the user as "you"
 - NEVER return JSON
@@ -396,6 +409,7 @@ function buildTimingGCCV2Prompt({
   target,
   categoryName,
   birthChart,
+  toneMode,
 }) {
   const isJapanese = target === "ja";
   // DB override always wins if the client has edited the prompt; otherwise pick
@@ -406,7 +420,9 @@ function buildTimingGCCV2Prompt({
       ? DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.timing_ja
       : DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.timing);
   const chartBlock = formatChartBlockGCC(birthChart, "transits");
-  const laneBlock = isJapanese ? GCC_V2_LANE_BLOCK_JA : GCC_V2_LANE_BLOCK;
+  const laneBlock = isJapanese
+    ? GCC_V2_LANE_BLOCK_JA
+    : GCC_V2_LANE_BLOCK(toneMode);
   // Use the actual category name from the DB instead of a hardcoded lane label —
   // never hardcode or imply "Astria Japan" or any other country/lane name.
   const displayName = (categoryName || "").trim() || "Astria GCC V2";
@@ -449,6 +465,7 @@ function buildKyuseiGCCV2Prompt({
   target,
   categoryName,
   birthChart,
+  toneMode,
 }) {
   const isJapanese = target === "ja";
   const subcategoryContent =
@@ -457,7 +474,9 @@ function buildKyuseiGCCV2Prompt({
       ? DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.kyusei_ja
       : DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.kyusei);
   const chartBlock = formatChartBlockGCC(birthChart, "full");
-  const laneBlock = isJapanese ? GCC_V2_LANE_BLOCK_JA : GCC_V2_LANE_BLOCK;
+  const laneBlock = isJapanese
+    ? GCC_V2_LANE_BLOCK_JA
+    : GCC_V2_LANE_BLOCK(toneMode);
   const displayName = (categoryName || "").trim() || "Astria GCC V2";
 
   const personaLine = isJapanese
@@ -492,13 +511,14 @@ ${chartNote}
 ${languageRule}`.trim();
 }
 
-function buildCompanionGCCV2Prompt({ dbPrompt, langName }) {
-  const subcategoryContent = dbPrompt || DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.companion;
+function buildCompanionGCCV2Prompt({ dbPrompt, langName, toneMode }) {
+  const subcategoryContent =
+    dbPrompt || DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.companion;
 
   return `You are Astria GCC v2 — a soft-premium emotional AI guide for the GCC lane.
 YOUR FOCUS: Companion — a quiet, warm emotional ally voice for today.
 
-${GCC_V2_LANE_BLOCK}
+${GCC_V2_LANE_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, companion framework, output format) ━━━
 ${subcategoryContent}
@@ -507,14 +527,18 @@ ${subcategoryContent}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}. Never mix languages.`.trim();
 }
 
-function buildEmotionalIntelligenceGCCV2Prompt({ dbPrompt, langName }) {
+function buildEmotionalIntelligenceGCCV2Prompt({
+  dbPrompt,
+  langName,
+  toneMode,
+}) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.emotional_intelligence;
 
   return `You are Astria GCC v2 — a soft-premium emotional AI guide for the GCC lane.
 YOUR FOCUS: Emotional Intelligence — how the user feels, regulates, and expresses right now.
 
-${GCC_V2_LANE_BLOCK}
+${GCC_V2_LANE_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, EI framework, output format) ━━━
 ${subcategoryContent}
@@ -523,14 +547,14 @@ ${subcategoryContent}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}. Never mix languages.`.trim();
 }
 
-function buildPersonalityEngineGCCV2Prompt({ dbPrompt, langName }) {
+function buildPersonalityEngineGCCV2Prompt({ dbPrompt, langName, toneMode }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.personality_engine;
 
   return `You are Astria GCC v2 — a soft-premium emotional AI guide for the GCC lane.
 YOUR FOCUS: Personality Engine — the user's traits, interaction style, and growth edge.
 
-${GCC_V2_LANE_BLOCK}
+${GCC_V2_LANE_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, personality framework, output format) ━━━
 ${subcategoryContent}
@@ -539,14 +563,14 @@ ${subcategoryContent}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}. Never mix languages.`.trim();
 }
 
-function buildAdaptiveMemoryGCCV2Prompt({ dbPrompt, langName }) {
+function buildAdaptiveMemoryGCCV2Prompt({ dbPrompt, langName, toneMode }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.adaptive_memory;
 
   return `You are Astria GCC v2 — a soft-premium emotional AI guide for the GCC lane.
 YOUR FOCUS: Adaptive Memory — reflecting emotional patterns visible in this conversation only.
 
-${GCC_V2_LANE_BLOCK}
+${GCC_V2_LANE_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone, memory framework, forbidden content, output format) ━━━
 ${subcategoryContent}
@@ -555,7 +579,12 @@ ${subcategoryContent}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}. Never mix languages.`.trim();
 }
 
-function buildLetterNeverSentGCCV2Prompt({ dbPrompt, langName, birthChart }) {
+function buildLetterNeverSentGCCV2Prompt({
+  dbPrompt,
+  langName,
+  birthChart,
+  toneMode,
+}) {
   const subcategoryContent =
     dbPrompt || DEFAULT_GCC_V2_SUBCATEGORY_PROMPTS.letter_never_sent;
   const chartBlock = formatChartBlockGCC(birthChart, "transits");
@@ -563,7 +592,7 @@ function buildLetterNeverSentGCCV2Prompt({ dbPrompt, langName, birthChart }) {
   return `You are Astria GCC v2 — a soft-premium emotional AI guide for the GCC lane.
 YOUR FOCUS: Letter Never Sent — a private space where the user writes a letter they will never send.
 
-${GCC_V2_LANE_BLOCK}
+${GCC_V2_LANE_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (response structure, rules) ━━━
 ${subcategoryContent}
@@ -579,7 +608,12 @@ LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}. Never mix l
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY-LEVEL FALLBACK
 // ─────────────────────────────────────────────────────────────────────────────
-function buildCategoryFallbackGCCV2Prompt({ dbPrompt, langName, birthChart }) {
+function buildCategoryFallbackGCCV2Prompt({
+  dbPrompt,
+  langName,
+  birthChart,
+  toneMode,
+}) {
   const chartSummary = birthChart
     ? `USER'S RHYTHM BASELINE:\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}`
     : "";
@@ -596,7 +630,7 @@ NEVER use: prediction words, dramatic language, mystical jargon, empty positivit
 
   return `You are Astria GCC v2 — a soft-premium emotional AI guide for the GCC lane.
 
-${GCC_V2_LANE_BLOCK}
+${GCC_V2_LANE_BLOCK(toneMode)}
 
 ━━━ SUBCATEGORY CONTENT (tone and response guidance) ━━━
 ${baseContent}
@@ -625,13 +659,22 @@ LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}. Never mix l
 // Korea V2's resolveKRV2TabKey).
 // ─────────────────────────────────────────────────────────────────────────────
 const GCC_V2_SUBCATEGORY_BUILDERS = [
-  { keywords: ["letter", "never sent"], builder: buildLetterNeverSentGCCV2Prompt },
+  {
+    keywords: ["letter", "never sent"],
+    builder: buildLetterNeverSentGCCV2Prompt,
+  },
   { keywords: ["timing"], builder: buildTimingGCCV2Prompt },
   { keywords: ["kyusei"], builder: buildKyuseiGCCV2Prompt },
   { keywords: ["companion"], builder: buildCompanionGCCV2Prompt },
-  { keywords: ["emotional intelligence", "emotional intel"], builder: buildEmotionalIntelligenceGCCV2Prompt },
+  {
+    keywords: ["emotional intelligence", "emotional intel"],
+    builder: buildEmotionalIntelligenceGCCV2Prompt,
+  },
   { keywords: ["personality"], builder: buildPersonalityEngineGCCV2Prompt },
-  { keywords: ["adaptive memory", "memory"], builder: buildAdaptiveMemoryGCCV2Prompt },
+  {
+    keywords: ["adaptive memory", "memory"],
+    builder: buildAdaptiveMemoryGCCV2Prompt,
+  },
 ];
 
 function resolveGCCV2SubcategoryBuilder(subCategoryName) {
@@ -649,11 +692,15 @@ function resolveGCCV2SubcategoryBuilder(subCategoryName) {
 function resolveGCCV2TabKey(subCategoryName) {
   if (!subCategoryName) return null;
   const lower = subCategoryName.toLowerCase();
-  if (lower.includes("letter") || lower.includes("never sent")) return "letter_never_sent";
+  if (lower.includes("letter") || lower.includes("never sent"))
+    return "letter_never_sent";
   if (lower.includes("timing")) return "timing";
   if (lower.includes("kyusei")) return "kyusei";
   if (lower.includes("companion")) return "companion";
-  if (lower.includes("emotional intelligence") || lower.includes("emotional intel"))
+  if (
+    lower.includes("emotional intelligence") ||
+    lower.includes("emotional intel")
+  )
     return "emotional_intelligence";
   if (lower.includes("personality")) return "personality_engine";
   if (lower.includes("adaptive memory") || lower.includes("memory"))
@@ -679,6 +726,8 @@ function buildAstriaGCCV2Context({
   partnerDestinyTime,
   calculatedScore,
   scoreLabel,
+  // Gulf tone engine — msa_fusha | gulf | kuwaiti (defaults inside resolveGCCV2ToneModeBlock)
+  toneMode,
 }) {
   const langName = resolveGCCV2LangName(target);
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
@@ -696,11 +745,17 @@ function buildAstriaGCCV2Context({
     partnerDestinyTime,
     calculatedScore,
     scoreLabel,
+    toneMode,
   };
 
   const builder = resolveGCCV2SubcategoryBuilder(subCategoryName);
   if (builder) return builder(params);
-  return buildCategoryFallbackGCCV2Prompt({ dbPrompt, langName, birthChart });
+  return buildCategoryFallbackGCCV2Prompt({
+    dbPrompt,
+    langName,
+    birthChart,
+    toneMode,
+  });
 }
 
 module.exports = {
