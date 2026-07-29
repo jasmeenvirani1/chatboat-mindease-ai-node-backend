@@ -43,12 +43,7 @@ const MODULES = {
   },
   energy_match_team: {
     title: "Energy Match (Team)",
-    inputs: [
-      "team_members",
-      "dob_each_member",
-      "role_each_member",
-      "team_situation",
-    ],
+    inputs: ["team_members", "team_situation"],
     sections: [
       "soft_summary",
       "team_pulse",

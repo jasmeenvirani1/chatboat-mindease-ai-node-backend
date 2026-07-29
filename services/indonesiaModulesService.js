@@ -56,13 +56,14 @@ function buildSeed(moduleId, questions, formData) {
   }
 }
 
-async function generateReading({ module: moduleId, questions, form_data }) {
+async function generateReading({ module: moduleId, questions, form_data, language }) {
   if (!moduleId || !isValidModuleId(moduleId)) {
     const err = new Error(`Invalid module: ${moduleId}`);
     err.code = "INVALID_MODULE";
     throw err;
   }
 
+  const lang = language === "en" ? "en" : "id";
   const moduleConfig = getModuleConfig(moduleId);
   const guidedQuestions = GUIDED_QUESTIONS[moduleId] || [];
 
@@ -72,13 +73,16 @@ async function generateReading({ module: moduleId, questions, form_data }) {
     guidedQuestions,
     questionAnswers: questions,
     formData: form_data,
+    language: lang,
   });
 
   const messages = [
     {
       role: "system",
       content:
-        "Kamu adalah Astria, teman ngobrol modern yang hangat. Selalu balas dengan JSON valid saja.",
+        lang === "en"
+          ? "You are Astria, a warm modern confidant. Always reply with valid JSON only, entirely in English."
+          : "Kamu adalah Astria, teman ngobrol modern yang hangat. Selalu balas dengan JSON valid saja.",
     },
     { role: "user", content: prompt },
   ];
@@ -94,7 +98,12 @@ async function generateReading({ module: moduleId, questions, form_data }) {
   }
 
   const seed = buildSeed(moduleId, questions, form_data);
-  return formatIndonesiaModulesResponse(rawResponse, moduleConfig.sections, seed);
+  return formatIndonesiaModulesResponse(
+    rawResponse,
+    moduleConfig.sections,
+    seed,
+    lang,
+  );
 }
 
 module.exports = { generateReading };

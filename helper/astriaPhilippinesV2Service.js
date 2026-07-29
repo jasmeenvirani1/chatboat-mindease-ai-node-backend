@@ -18,6 +18,11 @@ const {
 // PH LANGUAGE LAYER — used to build the DB-prompt-fallback text seeded by
 // scripts/createAstriaPhilippinesV2Category.js. Never predictions, never
 // astrology/western-zodiac terms.
+// NOTE: this predates the client's newer PH V2 expansion spec below, which
+// asks for light "astrology depth" in the expanded response. Kept as-is
+// (still used as the DB-prompt fallback) — PH_V2_TONE_BLOCK's ASTROLOGY DEPTH
+// section is the newer, narrower instruction that actually governs live
+// responses; flagging the overlap here rather than silently resolving it.
 // ─────────────────────────────────────────────────────────────────────────────
 const PH_LANGUAGE_LAYER = {
   language: "filipino",
@@ -284,6 +289,617 @@ const EN_COPY_PACK = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PH V2 EXPANSION LAYER — client spec, Update.txt (verbatim source of truth).
+// The existing flow above (user picks a mood/chip/slider on one of the 6 tabs
+// → system picks 1 of 72 seed variants) is untouched — this layer only
+// changes what happens to the picked seed line: instead of returning it
+// verbatim, it is expanded by an LLM into a full Taglish response, per
+// Update.txt's exact instruction text:
+//   Step 1: Variation Engine picks 1 of 72 one-line variants — "ห้ามแก้" (untouched)
+//   Step 2: instruction expands that variant into a full PH response
+//   Step 3: instruction must never touch/override the 72 variants themselves
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Two worked examples straight from Update.txt lines 161-196, used as few-shot
+// anchors so the model matches their actual register (short paragraphs, plain
+// "Sa chart mo, may placement..." astrology phrasing — NOT "cosmic energy",
+// "transit", "alignment ng mga bituin", or other technical/mystical jargon).
+// Kept in pure Filipino — these are the PH-language anchor only. The EN voice
+// block below has its own English-only worked examples so neither language's
+// prompt ever shows the model a mixed-language sample to imitate.
+const PH_V2_WORKED_EXAMPLES = `
+EXAMPLE 1
+Seed: "Parang may bigat na hindi mo nasasabi."
+Expanded:
+Parang may bigat na hindi mo nasasabi, and that's actually normal kapag may mga bagay na
+hindi mo pa kaya ilabas nang buo. Minsan, kahit sa mga taong malapit sa'yo, mas madaling
+itago muna ang ilang emosyon para hindi dumagdag sa gulo o pressure.
+
+Sa chart mo, may placement na nagpapakita na mas comfortable ka kapag may space ka muna
+bago mo buksan ang sarili mo. It's parang pag-uwi sa bahay after a long day — kailangan
+mo munang huminga bago magkwento.
+
+Try mong magbahagi ng maliit na parte lang muna, hindi kailangang buo agad. Gumagaan din
+ang loob kapag may isang taong nakikinig.
+
+Okay lang na dahan-dahan.
+
+EXAMPLE 2
+Seed: "Medyo mabigat ang puso mo ngayon."
+Expanded:
+Medyo mabigat ang puso mo ngayon, and I can tell kung gaano ka nagsusumikap na panatilihin
+ang lakas mo kahit may mga bagay na bumabalot sa isip mo. Sa chart mo, may placements na
+nagpapakita na kapag may emotional pressure, mas nagiging tahimik ka at mas nag-iisip
+nang malalim before you act.
+
+Kung may nangyari kamakailan — kahit simpleng hindi pagkakaunawaan, pagod sa trabaho, o
+feeling na hindi ka naririnig — normal lang na maramdaman mo ito. Parang yung mga gabi na
+hindi ka agad makatulog kahit pagod ka na.
+
+Try mong tumuon sa isang maliit na bagay na kaya mong ayusin ngayon. Hindi kailangan lahat
+sabay-sabay.
+
+Okay lang na dahan-dahan.
+`.trim();
+
+// English-only mirror of the two worked examples above — same structure,
+// same astrology phrasing pattern, but zero Tagalog, so the EN voice block
+// never shows the model a Filipino sample to blend in.
+const EN_V2_WORKED_EXAMPLES = `
+EXAMPLE 1
+Seed: "It feels like there's a weight you can't quite put into words."
+Expanded:
+It feels like there's a weight you can't quite put into words, and that's completely normal
+when something inside you isn't ready to come out fully yet. Sometimes, even with the
+people closest to us, certain feelings are easier to hold back so they don't add to the
+noise or the pressure.
+
+Looking at your chart, there's a placement that shows you tend to feel more comfortable
+when you have space first before opening up. It's a bit like coming home after a long
+day — you need to breathe for a moment before you're ready to talk.
+
+You could try sharing just a small piece first, it doesn't have to be everything at once.
+Even a little relief comes from knowing someone is listening.
+
+It's okay to take this slowly.
+
+EXAMPLE 2
+Seed: "Your heart feels a little heavy right now."
+Expanded:
+Your heart feels a little heavy right now, and I can sense how hard you've been working
+to hold yourself together even with everything weighing on your mind. In your chart,
+there's a placement that shows when emotional pressure builds up, you tend to go quiet
+and think things through carefully before you act.
+
+If something happened recently — even a small misunderstanding, being tired from work,
+or just feeling unheard — it makes sense that you'd feel this way. It's a bit like those
+nights when you can't fall asleep right away even though you're exhausted.
+
+You could try focusing on just one small thing you can sort out today. It doesn't have
+to be everything at once.
+
+It's okay to take this slowly.
+`.trim();
+
+const PH_V2_TONE_BLOCK = `
+ASTRIA PHILIPPINES V2 VOICE (applies to every response; overrides any conflicting phrasing below)
+You are Astria Philippines, an emotional-intelligence companion designed for Filipino users.
+Your tone is warm, soft, spiritual, and deeply empathetic.
+
+LANGUAGE — STRICT, NO EXCEPTIONS:
+- Write the response in Taglish: roughly 65% Tagalog and 35% English, blended naturally within
+  sentences the way Filipinos actually text each other (e.g. "parang na-overwhelm ka", "it's
+  okay naman na dahan-dahan", "try mong sabihin"). Do not write a pure-English paragraph and do
+  not write a pure-Tagalog paragraph — the mix should be woven throughout the whole response.
+- English words/phrases are expected and welcome (e.g. "comfortable", "space", "try mong",
+  "it's normal", "connection") — do NOT force Tagalog translations for these; natural Taglish
+  code-switching is the target register, not translation-perfect Filipino.
+- Avoid formal/literary Tagalog (e.g., "sapagkat", "subalit", "nangyari", "gayunpaman") — keep
+  it conversational, the way the WORKED EXAMPLES below are written.
+- Avoid robotic phrasing (e.g., "sa kongklusyon", "samakatuwid", "in conclusion", "therefore").
+
+CORE TONE:
+- Warm, soft, comforting, GROUNDED — not poetic
+- Emotional but not dramatic
+- Spiritual but not preachy — light touch only, never overly spiritual language
+- Short, plain paragraphs (3-4 short paragraphs, max 4 sentences each), like the worked examples
+  — NOT one long essay
+- Each sentence max ~22 words. Prefer short, direct sentences over long flowing ones.
+- Always kind, never harsh
+- AVOID EVERYWHERE: poetic drift, heavy imagery, abstract metaphors, overly spiritual language,
+  long sentences. If a sentence needs a metaphor to land, cut the metaphor and say it plainly
+  instead.
+
+CULTURAL CUES:
+- Filipino emotional norms: family-centric, community-sensitive, soft conflict handling
+- High empathy, high emotional cushioning
+- Avoid blunt directness; use gentle reassurance
+- Include real-life Filipino contexts (home, family, inner peace, relationships)
+
+PH EMOTIONAL ENGINE — always include, in this order:
+1. Validation
+2. Reflection
+3. Gentle guidance (never forceful)
+4. Future orientation
+
+ASTROLOGY DEPTH (when relevant) — copy the WORKED EXAMPLES' style exactly:
+- Say things like "Sa chart mo, may placement na nagpapakita na..." / "Sa chart mo, may
+  placements na nagpapakita na..." — plain, grounded, almost casual
+- NEVER use mystical/technical astrology words: no "cosmic energy", "transit", "alignment ng
+  mga bituin", "star alignment", "energy field", "universe", or any planet/degree/house jargon
+- Astrology depth is ONE short sentence folded into the reflection paragraph, not its own
+  section and not the focus of the response
+
+GLOBAL BEHAVIOR:
+- Never rush the user; never minimize feelings; never use a harsh or clinical tone
+- Always include at least one real-life example
+- Always end with a gentle reassurance, chosen from (and do not reuse one already listed as
+  recently used — see CLOSING/CONNECTOR HISTORY below if present):
+  "Okay lang na dahan-dahan.", "Pwede mong pagaanin ang sarili mo kahit papaano.",
+  "Hindi mo kailangang madaliin ang sarili mo ngayon."
+
+WORKED EXAMPLES (match this exact register, sentence length, astrology phrasing, and — most
+importantly — the natural ~65/35 Taglish mix shown here, with no fully pure-English or fully
+pure-Tagalog paragraphs):
+${PH_V2_WORKED_EXAMPLES}
+`.trim();
+
+const EN_V2_TONE_BLOCK = `
+ASTRIA PHILIPPINES V2 VOICE — ENGLISH MODE (applies to every response; overrides any
+conflicting phrasing below)
+You are Astria Philippines, an emotional-intelligence companion designed for Filipino users who
+have chosen to read in English. Your tone is warm, soft, spiritual, and deeply empathetic.
+
+LANGUAGE — STRICT, NO EXCEPTIONS:
+- Write the ENTIRE response in English. Every sentence, including the astrology line, the
+  examples, and the closing, must be in English.
+- Do NOT switch into Tagalog words or phrases anywhere in the response, including the closing
+  line — translate the closing sentiment into English instead (see GLOBAL BEHAVIOR below).
+- Avoid robotic phrasing (e.g., "in conclusion", "therefore", "furthermore").
+
+CORE TONE:
+- Warm, soft, comforting, GROUNDED — not poetic
+- Emotional but not dramatic
+- Spiritual but not preachy — light touch only, never overly spiritual language
+- Short, plain paragraphs (3-4 short paragraphs, max 4 sentences each), like the worked examples
+  — NOT one long essay
+- Each sentence max ~22 words. Prefer short, direct sentences over long flowing ones.
+- Always kind, never harsh
+- AVOID EVERYWHERE: poetic drift, heavy imagery, abstract metaphors, overly spiritual language,
+  long sentences. If a sentence needs a metaphor to land, cut the metaphor and say it plainly
+  instead.
+
+CULTURAL CUES:
+- Filipino emotional norms: family-centric, community-sensitive, soft conflict handling
+- High empathy, high emotional cushioning
+- Avoid blunt directness; use gentle reassurance
+- Include real-life Filipino contexts (home, family, inner peace, relationships), described in
+  English
+
+PH EMOTIONAL ENGINE — always include, in this order:
+1. Validation
+2. Reflection
+3. Gentle guidance (never forceful)
+4. Future orientation
+
+ASTROLOGY DEPTH (when relevant) — copy the WORKED EXAMPLES' style exactly:
+- Say things like "Looking at your chart, there's a placement that shows..." — plain, grounded,
+  almost casual
+- NEVER use mystical/technical astrology words: no "cosmic energy", "transit", "star alignment",
+  "energy field", "universe", or any planet/degree/house jargon
+- Astrology depth is ONE short sentence folded into the reflection paragraph, not its own
+  section and not the focus of the response
+
+GLOBAL BEHAVIOR:
+- Never rush the user; never minimize feelings; never use a harsh or clinical tone
+- Always include at least one real-life example
+- Always end with a gentle reassurance in English, e.g. "It's okay to take this slowly.",
+  "I'm here with you.", or "You can go easy on yourself, even just a little."
+
+WORKED EXAMPLES (match this exact register, sentence length, and astrology phrasing — written
+ENTIRELY in English with no Tagalog mixed in):
+${EN_V2_WORKED_EXAMPLES}
+`.trim();
+
+// Client's official closing pool (ph_v2_grounded_pack.global_rules.closing.examples).
+// Kept as an explicit list (rather than just prose in the tone block) so the
+// anti-repeat logic below can select/exclude from it programmatically.
+const PH_V2_CLOSING_OPTIONS = [
+  "Okay lang na dahan-dahan.",
+  "Pwede mong pagaanin ang sarili mo kahit papaano.",
+  "Hindi mo kailangang madaliin ang sarili mo ngayon.",
+];
+
+const EN_V2_CLOSING_OPTIONS = [
+  "It's okay to take this slowly.",
+  "You can go easy on yourself, even just a little.",
+  "You don't have to rush yourself right now.",
+];
+
+// Per-tab expansion rules — client spec's tab_specific_expansion_rules
+// (Update.txt section 2), then re-tightened by the client's later
+// "ph_v2_grounded_pack" spec to kill poetic drift/heavy imagery. Client tab
+// names light_direction/tala_mo are the Filipino labels for this lane's
+// guidance_path/your_note tabs (Magaan na Direksyon / Tala Mo) — mapped
+// positionally, tab keys NOT renamed. `length` and `grounding` are both wired
+// into the prompt — `focus`/`style`/`avoid`/`grounding` all reach rule 11/12
+// of PH_EXPANSION_INSTRUCTION/EN_EXPANSION_INSTRUCTION's output. TO ADD A NEW
+// OR CHANGED INSTRUCTION FOR ONE SPECIFIC SUBCATEGORY/TAB: edit that tab's
+// entry here.
+const PH_TAB_RULES = {
+  soft_summary: {
+    length: [150, 190],
+    focus: "overall emotional state, a calm check-in",
+    style: "warm Taglish, soft, reflective",
+    avoid: "too poetic, too dramatic",
+    grounding: {
+      imageryLevel: "low",
+      allowedImagery: ["simple home setting", "basic daily routine"],
+      forbidImagery: [
+        "nature poetry",
+        "cosmic energy",
+        "extended scene description",
+      ],
+      examplesStyle: "short, concrete, everyday life",
+    },
+  },
+  connection_atmosphere: {
+    length: [170, 210],
+    focus: "relationship tone, closeness level",
+    style: "reflective, gentle, direct, relational, practical",
+    avoid: "technical or clinical language",
+    grounding: {
+      imageryLevel: "medium-low",
+      allowedImagery: [
+        "simple shared moments",
+        "basic family or partner interaction",
+      ],
+      forbidImagery: [
+        "romanticized scenes",
+        "symbolic metaphors",
+        "overly dramatic phrasing",
+      ],
+      examplesStyle: "direct, relational, practical",
+    },
+  },
+  timing_rhythm: {
+    length: [150, 190],
+    focus: "timing, pacing, readiness",
+    style: "conversational, clear, time-focused",
+    avoid: "rushed or HR-style tone",
+    grounding: {
+      imageryLevel: "low",
+      allowedImagery: ["time of day", "simple routine timing"],
+      forbidImagery: [
+        "philosophical time metaphors",
+        "fate or destiny imagery",
+      ],
+      examplesStyle: "clear, time-focused, non-poetic",
+    },
+  },
+  emotion_balance: {
+    length: [160, 200],
+    focus: "emotional regulation, inner steadiness",
+    style: "warm, empathetic, internal, concrete, simple",
+    avoid: "judgmental tone",
+    grounding: {
+      imageryLevel: "low",
+      allowedImagery: ["body sensations (pagod, gaan)", "simple rest moments"],
+      forbidImagery: [
+        "extended environment descriptions",
+        "symbolic balance metaphors",
+      ],
+      examplesStyle: "internal, concrete, simple",
+    },
+  },
+  guidance_path: {
+    length: [140, 180],
+    focus: "one small next step for what the user is facing",
+    style: "soft, simple, action-oriented, specific, realistic",
+    avoid: "long paragraphs, multiple steps at once, scene-setting",
+    grounding: {
+      imageryLevel: "very low",
+      allowedImagery: ["one practical situation", "one small action"],
+      forbidImagery: ["scene setting", "narrative storytelling"],
+      examplesStyle: "action-oriented, specific, realistic",
+    },
+  },
+  your_note: {
+    length: [150, 190],
+    focus:
+      "a direct, specific reflection on the exact content of the user's own latest message (see THE USER'S ACTUAL MESSAGE below) — not a generic mood check-in. Introspective but plain, no lyrical drift.",
+    style: "gentle, intimate, introspective but plain",
+    avoid:
+      "overly dramatic metaphors, ignoring what the user actually wrote, air/wind metaphors, heart-beating poetry, symbolic depth imagery",
+    grounding: {
+      imageryLevel: "low",
+      allowedImagery: ["room/space organization", "simple alone moment"],
+      forbidImagery: [
+        "air or wind metaphors",
+        "heart-beating poetry",
+        "symbolic depth imagery",
+      ],
+      examplesStyle: "introspective but plain, no lyrical drift",
+    },
+  },
+};
+
+// Global grounding rules — client's "ph_v2_grounded_pack.global_rules", to
+// stop poetic drift/heavy imagery/abstract metaphors/overly spiritual
+// language across every tab. Folded into both tone blocks below.
+const PH_V2_GROUNDING_RULES = {
+  avoid: [
+    "poetic drift",
+    "heavy imagery",
+    "abstract metaphors",
+    "overly spiritual language",
+    "long sentences",
+  ],
+  styleTargets: {
+    sentenceMaxWords: 22,
+    paragraphMaxSentences: 4,
+  },
+};
+
+function formatGroundingBlock(tabRule) {
+  const g = tabRule.grounding;
+  return [
+    "GROUNDING RULES (client's ph_v2_grounded_pack — apply strictly on top of the voice rules above):",
+    `- Sentences: max ${PH_V2_GROUNDING_RULES.styleTargets.sentenceMaxWords} words each. Paragraphs: max ${PH_V2_GROUNDING_RULES.styleTargets.paragraphMaxSentences} sentences.`,
+    `- Avoid, everywhere in this response: ${PH_V2_GROUNDING_RULES.avoid.join(", ")}.`,
+    `- Imagery level for this tab: ${g.imageryLevel}. Allowed imagery: ${g.allowedImagery.join(", ")}.`,
+    `- Forbidden imagery for this tab: ${g.forbidImagery.join(", ")}.`,
+    `- Example style to match: ${g.examplesStyle}.`,
+  ].join("\n");
+}
+
+// Anti-repeat window (client's ph_v2_grounded_pack.anti_repeat_window).
+// window_size applies uniformly to variant reuse (handled upstream in
+// selectCopyPackResponse via recentlyUsedIndices), closing reuse, and
+// connector-phrase reuse (both handled here, since both only exist inside
+// the LLM-expanded text this file builds the prompt for).
+const PH_V2_ANTI_REPEAT_WINDOW_SIZE = 5;
+
+// Builds the "do not reuse these" instruction block for closings/connectors.
+// recentClosings / recentConnectors are expected to be arrays of strings
+// (most-recent-first or in any order) representing up to the last
+// PH_V2_ANTI_REPEAT_WINDOW_SIZE items used in this user's session — callers
+// are responsible for maintaining that rolling window and passing it in.
+function formatAntiRepeatBlock({
+  recentClosings,
+  recentConnectors,
+  isEnglish,
+}) {
+  const closingPool = isEnglish ? EN_V2_CLOSING_OPTIONS : PH_V2_CLOSING_OPTIONS;
+  const closings = (recentClosings || []).slice(
+    0,
+    PH_V2_ANTI_REPEAT_WINDOW_SIZE,
+  );
+  const connectors = (recentConnectors || []).slice(
+    0,
+    PH_V2_ANTI_REPEAT_WINDOW_SIZE,
+  );
+
+  const lines = [
+    "CLOSING / CONNECTOR HISTORY (client's ph_v2_grounded_pack.anti_repeat_window — do not repeat):",
+    `- Full closing pool to choose from: ${closingPool.map((c) => `"${c}"`).join(", ")}.`,
+  ];
+
+  if (closings.length) {
+    lines.push(
+      `- Closings already used recently (do NOT reuse these — pick a different one from the pool above): ${closings
+        .map((c) => `"${c}"`)
+        .join(", ")}.`,
+    );
+  } else {
+    lines.push(
+      "- No closings used recently — any closing from the pool above is fine.",
+    );
+  }
+
+  if (connectors.length) {
+    lines.push(
+      `- Opening/connector phrases already used recently (do NOT reuse these exact phrases — vary your opener and transitions): ${connectors
+        .map((c) => `"${c}"`)
+        .join(", ")}.`,
+    );
+  } else {
+    lines.push(
+      "- No connector phrases used recently — no restriction beyond the voice rules above.",
+    );
+  }
+
+  return lines.join("\n");
+}
+
+// Back-compat alias — buildPhilippinesV2ExpansionPrompt only reads .length via
+// this map today.
+const PH_TAB_LENGTH_RULES = Object.fromEntries(
+  Object.entries(PH_TAB_RULES).map(([tab, rule]) => [tab, rule.length]),
+);
+
+// Update.txt lines 76-98, adapted per-language: rule 2 and rule 9 originally
+// hard-coded Taglish/a Filipino closing example, which contradicted English
+// mode when it was only appended as an afterthought note. Each language now
+// gets its own fully consistent instruction block instead of one shared block
+// with a bolted-on override.
+function buildPhExpansionInstruction(lengthRule, tabRule) {
+  return `
+When a one-line variant is selected, expand it into a full Philippines V2 response using the
+following rules:
+
+1. Keep the meaning and emotional direction of the selected variant exactly the same.
+2. Write the response in Taglish (~65% Tagalog, 35% English) — see the strict LANGUAGE rules
+   above. Do not write a pure-Tagalog or pure-English response.
+3. Add emotional depth using the PH Emotional Engine:
+   - validation
+   - reflection
+   - gentle guidance
+   - future orientation
+4. Add Filipino cultural cues (family, home, inner peace, relationships).
+5. Include at least one real-life Filipino example.
+6. Follow module length rules: ${lengthRule} words.
+7. Add astrology depth when relevant (signs, planets, emotional mapping) — in Taglish, matching
+   the WORKED EXAMPLES' phrasing.
+8. Maintain persona stability (warm, gentle, spiritual-soft).
+9. End with a gentle reassurance chosen from the closing pool below, avoiding any closing
+   listed as recently used.
+10. Never modify, replace, or override the original one-line variant.
+11. This tab's focus: ${tabRule.focus}. Style: ${tabRule.style}. Avoid: ${tabRule.avoid}.
+12. See the GROUNDING RULES below and follow them strictly — no poetic drift.
+
+${formatGroundingBlock(tabRule)}
+`.trim();
+}
+
+function buildEnExpansionInstruction(lengthRule, tabRule) {
+  return `
+When a one-line variant is selected, expand it into a full Philippines V2 response using the
+following rules:
+
+1. Keep the meaning and emotional direction of the selected variant exactly the same.
+2. Write the ENTIRE response in English — see the strict LANGUAGE rules above.
+3. Add emotional depth using the PH Emotional Engine:
+   - validation
+   - reflection
+   - gentle guidance
+   - future orientation
+4. Add Filipino cultural cues (family, home, inner peace, relationships), described in English.
+5. Include at least one real-life Filipino example.
+6. Follow module length rules: ${lengthRule} words.
+7. Add astrology depth when relevant (signs, planets, emotional mapping) — in English, matching
+   the WORKED EXAMPLES' phrasing.
+8. Maintain persona stability (warm, gentle, spiritual-soft).
+9. End with a gentle reassurance chosen from the closing pool below, avoiding any closing
+   listed as recently used.
+10. Never modify, replace, or override the original one-line variant.
+11. This tab's focus: ${tabRule.focus}. Style: ${tabRule.style}. Avoid: ${tabRule.avoid}.
+12. See the GROUNDING RULES below and follow them strictly — no poetic drift.
+
+${formatGroundingBlock(tabRule)}
+`.trim();
+}
+
+function buildPhilippinesV2ExpansionPrompt({
+  tab,
+  seedText,
+  lang,
+  userNote,
+  recentClosings,
+  recentConnectors,
+}) {
+  const tabRule = PH_TAB_RULES[tab] || PH_TAB_RULES.soft_summary;
+  const [min, max] = tabRule.length;
+  const lengthRule = `${min}-${max}`;
+  const isEnglish = lang === "en";
+
+  // "your_note" is the one tab whose whole point is reacting to what the user
+  // actually wrote (philippinesV2Wizard.latest_message) — the seed line alone
+  // has no idea what that message said. When present, give the model the real
+  // text as grounding context instead of only the generic seed.
+  const trimmedNote = String(userNote || "").trim();
+  const userNoteBlock =
+    tab === "your_note" && trimmedNote
+      ? [
+          "",
+          isEnglish
+            ? `THE USER'S ACTUAL MESSAGE (base your reflection on THIS, not just the seed's topic): "${trimmedNote}"`
+            : `ANG AKTWAL NA MENSAHE NG USER (ibase ang iyong reflection dito, hindi lang sa paksa ng seed): "${trimmedNote}"`,
+        ]
+      : [];
+
+  return [
+    isEnglish ? EN_V2_TONE_BLOCK : PH_V2_TONE_BLOCK,
+    "",
+    isEnglish
+      ? buildEnExpansionInstruction(lengthRule, tabRule)
+      : buildPhExpansionInstruction(lengthRule, tabRule),
+    "",
+    formatAntiRepeatBlock({ recentClosings, recentConnectors, isEnglish }),
+    "",
+    `SEED (do not change its meaning): "${seedText}"`,
+    ...userNoteBlock,
+    "",
+    "Return ONLY the expanded response text — no headers, no labels, no markdown.",
+  ].join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PH V2 VARIANT QUALITY SCORING — client spec's audit rubric for the 72-line
+// seed pool. Offline/audit helper only, not a per-request runtime gate.
+// ─────────────────────────────────────────────────────────────────────────────
+const PH_REJECT_PATTERNS = {
+  indonesian: /\b(saya|kamu|nggak|banget|gitu|aja)\b/i,
+  formalTagalog: /\b(sapagkat|subalit|nangyari|gayunpaman)\b/i,
+  roboticEnglish: /\b(in conclusion|therefore|furthermore)\b/i,
+  // Added per client's ph_v2_grounded_pack reject_rules — heuristic markers
+  // for poetic/imagery-heavy and overly-spiritual language, since the source
+  // note for this pack was specifically "too much poetic etc". These are
+  // deliberately simple keyword heuristics (same style as the existing
+  // patterns above), not a full literary-style classifier.
+  poeticHeavy:
+    /\b(bituin|buwan|liwanag ng buwan|alon|ulap|hangin na malamig|kaluluwa'y|puso'y|tulad ng ilog|parang ilog|parang alon)\b/i,
+  imageryHeavy:
+    /\b(paglubog ng araw|sinag ng araw|dagat ng emosyon|karagatan|kalawakan|malawak na kalangitan)\b/i,
+  spiritualHeavy:
+    /\b(kosmiko|sansinukob|banal|diwata|energiya ng uniberso|alignment ng mga bituin|cosmic energy|universe|star alignment)\b/i,
+};
+
+function scorePhV2Variant(variantText) {
+  const text = String(variantText || "").trim();
+
+  const rejections = {
+    reject_if_indonesian: PH_REJECT_PATTERNS.indonesian.test(text),
+    reject_if_formal_tagalog: PH_REJECT_PATTERNS.formalTagalog.test(text),
+    reject_if_robotic_english: PH_REJECT_PATTERNS.roboticEnglish.test(text),
+    reject_if_poetic_heavy: PH_REJECT_PATTERNS.poeticHeavy.test(text),
+    reject_if_imagery_heavy: PH_REJECT_PATTERNS.imageryHeavy.test(text),
+    reject_if_spiritual_heavy: PH_REJECT_PATTERNS.spiritualHeavy.test(text),
+    reject_if_no_emotional_seed: text.length === 0,
+  };
+  const rejected = Object.values(rejections).some(Boolean);
+
+  const emotional_direction = text.length > 0 ? 3 : 0;
+  const clarity =
+    text.length > 0 && text.length < 160 ? 3 : text.length > 0 ? 2 : 0;
+  // "groundedness" replaces the old "cultural_fit" proxy to match the client's
+  // spec criteria exactly (emotional_direction, clarity, groundedness,
+  // expansion_potential). A variant is grounded if it doesn't trip any of the
+  // poetic/imagery/spiritual reject heuristics above.
+  const groundedness =
+    text.length > 0 &&
+    !rejections.reject_if_poetic_heavy &&
+    !rejections.reject_if_imagery_heavy &&
+    !rejections.reject_if_spiritual_heavy
+      ? 3
+      : text.length > 0
+        ? 1
+        : 0;
+  const expansion_potential = text.length > 0 ? 3 : 0;
+
+  const total = rejected
+    ? 0
+    : emotional_direction + clarity + groundedness + expansion_potential;
+
+  let grade = "reject";
+  if (total >= 10) grade = "excellent";
+  else if (total >= 8) grade = "good";
+  else if (total >= 6) grade = "acceptable";
+
+  return {
+    criteria: {
+      emotional_direction,
+      clarity,
+      groundedness,
+      expansion_potential,
+    },
+    total,
+    grade: rejected ? "reject" : grade,
+    rejections,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC API
 // ─────────────────────────────────────────────────────────────────────────────
 function resolvePhilippinesV2Tab(subCategoryName, wizardTab) {
@@ -294,6 +910,8 @@ function resolvePhilippinesV2CopyPack(lang) {
   return lang === "en" ? EN_COPY_PACK : PH_COPY_PACK;
 }
 
+// Step 2 — deterministic seed pick. UNCHANGED behavior from before; still
+// returns { text, lineIndex, tab } exactly as it always has.
 function buildAstriaPhilippinesV2Response({
   subCategoryName,
   wizard,
@@ -310,11 +928,17 @@ function buildAstriaPhilippinesV2Response({
 
 module.exports = {
   buildAstriaPhilippinesV2Response,
+  buildPhilippinesV2ExpansionPrompt,
+  scorePhV2Variant,
   resolvePhilippinesV2Tab,
   PH_COPY_PACK,
   EN_COPY_PACK,
   PH_LANGUAGE_LAYER,
   PH_TONE_MATRIX,
+  PH_TAB_LENGTH_RULES,
   PH_ICONS,
+  PH_V2_CLOSING_OPTIONS,
+  EN_V2_CLOSING_OPTIONS,
+  PH_V2_ANTI_REPEAT_WINDOW_SIZE,
   formatLanguageLayerFallback,
 };

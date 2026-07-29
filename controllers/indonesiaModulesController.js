@@ -10,7 +10,7 @@ const { generateReading } = require("../services/indonesiaModulesService.js");
 // POST /api/generate-reading
 const generateReadingHandler = async (req, res) => {
   try {
-    const { module: moduleId, questions, form_data } = req.body || {};
+    const { module: moduleId, questions, form_data, language } = req.body || {};
 
     if (
       !moduleId ||
@@ -24,6 +24,7 @@ const generateReadingHandler = async (req, res) => {
       module: moduleId,
       questions: questions && typeof questions === "object" ? questions : {},
       form_data: form_data && typeof form_data === "object" ? form_data : {},
+      language: language === "en" ? "en" : "id",
     });
 
     return res.status(200).json(result);

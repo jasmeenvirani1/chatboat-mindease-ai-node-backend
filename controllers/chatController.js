@@ -148,8 +148,9 @@ const {
   buildAstriaUKV2Context,
   computeWesternBirthChartUKV2,
   parseEnergyMatchPartnersUKV2,
-  buildEnergyMatchMissingQuestionUKV2,
-  isEnergyMatchSubcategoryUKV2,
+  getUKV2MissingPartnerQuestion,
+  resolveUKV2TabKey,
+  isTwoPersonUKV2Module,
   extractAstriaUKV2Data,
   validateAstriaUKV2Data,
   deriveAstriaUKV2DisplaySections,
@@ -186,6 +187,7 @@ const { evaluateIndonesia3Box } = require("../helper/indonesia3BoxEngine");
 const {
   buildAstriaPhilippinesV2Response,
   resolvePhilippinesV2Tab,
+  buildPhilippinesV2ExpansionPrompt,
 } = require("../helper/astriaPhilippinesV2Service");
 const {
   buildAstriaIndonesiaV2Response,
@@ -5048,50 +5050,52 @@ RULES:
         );
       }
 
-      // ASTRIA UK V2 ENGINE — UK Room (Energy Match needs two birth charts;
-      // every other tab uses a single self chart)
-      let energyMatchMissingQuestionUKV2 = null;
+      // ASTRIA UK V2 ENGINE — UK Room (Energy Match, MateScan, and
+      // Relationship need two birth charts; every other tab uses a single
+      // self chart)
+      let ukv2MissingPartnerQuestion = null;
       if (isAstriaUKV2) {
-        if (isEnergyMatchSubcategoryUKV2(subCategoryName)) {
-          // Energy Match: needs two birth charts
-          const energyMatchPartnersUKV2 = parseEnergyMatchPartnersUKV2(
+        const ukv2TabKey = resolveUKV2TabKey(subCategoryName);
+
+        if (isTwoPersonUKV2Module(ukv2TabKey)) {
+          // Two-person module: needs both partners' birth charts
+          const ukv2Partners = parseEnergyMatchPartnersUKV2(
             userMessage,
             dob0,
             dob_time0,
             dob_place0,
           );
 
-          if (energyMatchPartnersUKV2.missingFields.length > 0) {
-            energyMatchMissingQuestionUKV2 =
-              buildEnergyMatchMissingQuestionUKV2(
-                energyMatchPartnersUKV2.missingFields,
-                !!(dob0 && String(dob0).trim()),
-                "en",
-              );
+          if (ukv2Partners.missingFields.length > 0) {
+            ukv2MissingPartnerQuestion = getUKV2MissingPartnerQuestion(
+              subCategoryName,
+              ukv2Partners.missingFields,
+              !!(dob0 && String(dob0).trim()),
+            );
           } else {
             let chartAUKV2 = null;
             let chartBUKV2 = null;
             try {
-              if (energyMatchPartnersUKV2.personA.dob) {
+              if (ukv2Partners.personA.dob) {
                 chartAUKV2 = computeWesternBirthChartUKV2({
-                  dob: energyMatchPartnersUKV2.personA.dob,
-                  dob_time: energyMatchPartnersUKV2.personA.time || null,
-                  dob_place: energyMatchPartnersUKV2.personA.place || null,
+                  dob: ukv2Partners.personA.dob,
+                  dob_time: ukv2Partners.personA.time || null,
+                  dob_place: ukv2Partners.personA.place || null,
                 });
               }
             } catch (err) {
-              logger.error("Astria UK V2 Energy Match - chartA error:", err);
+              logger.error(`Astria UK V2 ${ukv2TabKey} - chartA error:`, err);
             }
             try {
-              if (energyMatchPartnersUKV2.personB.dob) {
+              if (ukv2Partners.personB.dob) {
                 chartBUKV2 = computeWesternBirthChartUKV2({
-                  dob: energyMatchPartnersUKV2.personB.dob,
-                  dob_time: energyMatchPartnersUKV2.personB.time || null,
-                  dob_place: energyMatchPartnersUKV2.personB.place || null,
+                  dob: ukv2Partners.personB.dob,
+                  dob_time: ukv2Partners.personB.time || null,
+                  dob_place: ukv2Partners.personB.place || null,
                 });
               }
             } catch (err) {
-              logger.error("Astria UK V2 Energy Match - chartB error:", err);
+              logger.error(`Astria UK V2 ${ukv2TabKey} - chartB error:`, err);
             }
 
             systemPrompt = buildAstriaUKV2Context({
@@ -6037,7 +6041,7 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System prompt: ", systemPrompt);
+      //console.log("System prompt: ", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -6075,6 +6079,10 @@ RULES:
         isAstriaMexicoV2;
       let phVnIdV2Data = null;
       let phVnIdV2FinalResponse = null;
+      // Only Philippines V2 expands its picked seed via an LLM call; ID/VN/BR/MX
+      // V2 stay on the deterministic verbatim path below (phVnIdV2ExpansionPrompt
+      // stays null for them, which is what routes them to the old behavior).
+      let phVnIdV2ExpansionPrompt = null;
       if (isPhIdV2CopyPackLane) {
         try {
           const tab = isAstriaPhilippinesV2
@@ -6122,6 +6130,18 @@ RULES:
                     });
           phVnIdV2FinalResponse = picked.text;
           phVnIdV2Data = { tab: picked.tab, lineIndex: picked.lineIndex };
+          if (isAstriaPhilippinesV2) {
+            phVnIdV2ExpansionPrompt = buildPhilippinesV2ExpansionPrompt({
+              tab: picked.tab,
+              seedText: picked.text,
+              lang: philippinesV2Wizard?.lang,
+              // "Your Note" is the only tab where the user types real free
+              // text (latest_message) instead of picking a chip/slider — the
+              // model needs this to reflect on what they actually wrote,
+              // otherwise the response only ever reacts to the generic seed.
+              userNote: philippinesV2Wizard?.latest_message,
+            });
+          }
         } catch (err) {
           logger.error(
             "Astria Philippines/Indonesia/Vietnam/Brazil/Mexico V2 selection error:",
@@ -6162,10 +6182,22 @@ RULES:
           let vivahMuhuratJsonData = null;
           let upayMargParsed = null;
 
-          if (isPhIdV2CopyPackLane) {
-            // Deterministic copy-pack response — never calls the LLM. Word-
-            // chunked over SSE with the same timing as every other lane
-            // below, so the frontend's streaming UI behaves identically.
+          if (phVnIdV2ExpansionPrompt) {
+            // Astria Philippines V2 — the seed picked deterministically above
+            // is expanded into a full Taglish response via the LLM, per the
+            // client's emotion-picker expansion spec. Word-chunked over SSE
+            // like every other lane, so the frontend streaming UI is unaffected.
+            const phCompletion = await generateGeminiResponse([
+              { role: "system", content: phVnIdV2ExpansionPrompt },
+              { role: "user", content: userMessage },
+            ]);
+            finalAiResponse = phCompletion?.trim() || phVnIdV2FinalResponse;
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isPhIdV2CopyPackLane) {
+            // Deterministic copy-pack response (ID/VN/BR/MX V2) — never calls
+            // the LLM. Word-chunked over SSE with the same timing as every
+            // other lane below, so the frontend's streaming UI behaves
+            // identically.
             finalAiResponse = phVnIdV2FinalResponse;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (musicRecommendation?.shouldRecommend) {
@@ -6520,8 +6552,8 @@ RULES:
             }
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
-          } else if (isAstriaUKV2 && energyMatchMissingQuestionUKV2) {
-            finalAiResponse = energyMatchMissingQuestionUKV2;
+          } else if (isAstriaUKV2 && ukv2MissingPartnerQuestion) {
+            finalAiResponse = ukv2MissingPartnerQuestion;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaUKV2) {
             const ukv2Stream = await generateGeminiResponseStream(messages);
@@ -7065,10 +7097,16 @@ RULES:
       let finalAiResponse = "";
 
       // Astria PH/VN/ID V2 Response Processing
-      const completion = isPhIdV2CopyPackLane
-        ? phVnIdV2FinalResponse
-        : await generateGeminiResponse(messages);
-      finalAiResponse = completion?.trim() || "No response";
+      const completion = phVnIdV2ExpansionPrompt
+        ? await generateGeminiResponse([
+            { role: "system", content: phVnIdV2ExpansionPrompt },
+            { role: "user", content: userMessage },
+          ])
+        : isPhIdV2CopyPackLane
+          ? phVnIdV2FinalResponse
+          : await generateGeminiResponse(messages);
+      finalAiResponse =
+        completion?.trim() || phVnIdV2FinalResponse || "No response";
 
       if (
         !musicRecommendation?.shouldRecommend &&
@@ -7327,7 +7365,7 @@ RULES:
       }
 
       // ASTRIA UK V2 RESPONSE PROCESSING (NON-STREAMING)
-      if (isAstriaUKV2 && !energyMatchMissingQuestionUKV2) {
+      if (isAstriaUKV2 && !ukv2MissingPartnerQuestion) {
         const rawResponse = completion?.trim() || "No response";
 
         astriaUKV2Data = extractAstriaUKV2Data(rawResponse);

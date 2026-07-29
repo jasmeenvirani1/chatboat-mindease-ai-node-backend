@@ -51,69 +51,133 @@ function simpleHash(str) {
 // IndonesiaModules.tsx and extended with additional variety + coverage for
 // section ids the frontend tone pack didn't originally cover.
 const SECTION_FALLBACKS = {
-  soft_summary: [
-    "Koneksi kalian lagi bergerak dengan ritme yang tenang.",
-    "Ada bagian dari cerita ini yang sebenarnya cuma butuh ruang.",
-    "Situasi kamu sekarang wajar banget, dan kamu nggak sendirian.",
+  id: {
+    soft_summary: [
+      "Koneksi kalian lagi bergerak dengan ritme yang tenang.",
+      "Ada bagian dari cerita ini yang sebenarnya cuma butuh ruang.",
+      "Situasi kamu sekarang wajar banget, dan kamu nggak sendirian.",
+    ],
+    emotional_pulse: [
+      "Kamu lagi lebih peka sama hal-hal kecil.",
+      "Ada perasaan yang kamu tahan cukup lama.",
+      "Energi emosionalmu lagi naik turun, tapi masih dalam batas yang aman.",
+    ],
+    connection_type: [
+      "Energi kalian saling tarik-menarik dengan cara yang lembut.",
+      "Ada pola komunikasi yang bisa diperbaiki pelan-pelan.",
+    ],
+    toxic_pattern_insight: [
+      "Ada pola yang berulang dan bikin kamu capek, dan itu valid untuk disadari.",
+      "Beberapa hal ini kelihatan seperti pola yang butuh kamu perhatikan pelan-pelan.",
+    ],
+    clarity_zone: [
+      "Ada bagian yang sebenarnya kamu sudah tahu jawabannya, cuma belum siap mengakui.",
+      "Perasaanmu di sini masuk akal, meski situasinya bikin bingung.",
+    ],
+    gentle_direction: [
+      "Mulai dari langkah kecil yang bikin kamu merasa lebih aman dulu.",
+      "Nggak apa-apa pelan-pelan, yang penting kamu jaga diri kamu dulu.",
+    ],
+    emotional_rhythm: [
+      "Ritme emosi kalian belakangan ini naik turun tapi masih bisa dijaga.",
+      "Ada pola emosi yang berulang antara kalian, dan itu bisa dipelajari bareng.",
+    ],
+    energy_dynamics: [
+      "Energi kalian saling memengaruhi lebih dari yang kalian sadari.",
+      "Ada dinamika energi yang bisa lebih seimbang kalau dikomunikasikan.",
+    ],
+    growth_zone: [
+      "Bagian ini bisa jadi titik awal buat kalian berkembang.",
+      "Kalian butuh ruang aman buat ngomong jujur tanpa takut salah.",
+    ],
+    gentle_suggestion: [
+      "Mulai dari langkah yang paling ringan dulu.",
+      "Pelan-pelan aja, kamu nggak harus buru-buru.",
+    ],
+    team_pulse: [
+      "Energi tim kalian lagi dalam fase penyesuaian.",
+      "Ada dinamika tim yang lagi aktif dan bisa diarahkan ke hal positif.",
+    ],
+    leader_member_dynamics: [
+      "Pola kepemimpinan di tim kalian punya ruang untuk lebih terbuka.",
+      "Komunikasi antara leader dan anggota tim bisa lebih jelas lagi.",
+    ],
+    harmony_zone: [
+      "Ada area kecil yang, kalau dibenahi, bisa bikin tim jauh lebih selaras.",
+      "Kekompakan tim bisa tumbuh lewat obrolan jujur soal ekspektasi.",
+    ],
+  },
+  en: {
+    soft_summary: [
+      "Your connection is moving with a calm rhythm right now.",
+      "Part of this story really just needs some space.",
+      "What you're going through is completely normal, and you're not alone.",
+    ],
+    emotional_pulse: [
+      "You've been more sensitive to little things lately.",
+      "There's a feeling you've been holding in for a while.",
+      "Your emotional energy has been up and down, but still within a safe range.",
+    ],
+    connection_type: [
+      "Your energies are drawn to each other in a gentle way.",
+      "There's a communication pattern that can be improved little by little.",
+    ],
+    toxic_pattern_insight: [
+      "There's a recurring pattern that's draining you, and it's valid to notice it.",
+      "Some of this looks like a pattern worth paying attention to, slowly.",
+    ],
+    clarity_zone: [
+      "There's a part where you already know the answer, just not ready to admit it yet.",
+      "Your feelings here make sense, even if the situation is confusing.",
+    ],
+    gentle_direction: [
+      "Start with a small step that makes you feel safer first.",
+      "It's okay to go slow, what matters is taking care of yourself first.",
+    ],
+    emotional_rhythm: [
+      "Your emotional rhythm has been up and down lately, but still manageable.",
+      "There's a recurring emotional pattern between you two, and it can be learned together.",
+    ],
+    energy_dynamics: [
+      "Your energies affect each other more than you realize.",
+      "There's an energy dynamic that could be more balanced with communication.",
+    ],
+    growth_zone: [
+      "This part can be a starting point for you to grow together.",
+      "You need a safe space to speak honestly without fear of being wrong.",
+    ],
+    gentle_suggestion: [
+      "Start with the lightest step first.",
+      "Take it slow, there's no need to rush.",
+    ],
+    team_pulse: [
+      "Your team's energy is in an adjustment phase right now.",
+      "There's an active team dynamic that can be steered toward something positive.",
+    ],
+    leader_member_dynamics: [
+      "The leadership pattern in your team has room to be more open.",
+      "Communication between the leader and team members could be clearer.",
+    ],
+    harmony_zone: [
+      "There's a small area that, if addressed, could make the team far more aligned.",
+      "Team cohesion can grow through honest conversations about expectations.",
+    ],
+  },
+};
+
+const GENERIC_FALLBACK = {
+  id: [
+    "Ada hal baik di sini yang layak kamu sadari pelan-pelan.",
+    "Ini bagian yang wajar untuk direfleksikan lebih lanjut.",
   ],
-  emotional_pulse: [
-    "Kamu lagi lebih peka sama hal-hal kecil.",
-    "Ada perasaan yang kamu tahan cukup lama.",
-    "Energi emosionalmu lagi naik turun, tapi masih dalam batas yang aman.",
-  ],
-  connection_type: [
-    "Energi kalian saling tarik-menarik dengan cara yang lembut.",
-    "Ada pola komunikasi yang bisa diperbaiki pelan-pelan.",
-  ],
-  toxic_pattern_insight: [
-    "Ada pola yang berulang dan bikin kamu capek, dan itu valid untuk disadari.",
-    "Beberapa hal ini kelihatan seperti pola yang butuh kamu perhatikan pelan-pelan.",
-  ],
-  clarity_zone: [
-    "Ada bagian yang sebenarnya kamu sudah tahu jawabannya, cuma belum siap mengakui.",
-    "Perasaanmu di sini masuk akal, meski situasinya bikin bingung.",
-  ],
-  gentle_direction: [
-    "Mulai dari langkah kecil yang bikin kamu merasa lebih aman dulu.",
-    "Nggak apa-apa pelan-pelan, yang penting kamu jaga diri kamu dulu.",
-  ],
-  emotional_rhythm: [
-    "Ritme emosi kalian belakangan ini naik turun tapi masih bisa dijaga.",
-    "Ada pola emosi yang berulang antara kalian, dan itu bisa dipelajari bareng.",
-  ],
-  energy_dynamics: [
-    "Energi kalian saling memengaruhi lebih dari yang kalian sadari.",
-    "Ada dinamika energi yang bisa lebih seimbang kalau dikomunikasikan.",
-  ],
-  growth_zone: [
-    "Bagian ini bisa jadi titik awal buat kalian berkembang.",
-    "Kalian butuh ruang aman buat ngomong jujur tanpa takut salah.",
-  ],
-  gentle_suggestion: [
-    "Mulai dari langkah yang paling ringan dulu.",
-    "Pelan-pelan aja, kamu nggak harus buru-buru.",
-  ],
-  team_pulse: [
-    "Energi tim kalian lagi dalam fase penyesuaian.",
-    "Ada dinamika tim yang lagi aktif dan bisa diarahkan ke hal positif.",
-  ],
-  leader_member_dynamics: [
-    "Pola kepemimpinan di tim kalian punya ruang untuk lebih terbuka.",
-    "Komunikasi antara leader dan anggota tim bisa lebih jelas lagi.",
-  ],
-  harmony_zone: [
-    "Ada area kecil yang, kalau dibenahi, bisa bikin tim jauh lebih selaras.",
-    "Kekompakan tim bisa tumbuh lewat obrolan jujur soal ekspektasi.",
+  en: [
+    "There's something good here worth noticing, slowly.",
+    "This is a normal part to reflect on further.",
   ],
 };
 
-const GENERIC_FALLBACK = [
-  "Ada hal baik di sini yang layak kamu sadari pelan-pelan.",
-  "Ini bagian yang wajar untuk direfleksikan lebih lanjut.",
-];
-
-function fallbackFor(sectionKey, variant) {
-  const options = SECTION_FALLBACKS[sectionKey] || GENERIC_FALLBACK;
+function fallbackFor(sectionKey, variant, lang) {
+  const options = SECTION_FALLBACKS[lang]?.[sectionKey] || GENERIC_FALLBACK[lang];
   return options[variant % options.length];
 }
 
@@ -122,15 +186,17 @@ function fallbackFor(sectionKey, variant) {
  * @param {string[]} sectionKeys - ordered section ids for this module
  * @param {string} seed - stable per-request string used to pick a
  *   deterministic fallback variant (e.g. module id + form data digest)
+ * @param {string} language - "en" or "id"
  * @returns {{ [key: string]: string }}
  */
-function formatIndonesiaModulesResponse(rawText, sectionKeys, seed) {
+function formatIndonesiaModulesResponse(rawText, sectionKeys, seed, language) {
   const parsed = extractJson(rawText);
   const variant = simpleHash(seed || "");
+  const lang = language === "en" ? "en" : "id";
 
   const result = {};
   sectionKeys.forEach((key) => {
-    result[key] = ensureString(parsed?.[key], fallbackFor(key, variant));
+    result[key] = ensureString(parsed?.[key], fallbackFor(key, variant, lang));
   });
   return result;
 }

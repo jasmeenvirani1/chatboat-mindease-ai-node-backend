@@ -9,7 +9,8 @@
 // needs no changes to consume the response.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TONE_RULES = `
+const TONE_RULES = {
+  id: `
 ASTRIA INDONESIA MODULES — TONE RULES:
 - Tulis SEMUA jawaban dalam Bahasa Indonesia santai/gaul sehari-hari (gaya ngobrol sama teman dekat), BUKAN Bahasa Indonesia formal/baku.
 - Nada: hangat, suportif, reflektif — seperti teman yang emotionally intelligent, bukan peramal atau dukun.
@@ -18,17 +19,33 @@ ASTRIA INDONESIA MODULES — TONE RULES:
 - Setiap bagian harus mereferensikan detail SPESIFIK dari jawaban user di bawah (situasi, perasaan, jawaban pertanyaan terpandu) — jangan buat teks generik yang bisa berlaku untuk siapa saja.
 - Variasikan pembuka kalimat antar bagian — jangan selalu mulai dengan "Kamu..." atau "Hubungan kalian...".
 - Setiap bagian: 2-4 kalimat, padat dan personal, bukan esai panjang.
-`;
+`,
+  en: `
+ASTRIA INDONESIA MODULES — TONE RULES:
+- Write EVERY answer entirely in natural, conversational English (like talking to a close friend), NOT formal/stiff English. Do not mix in any Indonesian words.
+- Tone: warm, supportive, reflective — like an emotionally intelligent friend, not a fortune teller or mystic.
+- Never assert or promise certainty ("this will definitely...", "guaranteed...") — use soft phrasing: "usually", "it seems", "maybe", "there's a chance".
+- Avoid fear-mongering, doom predictions, or judgemental tone — especially for the NPD & Toxic Dynamics module, always validate the user's feelings without making them feel blamed.
+- Every section must reference SPECIFIC details from the user's answers below (situation, feelings, guided question answers) — don't produce generic text that could apply to anyone.
+- Vary the opening of each section — don't always start with "You..." or "Your relationship...".
+- Each section: 2-4 sentences, dense and personal, not a long essay.
+`,
+};
 
-function buildOutputSchema(sections) {
+function buildOutputSchema(sections, lang) {
+  const hint =
+    lang === "en"
+      ? "<2-4 sentences, personal, matching the user's context above>"
+      : "<2-4 kalimat, personal, sesuai konteks user di atas>";
   const lines = sections
-    .map(
-      (key) =>
-        `  "${key}": "<2-4 kalimat, personal, sesuai konteks user di atas>"`,
-    )
+    .map((key) => `  "${key}": "${hint}"`)
     .join(",\n");
+  const heading =
+    lang === "en"
+      ? "REQUIRED OUTPUT FORMAT — reply with ONLY valid JSON, no markdown, no explanation outside the JSON:"
+      : "REQUIRED OUTPUT FORMAT — balas HANYA dengan JSON valid, tanpa markdown, tanpa penjelasan di luar JSON:";
   return `
-REQUIRED OUTPUT FORMAT — balas HANYA dengan JSON valid, tanpa markdown, tanpa penjelasan di luar JSON:
+${heading}
 
 {
 ${lines}
@@ -36,25 +53,51 @@ ${lines}
 `;
 }
 
-function formatFormData(inputs, formData) {
+function formatTeamMembers(members, lang) {
+  const empty = lang === "en" ? "Not filled in" : "Tidak diisi";
+  const dobLabel = lang === "en" ? "DOB" : "Tgl Lahir";
+  const roleLabel = lang === "en" ? "role" : "peran";
+  return members
+    .filter((m) => m && (m.name || m.dob || m.role))
+    .map(
+      (m, i) =>
+        `  ${i + 1}. ${m.name || empty} (${dobLabel}: ${m.dob || empty}, ${roleLabel}: ${m.role || empty})`,
+    )
+    .join("\n");
+}
+
+function formatFormData(inputs, formData, lang) {
+  const empty = lang === "en" ? "Not filled in" : "Tidak diisi";
   return inputs
     .map((key) => {
       const raw = formData?.[key];
       let value;
+      if (
+        Array.isArray(raw) &&
+        raw.some((item) => item && typeof item === "object")
+      ) {
+        const formatted = formatTeamMembers(raw, lang);
+        return `${key.replace(/_/g, " ")}:\n${formatted || empty}`;
+      }
       if (Array.isArray(raw)) {
         value = raw.filter(Boolean).join(", ");
       } else {
         value = raw;
       }
-      return `${key.replace(/_/g, " ")}: ${value || "Tidak diisi"}`;
+      return `${key.replace(/_/g, " ")}: ${value || empty}`;
     })
     .join("\n");
 }
 
-function formatQuestions(guidedQuestions, questionAnswers) {
-  if (!guidedQuestions?.length) return "Tidak ada.";
+function formatQuestions(guidedQuestions, questionAnswers, lang) {
+  if (!guidedQuestions?.length) return lang === "en" ? "None." : "Tidak ada.";
+  const answerLabel = lang === "en" ? "Answer" : "Jawaban";
+  const unanswered = lang === "en" ? "Not answered" : "Tidak dijawab";
   return guidedQuestions
-    .map((q, index) => `${index + 1}. ${q}\n   Jawaban: ${questionAnswers?.[index] || "Tidak dijawab"}`)
+    .map(
+      (q, index) =>
+        `${index + 1}. ${q}\n   ${answerLabel}: ${questionAnswers?.[index] || unanswered}`,
+    )
     .join("\n");
 }
 
@@ -64,23 +107,55 @@ function buildIndonesiaModulesPrompt({
   guidedQuestions,
   questionAnswers,
   formData,
+  language,
 }) {
-  const outputSchema = buildOutputSchema(moduleConfig.sections);
+  const lang = language === "en" ? "en" : "id";
+  const outputSchema = buildOutputSchema(moduleConfig.sections, lang);
+
+  if (lang === "en") {
+    return `
+You are Astria — a warm, reflective modern confidant helping people understand their relationships (romantic or work teams) through an emotional and energy-based lens.
+
+${TONE_RULES.en}
+
+═══════════════════════════════════════════════════════════════════════
+MODULE: ${moduleConfig.title} (${moduleId})
+═══════════════════════════════════════════════════════════════════════
+
+GUIDED QUESTIONS & USER ANSWERS:
+${formatQuestions(guidedQuestions, questionAnswers, lang)}
+
+DATA PROVIDED BY THE USER:
+${formatFormData(moduleConfig.inputs, formData, lang)}
+
+═══════════════════════════════════════════════════════════════════════
+GENERATION INSTRUCTIONS
+═══════════════════════════════════════════════════════════════════════
+1. Use the question answers and data above as the primary basis for every section — don't ignore details the user already provided.
+2. Follow the TONE RULES above strictly (natural English, non-judgemental, no false certainty).
+3. Every key below must be filled in, none left empty.
+4. Respond entirely in English — do not include any Indonesian text.
+
+${outputSchema}
+
+Reply with ONLY the JSON object above. No opening sentence. No explanation. No markdown fences.
+`.trim();
+  }
 
   return `
 Kamu adalah Astria — teman ngobrol modern yang hangat dan reflektif, membantu orang memahami hubungan mereka (percintaan atau tim kerja) lewat sudut pandang emosional dan energi.
 
-${TONE_RULES}
+${TONE_RULES.id}
 
 ═══════════════════════════════════════════════════════════════════════
 MODUL: ${moduleConfig.title} (${moduleId})
 ═══════════════════════════════════════════════════════════════════════
 
 PERTANYAAN TERPANDU & JAWABAN USER:
-${formatQuestions(guidedQuestions, questionAnswers)}
+${formatQuestions(guidedQuestions, questionAnswers, lang)}
 
 DATA YANG DIISI USER:
-${formatFormData(moduleConfig.inputs, formData)}
+${formatFormData(moduleConfig.inputs, formData, lang)}
 
 ═══════════════════════════════════════════════════════════════════════
 INSTRUKSI GENERASI
