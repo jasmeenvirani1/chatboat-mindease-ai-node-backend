@@ -17,30 +17,23 @@ const ChatMessageSchema = new Schema(
       type: Date,
       default: Date.now,
     },
-    // Structured section data for Astria Korea V2 (Daily Flow / Life Map /
-    // Relationship / Daily Companion / Compatibility). Persisted so the
-    // frontend's 3-SectionCard layout survives page reload and reopening
-    // chat history, not just the live SSE stream. Null/absent for every
-    // other category's messages.
+    // Astria Korea V2 data
     astriaKoreaV2Data: {
       type: Schema.Types.Mixed,
       default: null,
     },
-    // Structured tab/lineIndex selection for the deterministic copy-pack
-    // lanes (Astria Philippines V2 / Astria Indonesia V2 — see
-    // helper/philippinesIndonesiaV2Shared.js). Used to compute each tab's
-    // anti-repeat window on the next request. Null/absent for every other
-    // category's messages.
+    // PH/VN/ID V2 Data
     phVnIdV2Data: {
       type: Schema.Types.Mixed,
       default: null,
     },
-    // Structured compatibility data for Astria Singapore V2 (score / summary /
-    // strengths / friction_points / action_steps / singapore_context — see
-    // helper/astriaSingaporeV2Service.js). Persisted so results survive page
-    // reload and so later turns can avoid repeating the same strengths/friction
-    // points. Null/absent for every other category's messages.
+    // Astria Singapore V2 Data
     astriaSingaporeV2Data: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
+    // Astria Malaysia V2 Data
+    astriaMalaysiaV2Data: {
       type: Schema.Types.Mixed,
       default: null,
     },
@@ -83,7 +76,28 @@ const ChatHistorySchema = new Schema(
       ref: "Case",
       default: null,
     },
-    chatLang: { type: String, enum: ["th", "en", "es", "hi", "hinglish", "pt", "ja", "ko", "zh", "ru", "ar", "vi", "fr", "de", "it", "id"], default: "en" },
+    chatLang: {
+      type: String,
+      enum: [
+        "th",
+        "en",
+        "es",
+        "hi",
+        "hinglish",
+        "pt",
+        "ja",
+        "ko",
+        "zh",
+        "ru",
+        "ar",
+        "vi",
+        "fr",
+        "de",
+        "it",
+        "id",
+      ],
+      default: "en",
+    },
 
     sessionTitle: {
       type: String,
@@ -99,6 +113,15 @@ const ChatHistorySchema = new Schema(
       type: UserProfileMetadataSchema,
       default: null,
     },
+
+    // Partner birth details for this chat session's compatibility reads
+    // (Astria Malaysia V2). Set once the user shares them and reused on every
+    // later turn in the same session so they're never asked again. Scoped to
+    // this chat document, not the User account, since a new chat thread may
+    // be about a different partner.
+    astriaMalaysiaV2PartnerDob: { type: String, default: null },
+    astriaMalaysiaV2PartnerDobTime: { type: String, default: null },
+    astriaMalaysiaV2PartnerDobPlace: { type: String, default: null },
   },
   { timestamps: true },
 );
