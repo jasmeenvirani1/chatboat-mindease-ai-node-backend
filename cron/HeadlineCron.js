@@ -277,7 +277,7 @@ Based on the user's zodiac sign (${zodiacSign}) and current planetary transits, 
 You write content for MindEase (HealJai), an emotional companion app.
 
 Return ONLY valid JSON (no markdown, no extra text).
-Keys: "dailyMessage","dailyMessage_in_thai", "dailyQuestion","dailyQuestion_in_thai", "lucky_color", "color_code", "energy_level", "golden_hour".
+Keys: "dailyMessage","dailyMessage_in_thai","dailyMessage_in_arabic", "dailyQuestion","dailyQuestion_in_thai","dailyQuestion_in_arabic", "lucky_color", "color_code", "energy_level", "golden_hour".
 
 STYLE for dailyMessage (Quote):
 - 1 sentence only (ONE line)
@@ -354,6 +354,9 @@ STYLE for golden_hour (ASTROLOGY-BASED):
 STYLE for "dailyMessage_in_thai" and "dailyQuestion_in_thai":
 - Translate dailyMessage and dailyQuestion field in Thai language
 
+STYLE for "dailyMessage_in_arabic" and "dailyQuestion_in_arabic":
+- Translate dailyMessage and dailyQuestion field in Arabic language
+
 All fields must be personalized based on today date.
 Language: ${language}.
   `.trim();
@@ -389,7 +392,9 @@ Base ALL astrological calculations on real principles, not random generation.
     !parsed?.golden_hour ||
     !parsed?.color_code ||
     !parsed?.dailyMessage_in_thai ||
-    !parsed?.dailyQuestion_in_thai
+    !parsed?.dailyQuestion_in_thai ||
+    !parsed?.dailyMessage_in_arabic ||
+    !parsed?.dailyQuestion_in_arabic
   ) {
     throw new Error("AI returned invalid JSON or missing fields: " + content);
   }
@@ -414,6 +419,10 @@ Base ALL astrological calculations on real principles, not random generation.
   const color_code = String(parsed.color_code).trim();
   const dailyMessage_in_thai = String(parsed.dailyMessage_in_thai).trim();
   const dailyQuestion_in_thai = String(parsed.dailyQuestion_in_thai).trim();
+  const dailyMessage_in_arabic = String(parsed.dailyMessage_in_arabic).trim();
+  const dailyQuestion_in_arabic = String(
+    parsed.dailyQuestion_in_arabic,
+  ).trim();
 
   if (
     !dailyMessage ||
@@ -423,7 +432,9 @@ Base ALL astrological calculations on real principles, not random generation.
     !golden_hour ||
     !color_code ||
     !dailyMessage_in_thai ||
-    !dailyQuestion_in_thai
+    !dailyQuestion_in_thai ||
+    !dailyMessage_in_arabic ||
+    !dailyQuestion_in_arabic
   ) {
     throw new Error("AI returned empty fields");
   }
@@ -437,6 +448,8 @@ Base ALL astrological calculations on real principles, not random generation.
     color_code,
     dailyMessage_in_thai,
     dailyQuestion_in_thai,
+    dailyMessage_in_arabic,
+    dailyQuestion_in_arabic,
     zodiacSign, // Return for logging purposes
   };
 }
@@ -504,6 +517,8 @@ function startDailyMessageCron() {
           golden_hour: aiData.golden_hour,
           dailyMessage_in_thai: aiData.dailyMessage_in_thai,
           dailyQuestion_in_thai: aiData.dailyQuestion_in_thai,
+          dailyMessage_in_arabic: aiData.dailyMessage_in_arabic,
+          dailyQuestion_in_arabic: aiData.dailyQuestion_in_arabic,
           date: dateKey,
         });
 

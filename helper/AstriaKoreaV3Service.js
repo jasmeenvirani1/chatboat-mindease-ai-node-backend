@@ -46,6 +46,21 @@ const KR_V3_CLOSING_RULE = KR_V2_CLOSING_RULE;
 const KR_V3_LANGUAGE_RULE =
   "LANGUAGE RULE: Reply in Korean (한국어) only, no matter what language the user wrote in. Every single word must be in Korean. Never use English or Thai.";
 
+// FOLLOW-UP TIMING RULE — the follow-up question's tense must match when the
+// reading's content actually happens, so the app never asks about something
+// as if it already occurred when the reading was about a future moment.
+const KR_V3_FOLLOWUP_TIMING_RULE = `
+FOLLOW-UP TIMING RULE (applies to followUpQuestions): match each question's tense to when the
+reading content it follows actually happens —
+- If that content is about something later today or still ahead ("저녁엔 ~할 거예요"), the
+  follow-up must be future-focused (e.g. "오늘 대화에서 기대되는 순간이 있어?"), never asking as if
+  it already happened (never "오늘 대화는 즐거우셨나요?" right after a forward-looking reading).
+- If it's about something happening right now, ask a present-focused question (e.g. "지금 마음이
+  어떤지 알려줘.").
+- Only ask a past-tense/reflection question (e.g. "오늘 가장 좋았던 순간이 뭐였어?") when the reading
+  content itself already described something as done or earlier in the day.
+`.trim();
+
 // Wraps DB/v2-fallback subcategory content with a note that tone/vocabulary
 // always defer to KR_V3_TONE_MATRIX, regardless of what the fallback content says.
 function wrapSubcategoryContent(label, content) {
@@ -118,6 +133,8 @@ ${KR_V3_TONE_MATRIX}
 
 ${subcategoryContent}
 
+${KR_V3_FOLLOWUP_TIMING_RULE}
+
 ${ASTRIA_KOREA_V2_START}
 {
   "energyMessage": { "morning": "", "midday": "", "evening": "" },
@@ -142,19 +159,64 @@ Do not generate generic horoscope text.
 `.trim();
 }
 
-function buildLifeMapV3KRPrompt({ dbPrompt, birthChart, weatherContext }) {
+// City → neighborhood/zone mapping so Life Map never defaults to Seoul for a
+// user who lives elsewhere. Matched case-insensitively against userCity.
+const KR_V3_LIFE_MAP_CITY_ZONES = {
+  seoul: "한남, 서촌, 도산공원",
+  busan: "서면, 해운대",
+  jeonju: "객리단길",
+  daegu: "동성로",
+  incheon: "송도",
+  daejeon: "은행동",
+};
+
+function resolveLifeMapCityZonesKRV3(userCity) {
+  if (!userCity) return null;
+  const key = String(userCity).trim().toLowerCase();
+  // Also match the Korean city name directly (e.g. "전주"), not just the
+  // romanized key, since extractCurrentCityFromTextKRV3 captures Korean text.
+  const koreanNameMap = {
+    서울: "seoul",
+    부산: "busan",
+    전주: "jeonju",
+    대구: "daegu",
+    인천: "incheon",
+    대전: "daejeon",
+  };
+  const resolvedKey = KR_V3_LIFE_MAP_CITY_ZONES[key]
+    ? key
+    : koreanNameMap[key];
+  if (!resolvedKey) return null;
+  return KR_V3_LIFE_MAP_CITY_ZONES[resolvedKey];
+}
+
+function buildLifeMapV3KRPrompt({ dbPrompt, birthChart, weatherContext, userCity }) {
   const subcategoryContent =
     dbPrompt || DEFAULT_KR_V2_SUBCATEGORY_PROMPTS.life_map;
   const chartBlock = formatChartBlockKR(birthChart, "transits");
+  const knownZones = resolveLifeMapCityZonesKRV3(userCity);
+
+  let locationSection;
+  if (userCity && knownZones) {
+    locationSection = `USER'S CITY: ${userCity}\nRecommend neighborhoods/zones from this city only (e.g. ${knownZones}). Never suggest Seoul neighborhoods (Hannam, Seochon, Dosan Park) for a user who lives elsewhere.`;
+  } else if (userCity) {
+    locationSection = `USER'S CITY: ${userCity}\nNo preset zone list exists for this city — recommend a generic type of place (quiet cafe, park, neighborhood street) that fits this city's character. Never default to Seoul neighborhoods (Hannam, Seochon, Dosan Park).`;
+  } else {
+    locationSection = `USER'S CURRENT CITY IS UNKNOWN. Ask: "어느 지역에 계신가요?" before recommending any specific neighborhood. Never assume Seoul — do not mention Hannam, Seochon, or Dosan Park unless the user has confirmed they live in Seoul.`;
+  }
 
   return `You are Astria Korea V3 — the full Korean astrology + Saju + companion experience, built on Astria Korea V2's daily-lifestyle layer.
-YOUR FOCUS: Life Map KR v3 — grounded Seoul-lifestyle suggestions (neighborhood, food, cafe, daily vibe) shaped by the user's real chart and today's flow. This is a companion feature, not a tourism guide.
+YOUR FOCUS: Life Map KR v3 — grounded local-lifestyle suggestions (neighborhood, food, cafe, daily vibe) in the USER'S OWN CITY, shaped by their real chart and today's flow. This is a companion feature, not a tourism guide, and never a Seoul-only guide.
 
 ${KR_V3_TONE_MATRIX}
 
 ${wrapSubcategoryContent("life map framework, reading approach, output format", subcategoryContent)}
 
-${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nGround every Seoul zone / food / cafe suggestion in this actual chart and today's transit energy — never invent a suggestion disconnected from the real data.` : "No birth chart is available yet. Ask the user for their date of birth (and birth time/city, if known) so a grounded Life Map reading can be generated. Do not invent chart-based suggestions without real data."}
+━━━ LOCATION PERSONALIZATION (CRITICAL) ━━━
+${locationSection}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}\n\nGround every neighborhood / food / cafe suggestion in this actual chart and today's transit energy — never invent a suggestion disconnected from the real data.` : "No birth chart is available yet. Ask the user for their date of birth (and birth time/city, if known) so a grounded Life Map reading can be generated. Do not invent chart-based suggestions without real data."}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nUse this to shape the closing weather-lifestyle note honestly.` : ""}
 
 ${KR_V3_CLOSING_RULE}
@@ -280,6 +342,22 @@ ${wrapSubcategoryContent("3-box weights, output format", subcategoryContent)}
 Fields stay 1–2 short sentences (max 2 lines) per KR_V3_TONE_MATRIX, and the exact JSON
 structure/sentinels from the OUTPUT FORMAT above stay unchanged.
 
+━━━ VARIATION RULES (CRITICAL — two different pairs must never read the same) ━━━
+Ground every number and phrase below in the actual inputs given — never repeat a score or
+theme from a prior reading unless the underlying inputs are genuinely identical.
+- Score must shift based on: birth year difference, element difference (fire/earth/air/water
+  between Sun signs), modality difference (cardinal/fixed/mutable), moon sign difference,
+  rising sign difference, age gap, and stated relationship context (friend/crush/partner).
+  A ±7 point spread between two otherwise-similar pairs is expected, not an error — do not
+  round every pairing back toward the same middle score.
+- Theme must shift with modality: cardinal+cardinal → pacing/rushing theme; fixed+fixed →
+  "속도 조절" (pace adjustment) theme; cardinal+mutable or fire+air → "대화 중심" (dialogue-driven)
+  theme; earth+water → "안정" (stability) theme.
+- Advice must shift with element pairing (fire/earth/air/water combination), not be a stock line.
+- Closing must shift with age gap (e.g., larger gap → pacing-aware closing; similar age →
+  peer-level closing) — never reuse the same closing sentence across different pairs.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 ━━━ 3-BOX SYSTEM ━━━
 ${threeBoxSection || "3-Box data not provided. Use birth chart data for compatibility reading."}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -319,6 +397,8 @@ ${wrapSubcategoryContent("companion framework, reading approach, output format",
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS:\n${chartBlock}` : ""}
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}` : ""}
 ${memoryContext}
+
+${KR_V3_FOLLOWUP_TIMING_RULE}
 
 ${KR_V3_CLOSING_RULE}
 
@@ -378,6 +458,8 @@ Every string value must be written fully in Korean (한국어).
 - followUpQuestions (array of 2–3 short items): natural next questions the user
   might ask to go deeper (e.g. today's Saju flow, a relationship reading), each
   under 12 words, in Korean
+
+${KR_V3_FOLLOWUP_TIMING_RULE}
 
 ${ASTRIA_KOREA_V2_START}
 {
@@ -548,6 +630,7 @@ function buildAstriaKoreaV3Context({
   sajuDailyLuck,
   emotionalState,
   previousContext,
+  userCity,
 }) {
   const dbPrompt = (subCategoryPrompt || categoryPrompt || "").trim();
   const params = {
@@ -573,6 +656,7 @@ function buildAstriaKoreaV3Context({
     sajuDailyLuck,
     emotionalState,
     previousContext,
+    userCity,
   };
 
   const builder = resolveKRV3SubcategoryBuilder(subCategoryName);

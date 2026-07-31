@@ -30,6 +30,9 @@ const CategorySchema = new Schema(
     name_vi: {
       type: String,
     },
+    name_ar: {
+      type: String,
+    },
     description: {
       type: String,
       default: "",
@@ -55,6 +58,10 @@ const CategorySchema = new Schema(
       default: "",
     },
     description_vi: {
+      type: String,
+      default: "",
+    },
+    description_ar: {
       type: String,
       default: "",
     },
