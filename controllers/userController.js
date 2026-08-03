@@ -133,6 +133,7 @@ const userController = {
           region: user.region || "healjai",
           allRegionsApproved: user.allRegionsApproved || false,
           allRegionsPending: user.allRegionsPending || false,
+          hasCompatibilityProfile: user.hasCompatibilityProfile || false,
         },
         migratedChats: migratedChats, // Send back which chats were migrated
       });
@@ -362,6 +363,7 @@ const userController = {
           region: user.region || "healjai",
           allRegionsApproved: user.allRegionsApproved || false,
           allRegionsPending: user.allRegionsPending || false,
+          hasCompatibilityProfile: user.hasCompatibilityProfile || false,
         },
       });
     } catch (error) {
@@ -471,6 +473,7 @@ const userController = {
           region: user.region || "healjai",
           allRegionsApproved: user.allRegionsApproved || false,
           allRegionsPending: user.allRegionsPending || false,
+          hasCompatibilityProfile: user.hasCompatibilityProfile || false,
         },
       });
     } catch (error) {

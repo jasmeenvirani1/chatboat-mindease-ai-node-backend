@@ -39,6 +39,11 @@ const userSchema = new Schema(
     allRegionsPending: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
+    // Set true once the Social Compatibility form is fully submitted — lets
+    // the sidebar route straight to /matches without a profile-check API
+    // call on every click (mirrors CompatibilityProfile.isProfileComplete,
+    // duplicated here so it's available on the already-loaded User doc).
+    hasCompatibilityProfile: { type: Boolean, default: false },
   },
   {
     timestamps: true,

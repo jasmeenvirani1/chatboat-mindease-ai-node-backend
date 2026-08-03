@@ -177,6 +177,17 @@ const {
   formatAstriaMalaysiaV2Response,
 } = require("../helper/astriaMalaysiaV2Service");
 const {
+  buildAstriaMalaysiaV3Context,
+  computeWesternBirthChartPSM: computeWesternBirthChartMYV3,
+  parseCompatibilityPartnersPSM: parseCompatibilityPartnersMYV3,
+  buildCompatibilityMissingQuestionPSM: buildCompatibilityMissingQuestionMYV3,
+  isCompatibilitySubcategoryMYV3,
+  extractAstriaMalaysiaV3Data,
+  validateAstriaMalaysiaV3Data,
+  deriveAstriaMalaysiaV3DisplaySections,
+  formatAstriaMalaysiaV3Response,
+} = require("../helper/astriaMalaysiaV3Service");
+const {
   buildAstriaUKV2Context,
   computeWesternBirthChartUKV2,
   parseEnergyMatchPartnersUKV2,
@@ -1682,6 +1693,25 @@ const chatController = {
         !isAstriaPSM &&
         !isAstriaSingaporeV2;
 
+      //Astria Malaysia V3 Flag
+      // Astria Malaysia V3 Flag
+      const isAstriaMalaysiaV3 =
+        categoryName === "Astria Malaysia V3" &&
+        !isAstriaUS &&
+        !isAstriaIndiaCategory &&
+        !isAstriaJapan &&
+        !isAstriaKorea &&
+        !isAstriaKoreaV2 &&
+        !isAstriaKoreaTalk &&
+        !isAstriaKoreaV3 &&
+        !isAstriaJapanTalk &&
+        !isAstriaJapanV3 &&
+        !isAstriaSpanish &&
+        !isAstriaBrazil &&
+        !isAstriaPSM &&
+        !isAstriaSingaporeV2 &&
+        !isAstriaMalaysiaV2;
+
       // Astria GCC Engine — Spiritual, elegant, respectful Western astrology (GCC lane)
       const isAstriaGCC =
         categoryName === "Astria GCC" &&
@@ -2805,6 +2835,8 @@ RULES:
       let astriaSingaporeV2Data = null;
       // ASTRIA MALAYSIA V2 — structured per-tab data for frontend dataBinding
       let astriaMalaysiaV2Data = null;
+      // ASTRIA MALAYSIA V3 — structured per-tab data for frontend dataBinding
+      let astriaMalaysiaV3Data = null;
       // ASTRIA UK V2 — structured per-tab data (Energy Match, MateScan,
       // Companion Talk, Cosmic UK, Relationship, Daily Flow, Zodiac
       // Personality) for frontend dataBinding, see helper/astriaUKV2Service.js.
@@ -3608,7 +3640,8 @@ RULES:
           // Current-residence city for Life Map location personalization —
           // reuse what's already stored on this chat session (Malaysia-style
           // memory) unless the current message states a new city.
-          const krV3CityFromMessage = extractCurrentCityFromTextKRV3(userMessage);
+          const krV3CityFromMessage =
+            extractCurrentCityFromTextKRV3(userMessage);
           const krV3UserCity =
             krV3CityFromMessage || chat?.astriaKoreaV3UserCity || null;
           if (krV3CityFromMessage && chat) {
@@ -3701,14 +3734,19 @@ RULES:
               // session (if the message itself didn't just supply new ones)
               // so the user is never asked for their partner's DOB more than
               // once per session — mirrors Astria Malaysia V2.
-              if (!compatPartnersKRV3.personB.dob && chat?.astriaKoreaV3PartnerDob) {
+              if (
+                !compatPartnersKRV3.personB.dob &&
+                chat?.astriaKoreaV3PartnerDob
+              ) {
                 compatPartnersKRV3.personB = {
                   dob: chat.astriaKoreaV3PartnerDob,
                   time: chat.astriaKoreaV3PartnerDobTime || null,
                   place: chat.astriaKoreaV3PartnerDobPlace || null,
                 };
                 compatPartnersKRV3.missingFields =
-                  compatPartnersKRV3.missingFields.filter((f) => f !== "partner");
+                  compatPartnersKRV3.missingFields.filter(
+                    (f) => f !== "partner",
+                  );
               }
 
               if (compatPartnersKRV3.missingFields.length > 0) {
@@ -3749,7 +3787,10 @@ RULES:
 
                 // Persist the partner's birth details on this chat session
                 // (once successfully parsed) so later turns never ask again.
-                if (astriaKoreaV3BirthChartB && compatPartnersKRV3.personB.dob) {
+                if (
+                  astriaKoreaV3BirthChartB &&
+                  compatPartnersKRV3.personB.dob
+                ) {
                   krV3PartnerDobToPersist = {
                     astriaKoreaV3PartnerDob: compatPartnersKRV3.personB.dob,
                     astriaKoreaV3PartnerDobTime:
@@ -3774,7 +3815,10 @@ RULES:
             // the user is never asked for their partner's DOB more than once
             // per session — same memory shared with the Compatibility tab
             // above, since both need the same second person.
-            if (!compatPartnersKRV3.personB.dob && chat?.astriaKoreaV3PartnerDob) {
+            if (
+              !compatPartnersKRV3.personB.dob &&
+              chat?.astriaKoreaV3PartnerDob
+            ) {
               compatPartnersKRV3.personB = {
                 dob: chat.astriaKoreaV3PartnerDob,
                 time: chat.astriaKoreaV3PartnerDobTime || null,
@@ -4380,12 +4424,8 @@ RULES:
         );
       }
 
-      // ASTRIA MALAYSIA V2 ENGINE — Malay lane v2 (compatibility needs two
-      // birth charts; every other tab uses a single self chart)
+      // ASTRIA MALAYSIA V2 ENGINE
       let compatibilityMissingQuestionMYV2 = null;
-      // Set when a partner DOB is freshly parsed this turn, so it can be
-      // included when a brand-new ChatHistory document is created below
-      // (an existing `chat` document is updated in place instead).
       let myv2PartnerDobToPersist = null;
       if (isAstriaMalaysiaV2) {
         if (isCompatibilitySubcategoryMYV2(subCategoryName)) {
@@ -4401,7 +4441,10 @@ RULES:
           // session (if the message itself didn't just supply new ones) so
           // the user is never asked for their partner's DOB more than once
           // per session.
-          if (!compatPartnersMYV2.personB.dob && chat?.astriaMalaysiaV2PartnerDob) {
+          if (
+            !compatPartnersMYV2.personB.dob &&
+            chat?.astriaMalaysiaV2PartnerDob
+          ) {
             compatPartnersMYV2.personB = {
               dob: chat.astriaMalaysiaV2PartnerDob,
               time: chat.astriaMalaysiaV2PartnerDobTime || null,
@@ -4494,6 +4537,127 @@ RULES:
             subCategoryPrompt: subCategoryPrompt || null,
             target,
             birthChart: astriaMalaysiaV2BirthChart,
+            birthChartB: null,
+          });
+        }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+
+      //ASTRIA MALAYSIA V3 ENGINE
+      // ASTRIA MALAYSIA V3 ENGINE — Malay lane v3 (Signature Edition)
+      let compatibilityMissingQuestionMYV3 = null;
+      let myv3PartnerDobToPersist = null;
+      if (isAstriaMalaysiaV3) {
+        if (isCompatibilitySubcategoryMYV3(subCategoryName)) {
+          // Compatibility: needs two birth charts
+          const compatPartnersMYV3 = parseCompatibilityPartnersMYV3(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          // Reuse partner's birth details from chat session
+          if (
+            !compatPartnersMYV3.personB.dob &&
+            chat?.astriaMalaysiaV3PartnerDob
+          ) {
+            compatPartnersMYV3.personB = {
+              dob: chat.astriaMalaysiaV3PartnerDob,
+              time: chat.astriaMalaysiaV3PartnerDobTime || null,
+              place: chat.astriaMalaysiaV3PartnerDobPlace || null,
+            };
+            compatPartnersMYV3.missingFields =
+              compatPartnersMYV3.missingFields.filter((f) => f !== "partner");
+          }
+
+          if (compatPartnersMYV3.missingFields.length > 0) {
+            compatibilityMissingQuestionMYV3 =
+              buildCompatibilityMissingQuestionMYV3(
+                compatPartnersMYV3.missingFields,
+                !!(dob0 && String(dob0).trim()),
+                "malaysia",
+              );
+          } else {
+            let chartAMYV3 = null;
+            let chartBMYV3 = null;
+            try {
+              if (compatPartnersMYV3.personA.dob) {
+                chartAMYV3 = computeWesternBirthChartMYV3({
+                  dob: compatPartnersMYV3.personA.dob,
+                  dob_time: compatPartnersMYV3.personA.time || null,
+                  dob_place: compatPartnersMYV3.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error(
+                "Astria Malaysia V3 Compatibility - chartA error:",
+                err,
+              );
+            }
+            try {
+              if (compatPartnersMYV3.personB.dob) {
+                chartBMYV3 = computeWesternBirthChartMYV3({
+                  dob: compatPartnersMYV3.personB.dob,
+                  dob_time: compatPartnersMYV3.personB.time || null,
+                  dob_place: compatPartnersMYV3.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error(
+                "Astria Malaysia V3 Compatibility - chartB error:",
+                err,
+              );
+            }
+
+            // Persist partner's birth details on chat session
+            if (chartBMYV3 && compatPartnersMYV3.personB.dob) {
+              myv3PartnerDobToPersist = {
+                astriaMalaysiaV3PartnerDob: compatPartnersMYV3.personB.dob,
+                astriaMalaysiaV3PartnerDobTime:
+                  compatPartnersMYV3.personB.time || null,
+                astriaMalaysiaV3PartnerDobPlace:
+                  compatPartnersMYV3.personB.place || null,
+              };
+              if (chat) Object.assign(chat, myv3PartnerDobToPersist);
+            }
+
+            systemPrompt = buildAstriaMalaysiaV3Context({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              birthChart: chartAMYV3,
+              birthChartB: chartBMYV3,
+              selfName: userName || null,
+            });
+          }
+        } else {
+          // Single user chart for other subcategories (Daily Flow, Personality, etc.)
+          let astriaMalaysiaV3BirthChart = null;
+          if (selfDob0) {
+            try {
+              astriaMalaysiaV3BirthChart = computeWesternBirthChartMYV3({
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Malaysia V3 birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaMalaysiaV3Context({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            birthChart: astriaMalaysiaV3BirthChart,
             birthChartB: null,
           });
         }
@@ -4894,10 +5058,7 @@ RULES:
           // session (if the message itself didn't just supply new ones) so
           // the user is never asked for their partner's DOB more than once
           // per session.
-          if (
-            !canadaV2Partners.personB.dob &&
-            chat?.astriaCanadaV2PartnerDob
-          ) {
+          if (!canadaV2Partners.personB.dob && chat?.astriaCanadaV2PartnerDob) {
             canadaV2Partners.personB = {
               dob: chat.astriaCanadaV2PartnerDob,
               time: chat.astriaCanadaV2PartnerDobTime || null,
@@ -4967,7 +5128,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error(`Astria Canada V2 ${canadaV2TabKey} - chartA error:`, err);
+              logger.error(
+                `Astria Canada V2 ${canadaV2TabKey} - chartA error:`,
+                err,
+              );
             }
             try {
               if (canadaV2Partners.personB.dob) {
@@ -4978,7 +5142,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error(`Astria Canada V2 ${canadaV2TabKey} - chartB error:`, err);
+              logger.error(
+                `Astria Canada V2 ${canadaV2TabKey} - chartB error:`,
+                err,
+              );
             }
 
             // Persist the partner's birth details on this chat session (once
@@ -6152,6 +6319,50 @@ RULES:
             }
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isAstriaMalaysiaV3 && compatibilityMissingQuestionMYV3) {
+            finalAiResponse = compatibilityMissingQuestionMYV3;
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isAstriaMalaysiaV3) {
+            const myv3Stream = await generateGeminiResponseStream(messages);
+            let rawResponse = "";
+            for await (const chunk of myv3Stream) {
+              if (clientClosed) break;
+              const text = chunk?.text || "";
+              if (!text) continue;
+              rawResponse += text;
+            }
+
+            astriaMalaysiaV3Data = extractAstriaMalaysiaV3Data(rawResponse);
+
+            if (
+              astriaMalaysiaV3Data &&
+              validateAstriaMalaysiaV3Data(
+                astriaMalaysiaV3Data,
+                subCategoryName,
+              )
+            ) {
+              astriaMalaysiaV3Data = {
+                ...astriaMalaysiaV3Data,
+                ...deriveAstriaMalaysiaV3DisplaySections(
+                  astriaMalaysiaV3Data,
+                  subCategoryName,
+                ),
+              };
+              finalAiResponse = formatAstriaMalaysiaV3Response(
+                astriaMalaysiaV3Data,
+                subCategoryName,
+                target,
+              );
+            } else {
+              astriaMalaysiaV3Data = null;
+              finalAiResponse =
+                rawResponse
+                  .replace(/<<<ASTRIA_MALAYSIA_V3_DATA>>>/g, "")
+                  .replace(/<<<END_ASTRIA_MALAYSIA_V3_DATA>>>/g, "")
+                  .trim() || "No response";
+            }
+
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaUKV2 && ukv2MissingPartnerQuestion) {
             finalAiResponse = ukv2MissingPartnerQuestion;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
@@ -6207,7 +6418,9 @@ RULES:
             // structured event after so a future form UI can use it.
             finalAiResponse = canadaV2MissingPartnerQuestion;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
-            res.write(`data: ${JSON.stringify(canadaV2NeedsPartnerFormData)}\n\n`);
+            res.write(
+              `data: ${JSON.stringify(canadaV2NeedsPartnerFormData)}\n\n`,
+            );
             if (res.flush) res.flush();
           } else if (isAstriaCanadaV2) {
             const canadaStream = await generateGeminiResponseStream(messages);
@@ -6727,7 +6940,9 @@ RULES:
                   ? astriaMalaysiaV2Data
                   : null,
                 astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
-                astriaCanadaV2Data: isAstriaCanadaV2 ? astriaCanadaV2Data : null,
+                astriaCanadaV2Data: isAstriaCanadaV2
+                  ? astriaCanadaV2Data
+                  : null,
                 canadaV2NeedsPartnerData: isAstriaCanadaV2
                   ? canadaV2NeedsPartnerFormData
                   : null,
@@ -7075,6 +7290,39 @@ RULES:
         }
       }
 
+      // ASTRIA MALAYSIA V3 RESPONSE PROCESSING (NON-STREAMING)
+      // ASTRIA MALAYSIA V3 RESPONSE PROCESSING (NON-STREAMING)
+      if (isAstriaMalaysiaV3 && !compatibilityMissingQuestionMYV3) {
+        const rawResponse = completion?.trim() || "No response";
+
+        astriaMalaysiaV3Data = extractAstriaMalaysiaV3Data(rawResponse);
+
+        if (
+          astriaMalaysiaV3Data &&
+          validateAstriaMalaysiaV3Data(astriaMalaysiaV3Data, subCategoryName)
+        ) {
+          astriaMalaysiaV3Data = {
+            ...astriaMalaysiaV3Data,
+            ...deriveAstriaMalaysiaV3DisplaySections(
+              astriaMalaysiaV3Data,
+              subCategoryName,
+            ),
+          };
+          finalAiResponse = formatAstriaMalaysiaV3Response(
+            astriaMalaysiaV3Data,
+            subCategoryName,
+            target,
+          );
+        } else {
+          astriaMalaysiaV3Data = null;
+          finalAiResponse =
+            rawResponse
+              .replace(/<<<ASTRIA_MALAYSIA_V3_DATA>>>/g, "")
+              .replace(/<<<END_ASTRIA_MALAYSIA_V3_DATA>>>/g, "")
+              .trim() || "No response";
+        }
+      }
+
       // ASTRIA UK V2 RESPONSE PROCESSING (NON-STREAMING)
       if (isAstriaUKV2 && !ukv2MissingPartnerQuestion) {
         const rawResponse = completion?.trim() || "No response";
@@ -7322,6 +7570,8 @@ RULES:
           ? astriaSingaporeV2Data
           : null,
         astriaMalaysiaV2Data: isAstriaMalaysiaV2 ? astriaMalaysiaV2Data : null,
+        astriaMalaysiaV3Data: isAstriaMalaysiaV3 ? astriaMalaysiaV3Data : null,
+        astriaMalaysiaV3Data: isAstriaMalaysiaV3 ? astriaMalaysiaV3Data : null,
         astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
         astriaCanadaV2Data: isAstriaCanadaV2 ? astriaCanadaV2Data : null,
         phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
@@ -7347,6 +7597,7 @@ RULES:
               selectedCaseId: selectedCaseId || null,
               chatLang,
               ...myv2PartnerDobToPersist,
+              ...myv3PartnerDobToPersist,
               ...krV3PartnerDobToPersist,
               ...krV3UserCityToPersist,
               ...canadaV2PartnerDobToPersist,
@@ -7421,6 +7672,7 @@ RULES:
           ? astriaSingaporeV2Data
           : null,
         astriaMalaysiaV2Data: isAstriaMalaysiaV2 ? astriaMalaysiaV2Data : null,
+        astriaMalaysiaV3Data: isAstriaMalaysiaV3 ? astriaMalaysiaV3Data : null,
         astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
         astriaCanadaV2Data: isAstriaCanadaV2 ? astriaCanadaV2Data : null,
         canadaV2NeedsPartnerData: isAstriaCanadaV2
