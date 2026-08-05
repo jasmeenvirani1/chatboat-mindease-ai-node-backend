@@ -897,6 +897,41 @@ const KR_V2_REQUIRED_FIELDS = {
   // come from code (computeSajuV4KR), so only the narrative fields are
   // required here.
   saju: ["overview", "pillarReading", "fiveElementsReading", "yinYangReading"],
+  // Energy Match KR Hybrid only — a new tab (not in V2/V3) pairing two
+  // charts on a lighter "에너지 궁합" theme/label read, distinct from the
+  // full 3-Box Compatibility tab.
+  energy_match: ["theme", "you", "otherPerson"],
+  // ── KR HYBRID-ONLY TAB KEYS ──────────────────────────────────────────────
+  // Hybrid's Daily Flow / Life Map / Daily Companion / Relationship /
+  // Compatibility follow the client's KR Hybrid JSON Pack field names
+  // exactly (energyFlow/moodFlow/mindCheckin, mood/place/lifestyle,
+  // etc.) — a different shape from V2/V3's schema, so these get their own
+  // tab keys instead of reusing "daily_flow_v2" / "life_map" / etc., keeping
+  // V2/V3 completely untouched.
+  hybrid_daily_flow: ["energyFlow", "moodFlow", "mindCheckin"],
+  // life_map has no nested "food" key per the KR Hybrid JSON Pack — food is
+  // its own separate top-level Hybrid tab (hybrid_food below).
+  hybrid_life_map: ["mood", "place", "lifestyle"],
+  hybrid_daily_companion: ["morning", "day", "night", "ideas"],
+  hybrid_relationship: ["mood", "softWords", "action"],
+  hybrid_compatibility: ["score", "theme", "advice"],
+  // MateScan / Food / Lifestyle / Place / Weather KR Hybrid — new tabs (not
+  // in V2/V3) ported from the KR Master Prompt spec, each a small flat
+  // key-selection JSON like Energy Match above.
+  hybrid_matescan: ["overview", "communication", "distance", "pace"],
+  // Food KR Hybrid follows the KR Hybrid JSON Pack's f1/f2/f3 food+drink
+  // pair shape (each value a 2-item array), not a flat light/warm/cool set.
+  hybrid_food: ["f1", "f2", "f3"],
+  hybrid_lifestyle: ["indoor", "outdoor", "quiet", "active"],
+  hybrid_place: ["cafe", "park", "home", "library"],
+  hybrid_weather: ["sunny", "cloudy", "rain", "hot"],
+  // Comfort Companion / LifeMap / Relationship Set KR Hybrid — Korea.txt's
+  // "companion" / "lifemap" / "relationship" tabs, kept as separate tab keys
+  // from Daily Companion / Life Map / Relationship Engine above so neither
+  // set of tabs ever overwrites the other.
+  hybrid_comfort_companion: ["comfort", "support", "reflection"],
+  hybrid_lifemap: ["home", "work", "social", "personal"],
+  hybrid_relationship_set: ["set_01"],
 };
 
 // V3 Daily Flow's nested-object fields — each must be a non-empty string at
@@ -908,21 +943,62 @@ const KR_V3_DAILY_FLOW_NESTED_FIELDS = {
   moodMessage: ["feeling", "reflection", "suggestion"],
 };
 
-// isV3: when true, "daily flow" resolves to the V3-only "daily_flow_v3" key
-// instead of V2's "daily_flow_v2" — V3's Daily Flow moved to a nested
-// energyMessage/moodMessage schema (see KrV3_Prompt.txt) while V2's Daily
-// Flow keeps its original flat-string schema untouched. Every other tab name
-// still means the same thing in both versions, so only this branch forks.
-function resolveKRV2TabKey(subCategoryName, isV3 = false) {
+// isV3: when true (or when called with "v3"), "daily flow" resolves to the
+// V3-only "daily_flow_v3" key instead of V2's "daily_flow_v2" — V3's Daily
+// Flow moved to a nested energyMessage/moodMessage schema (see
+// KrV3_Prompt.txt) while V2's Daily Flow keeps its original flat-string
+// schema untouched. Hybrid's Daily Flow follows the KR Hybrid JSON Pack
+// spec, which is flat-string like V2, so Hybrid resolves to "daily_flow_v2"
+// too — only legacy boolean isV3=true forks to the nested schema. Every
+// other tab name still means the same thing across V2/V3/Hybrid.
+// Accepts either a boolean (legacy isV3 call sites) or the string "hybrid"
+// (KR Hybrid — V2 warmth + V3 structure, plus the new "energy match" tab).
+function resolveKRV2TabKey(subCategoryName, versionFlag = false) {
   if (!subCategoryName) return null;
+  const isV3 = versionFlag === true;
+  const isHybrid = versionFlag === "hybrid";
   const lower = subCategoryName.toLowerCase();
   // "Companion Talk" (V3-only tab) is free-form prose, not one of the
   // structured JSON tabs — must be excluded before the "companion" match below.
   if (lower.includes("companion talk")) return null;
-  // Saju KR v3 (사주) — structured, but its factual data (pillars/elements/
-  // yin-yang) is code-computed, not model-generated; see the "saju" key in
-  // KR_V2_REQUIRED_FIELDS and formatAstriaKoreaV2Response below.
+  // Saju KR v3/Hybrid (사주) — structured, but its factual data
+  // (pillars/elements/yin-yang) is code-computed, not model-generated; see
+  // the "saju" key in KR_V2_REQUIRED_FIELDS and formatAstriaKoreaV2Response
+  // below.
   if (lower.includes("saju")) return "saju";
+  // Energy Match — Hybrid-only tab, distinct from the 3-Box Compatibility tab.
+  if (isHybrid && lower.includes("energy match")) return "energy_match";
+  // MateScan / Food / Lifestyle / Place / Weather — Hybrid-only tabs from the
+  // KR Master Prompt spec, checked before the broader Hybrid branches below
+  // since none of their keywords overlap with "life map" / "companion" / etc.
+  if (isHybrid && (lower.includes("matescan") || lower.includes("mate scan")))
+    return "hybrid_matescan";
+  if (isHybrid && lower.includes("food")) return "hybrid_food";
+  if (isHybrid && lower.includes("lifestyle")) return "hybrid_lifestyle";
+  if (isHybrid && lower.includes("place")) return "hybrid_place";
+  if (isHybrid && lower.includes("weather")) return "hybrid_weather";
+  // Comfort Companion / LifeMap / Relationship Set — Korea.txt's own
+  // "companion" / "lifemap" / "relationship" tabs, checked before their
+  // generic siblings below ("companion", "life map", "relationship") so
+  // neither ever shadows the other.
+  if (isHybrid && lower.includes("comfort companion"))
+    return "hybrid_comfort_companion";
+  if (isHybrid && lower.includes("lifemap")) return "hybrid_lifemap";
+  if (isHybrid && lower.includes("relationship set"))
+    return "hybrid_relationship_set";
+  // Hybrid's remaining tabs use their own client-spec JSON shape (see
+  // hybrid_* keys in KR_V2_REQUIRED_FIELDS above) — routed here before the
+  // shared V2/V3 branches so Hybrid never collides with their schemas.
+  if (isHybrid && lower.includes("daily flow")) return "hybrid_daily_flow";
+  if (isHybrid && lower.includes("life map")) return "hybrid_life_map";
+  if (isHybrid && (lower.includes("compatibility") || lower.includes("compatability")))
+    return "hybrid_compatibility";
+  if (isHybrid && lower.includes("relationship")) return "hybrid_relationship";
+  if (
+    isHybrid &&
+    (lower.includes("daily companion") || lower.includes("companion"))
+  )
+    return "hybrid_daily_companion";
   if (lower.includes("daily flow")) return isV3 ? "daily_flow_v3" : "daily_flow_v2";
   if (lower.includes("life map")) return "life_map";
   if (lower.includes("compatibility") || lower.includes("compatability"))
@@ -933,8 +1009,8 @@ function resolveKRV2TabKey(subCategoryName, isV3 = false) {
   return null;
 }
 
-function validateAstriaKoreaV2Data(data, subCategoryName, isV3 = false) {
-  const tabKey = resolveKRV2TabKey(subCategoryName, isV3);
+function validateAstriaKoreaV2Data(data, subCategoryName, versionFlag = false) {
+  const tabKey = resolveKRV2TabKey(subCategoryName, versionFlag);
   if (!tabKey || !data) return false;
 
   const required = KR_V2_REQUIRED_FIELDS[tabKey];
@@ -959,9 +1035,99 @@ function validateAstriaKoreaV2Data(data, subCategoryName, isV3 = false) {
     }
   }
 
+  if (tabKey === "energy_match") {
+    // theme is an object of three selectable options (em1/em2/em3) per the
+    // KR Hybrid JSON Pack — not a single freewritten string.
+    const theme = data.theme;
+    if (!theme || typeof theme !== "object") return false;
+    for (const subKey of ["em1", "em2", "em3"]) {
+      if (typeof theme[subKey] !== "string" || theme[subKey].trim().length === 0)
+        return false;
+    }
+    if (!data.you || typeof data.you !== "object") return false;
+    if (!data.otherPerson || typeof data.otherPerson !== "object")
+      return false;
+  }
+
   if (tabKey === "compatibility_v2") {
     if (typeof data.score !== "number") return false;
   }
+
+  // ── KR HYBRID-ONLY SHAPE CHECKS ──────────────────────────────────────────
+  if (tabKey === "hybrid_daily_flow") {
+    const nested = {
+      energyFlow: ["morning", "day", "night"],
+      moodFlow: ["mood", "reflection", "suggestion"],
+      // Three soft check-in questions per the KR Hybrid JSON Pack's
+      // mind_checkin{q_01,q_02,q_03} shape.
+      mindCheckin: ["q1", "q2", "q3"],
+    };
+    for (const [field, subKeys] of Object.entries(nested)) {
+      const obj = data[field];
+      if (!obj || typeof obj !== "object") return false;
+      for (const subKey of subKeys) {
+        if (
+          typeof obj[subKey] !== "string" ||
+          obj[subKey].trim().length === 0
+        )
+          return false;
+      }
+    }
+  }
+
+  if (tabKey === "hybrid_life_map") {
+    if (!data.mood || typeof data.mood !== "object") return false;
+    if (!data.place || typeof data.place !== "object") return false;
+    if (!data.lifestyle || typeof data.lifestyle !== "object") return false;
+  }
+
+  if (tabKey === "hybrid_food") {
+    // f1/f2/f3 each a non-empty 2-item [food, drink] array.
+    for (const subKey of ["f1", "f2", "f3"]) {
+      const pair = data[subKey];
+      if (!Array.isArray(pair) || pair.length !== 2) return false;
+      if (
+        typeof pair[0] !== "string" ||
+        pair[0].trim().length === 0 ||
+        typeof pair[1] !== "string" ||
+        pair[1].trim().length === 0
+      )
+        return false;
+    }
+  }
+
+  if (tabKey === "hybrid_daily_companion") {
+    for (const field of ["morning", "day", "night"]) {
+      const obj = data[field];
+      if (!obj || typeof obj !== "object") return false;
+      if (
+        typeof obj.set1 !== "string" ||
+        obj.set1.trim().length === 0 ||
+        typeof obj.set2 !== "string" ||
+        obj.set2.trim().length === 0
+      )
+        return false;
+    }
+    if (!Array.isArray(data.ideas) || data.ideas.length === 0) return false;
+  }
+
+  if (tabKey === "hybrid_relationship") {
+    for (const field of ["mood", "softWords", "action"]) {
+      if (!data[field] || typeof data[field] !== "object") return false;
+    }
+  }
+
+  if (tabKey === "hybrid_compatibility") {
+    if (!data.score || typeof data.score !== "object") return false;
+    if (!data.theme || typeof data.theme !== "object") return false;
+    if (!data.advice || typeof data.advice !== "object") return false;
+  }
+
+  // MateScan / Food / Lifestyle / Place / Weather / Comfort Companion /
+  // LifeMap — each a small flat key-selection JSON; Relationship Set's
+  // set_01 is a non-empty array. KR_V2_REQUIRED_FIELDS' generic loop above
+  // (string OR non-empty-array check) already covers every field for all of
+  // these, no extra nested shape check needed.
 
   return true;
 }
@@ -1007,8 +1173,8 @@ function deriveCompatibilityV2DisplaySections(data) {
   };
 }
 
-function formatAstriaKoreaV2Response(data, subCategoryName, isV3 = false) {
-  const tabKey = resolveKRV2TabKey(subCategoryName, isV3);
+function formatAstriaKoreaV2Response(data, subCategoryName, versionFlag = false) {
+  const tabKey = resolveKRV2TabKey(subCategoryName, versionFlag);
   if (!tabKey || !data) return "";
 
   switch (tabKey) {
@@ -1075,6 +1241,112 @@ function formatAstriaKoreaV2Response(data, subCategoryName, isV3 = false) {
       ]
         .filter(Boolean)
         .join("\n\n");
+    case "energy_match": {
+      // theme is now {em1,em2,em3} — foreground em1 (the model's leading
+      // pick) in the display text rather than concatenating all three.
+      const theme = data.theme || {};
+      return [
+        theme.em1 || Object.values(theme).filter(Boolean)[0],
+        data.you?.label,
+        data.otherPerson?.label,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    // ── KR HYBRID-ONLY FORMATTING ──────────────────────────────────────────
+    case "hybrid_daily_flow": {
+      const energy = data.energyFlow || {};
+      const mood = data.moodFlow || {};
+      const checkin = data.mindCheckin || {};
+      return [
+        [energy.morning, energy.day, energy.night].filter(Boolean).join(" "),
+        [mood.mood, mood.reflection, mood.suggestion]
+          .filter(Boolean)
+          .join(" "),
+        checkin.q1,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    case "hybrid_life_map": {
+      const mood = data.mood || {};
+      const place = data.place || {};
+      const lifestyle = data.lifestyle || {};
+      return [
+        [mood.m1, mood.m2, mood.m3].filter(Boolean).join(" "),
+        Object.values(place).filter(Boolean).join(" "),
+        Object.values(lifestyle).filter(Boolean).join(" "),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    case "hybrid_food": {
+      // Foreground f1 (the model's leading pick) — [food, drink] pair shown
+      // as two lines, matching every other tab's paragraph-break convention
+      // (a single space here read as "one sentence" to users).
+      const f1 = Array.isArray(data.f1) ? data.f1 : [];
+      return f1.filter(Boolean).join("\n\n");
+    }
+    case "hybrid_daily_companion": {
+      const morning = data.morning || {};
+      const day = data.day || {};
+      const night = data.night || {};
+      return [
+        [morning.set1, morning.set2].filter(Boolean).join(" "),
+        [day.set1, day.set2].filter(Boolean).join(" "),
+        [night.set1, night.set2].filter(Boolean).join(" "),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    case "hybrid_relationship": {
+      const mood = data.mood || {};
+      const softWords = data.softWords || {};
+      const action = data.action || {};
+      return [
+        Object.values(mood).filter(Boolean).join(" "),
+        Object.values(softWords).filter(Boolean).join(" "),
+        Object.values(action).filter(Boolean).join(" "),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    case "hybrid_compatibility": {
+      const theme = data.theme || {};
+      const advice = data.advice || {};
+      return [
+        Object.values(theme).filter(Boolean).join(" "),
+        Object.values(advice).filter(Boolean).join(" "),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+    }
+    case "hybrid_matescan":
+      return [data.overview, data.communication, data.distance, data.pace]
+        .filter(Boolean)
+        .join("\n\n");
+    case "hybrid_lifestyle":
+      return [data.indoor, data.outdoor, data.quiet, data.active]
+        .filter(Boolean)
+        .join("\n\n");
+    case "hybrid_place":
+      return [data.cafe, data.park, data.home, data.library]
+        .filter(Boolean)
+        .join("\n\n");
+    case "hybrid_weather":
+      return [data.sunny, data.cloudy, data.rain, data.hot]
+        .filter(Boolean)
+        .join("\n\n");
+    case "hybrid_comfort_companion":
+      return [data.comfort, data.support, data.reflection]
+        .filter(Boolean)
+        .join("\n\n");
+    case "hybrid_lifemap":
+      return [data.home, data.work, data.social, data.personal]
+        .filter(Boolean)
+        .join("\n\n");
+    case "hybrid_relationship_set":
+      return Array.isArray(data.set_01) ? data.set_01.filter(Boolean).join("\n\n") : "";
     default:
       return "";
   }

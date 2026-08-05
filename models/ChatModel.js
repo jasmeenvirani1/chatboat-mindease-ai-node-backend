@@ -32,6 +32,11 @@ const ChatMessageSchema = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
+    // Astria Singapore V3 Data
+    astriaSingaporeV3Data: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
     // Astria Malaysia V2 Data
     astriaMalaysiaV2Data: {
       type: Schema.Types.Mixed,
@@ -39,6 +44,11 @@ const ChatMessageSchema = new Schema(
     },
     // Astria Canada V2 Data
     astriaCanadaV2Data: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
+    // Astria Mexico Data
+    astriaMexicoData: {
       type: Schema.Types.Mixed,
       default: null,
     },
@@ -120,17 +130,11 @@ const ChatHistorySchema = new Schema(
     },
 
     // Partner birth details for this chat session's compatibility reads
-    // (Astria Malaysia V2). Set once the user shares them and reused on every
-    // later turn in the same session so they're never asked again. Scoped to
-    // this chat document, not the User account, since a new chat thread may
-    // be about a different partner.
     astriaMalaysiaV2PartnerDob: { type: String, default: null },
     astriaMalaysiaV2PartnerDobTime: { type: String, default: null },
     astriaMalaysiaV2PartnerDobPlace: { type: String, default: null },
 
     // Partner birth details for this chat session's Relationship Engine /
-    // Compatibility reads (Astria Korea V3). Same pattern as Malaysia V2
-    // above — set once, reused every later turn, scoped to this chat doc.
     astriaKoreaV3PartnerDob: { type: String, default: null },
     astriaKoreaV3PartnerDobTime: { type: String, default: null },
     astriaKoreaV3PartnerDobPlace: { type: String, default: null },
@@ -139,13 +143,34 @@ const ChatHistorySchema = new Schema(
     // personalization (distinct from birthplace, which is chart-only data).
     astriaKoreaV3UserCity: { type: String, default: null },
 
+    // Partner birth details for this chat session's Relationship Engine
+    astriaKoreaHybridPartnerDob: { type: String, default: null },
+    astriaKoreaHybridPartnerDobTime: { type: String, default: null },
+    astriaKoreaHybridPartnerDobPlace: { type: String, default: null },
+
+    // User's current-residence city for Astria Korea Hybrid Life Map
+    astriaKoreaHybridUserCity: { type: String, default: null },
+
     // Partner birth details for this chat session's two-person reads
-    // (Astria Canada V2 MateScan / Energy Match). Same pattern as Malaysia
-    // V2 / Korea V3 above — set once the user shares them, reused every
-    // later turn in the same session, scoped to this chat doc.
     astriaCanadaV2PartnerDob: { type: String, default: null },
     astriaCanadaV2PartnerDobTime: { type: String, default: null },
     astriaCanadaV2PartnerDobPlace: { type: String, default: null },
+
+    // Partner birth details for this chat session's Compatibility reads
+    // (Astria Singapore V2). Same pattern as Malaysia V2 above — set once
+    // the user shares them, reused every later turn in the same session,
+    // scoped to this chat doc so a new chat thread starts fresh.
+    astriaSingaporeV2PartnerDob: { type: String, default: null },
+    astriaSingaporeV2PartnerDobTime: { type: String, default: null },
+    astriaSingaporeV2PartnerDobPlace: { type: String, default: null },
+
+    // Partner birth details for this chat session's Compatibility reads
+    // (Astria Singapore V3). Same pattern as Singapore V2 above — set once
+    // the user shares them, reused every later turn in the same session,
+    // scoped to this chat doc so a new chat thread starts fresh.
+    astriaSingaporeV3PartnerDob: { type: String, default: null },
+    astriaSingaporeV3PartnerDobTime: { type: String, default: null },
+    astriaSingaporeV3PartnerDobPlace: { type: String, default: null },
   },
   { timestamps: true },
 );
