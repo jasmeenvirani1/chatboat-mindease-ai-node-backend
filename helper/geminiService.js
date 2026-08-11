@@ -127,13 +127,14 @@ async function createGeminiClient() {
   return { genAI, gemini_model };
 }
 
-function messagesToPrompt(messages) {
-  return (messages || [])
+function extractSystemInstruction(messages) {
+  const systemMessages = (messages || []).filter((m) => m.role === "system");
+
+  return systemMessages
     .map((m) => {
-      let prefix = `${String(m.role || "").toUpperCase()}: `;
       let content = m.content;
 
-      if (m.role === "system" && Array.isArray(m.emotion_knowledge_sentences)) {
+      if (Array.isArray(m.emotion_knowledge_sentences)) {
         const sentences = m.emotion_knowledge_sentences
           .map((s) => `- ${s.sentence}`)
           .join("\n");
@@ -145,22 +146,115 @@ ${sentences}
 `.trim();
       }
 
-      return `${prefix}${content}`;
+      return content;
     })
     .join("\n");
 }
 
-const generateGeminiResponse = async (messages) => {
+function toGeminiContents(messages) {
+  return (messages || [])
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+}
+
+// Gemini rejects cache-create requests below a ~1024-token floor. Measured
+// ratio from a real failed attempt: ~4893 chars = 943 actual tokens
+// (~5.19 chars/token), so target a comfortable margin above 1024 tokens
+// rather than the char count alone (chars/token varies with content).
+const MIN_CACHEABLE_SYSTEM_INSTRUCTION_CHARS = 5900; // ~1135 tokens at the measured ratio
+const CACHE_TTL_SECONDS = 1800; // 30 min, matches proposal's TTL range
+
+async function getOrCreateGeminiCache({
+  genAI,
+  gemini_model,
+  systemInstruction,
+  cacheName,
+  cacheExpiresAt,
+}) {
+  const isExistingCacheValid =
+    cacheName && cacheExpiresAt && new Date(cacheExpiresAt) > new Date();
+
+  if (isExistingCacheValid) {
+    return { name: cacheName, expiresAt: cacheExpiresAt, created: false };
+  }
+
+  const cache = await genAI.caches.create({
+    model: gemini_model,
+    config: {
+      displayName: "chat_session_cache",
+      systemInstruction,
+      ttl: `${CACHE_TTL_SECONDS}s`,
+    },
+  });
+
+  return {
+    name: cache.name,
+    expiresAt: new Date(Date.now() + CACHE_TTL_SECONDS * 1000),
+    created: true,
+  };
+}
+
+async function resolveCacheConfig({
+  genAI,
+  gemini_model,
+  systemInstruction,
+  cacheOption,
+}) {
+  if (!cacheOption) return { config: { systemInstruction } };
+
+  if (systemInstruction.length < MIN_CACHEABLE_SYSTEM_INSTRUCTION_CHARS) {
+    return { config: { systemInstruction } };
+  }
+
+  try {
+    const { name, expiresAt, created } = await getOrCreateGeminiCache({
+      genAI,
+      gemini_model,
+      systemInstruction,
+      cacheName: cacheOption.name,
+      cacheExpiresAt: cacheOption.expiresAt,
+    });
+
+    if (created && typeof cacheOption.onCacheCreated === "function") {
+      cacheOption.onCacheCreated(name, expiresAt);
+    }
+
+    return { config: { cachedContent: name } };
+  } catch (err) {
+    console.warn(
+      `Gemini explicit cache unavailable, falling back to uncached call: ${err?.message || err}`,
+    );
+    return { config: { systemInstruction } };
+  }
+}
+
+const generateGeminiResponse = async (messages, options = {}) => {
   try {
     const { genAI, gemini_model } = await createGeminiClient();
-    const prompt = messagesToPrompt(messages);
+    const systemInstruction = extractSystemInstruction(messages);
+    const contents = toGeminiContents(messages);
+    const { config: cacheConfig } = await resolveCacheConfig({
+      genAI,
+      gemini_model,
+      systemInstruction,
+      cacheOption: options.cache,
+    });
 
     const response = await withRetry("generateContent", () =>
       genAI.models.generateContent({
         model: gemini_model,
-        contents: prompt,
+        contents,
+        config: cacheConfig,
       }),
     );
+
+    const usage = response.usageMetadata;
+    // console.log(
+    //   `[Gemini tokens] prompt=${usage?.promptTokenCount} output=${usage?.candidatesTokenCount} cached=${usage?.cachedContentTokenCount ?? 0} total=${usage?.totalTokenCount}`,
+    // );
 
     return response.text;
   } catch (error) {
@@ -172,13 +266,25 @@ const generateGeminiResponse = async (messages) => {
   }
 };
 
-const generateGeminiResponseStream = async (messages) => {
+const generateGeminiResponseStream = async (messages, options = {}) => {
   try {
     const { genAI, gemini_model } = await createGeminiClient();
-    const prompt = messagesToPrompt(messages);
+    const systemInstruction = extractSystemInstruction(messages);
+    const contents = toGeminiContents(messages);
+    const { config: cacheConfig } = await resolveCacheConfig({
+      genAI,
+      gemini_model,
+      systemInstruction,
+      cacheOption: options.cache,
+    });
+
+    // console.log(
+    //   `[Gemini debug] model=${gemini_model || "gemini-3-flash"} systemInstruction.length=${systemInstruction.length} chars (~${Math.round(systemInstruction.length / 4)} tokens est.) cachedContent=${cacheConfig.cachedContent || "none"}`,
+    // );
 
     // Optimized for ultra-low latency with Gemini 3 Flash
     const config = {
+      ...cacheConfig,
       thinkingConfig: {
         thinkingLevel: "LOW", // Forces ultra-fast, low-latency generation
       },
@@ -187,7 +293,7 @@ const generateGeminiResponseStream = async (messages) => {
     const createStream = () =>
       genAI.models.generateContentStream({
         model: gemini_model || "gemini-3-flash", // Use Gemini 3 Flash for maximum speed
-        contents: prompt,
+        contents,
         config: config,
       });
 
@@ -204,10 +310,17 @@ const generateGeminiResponseStream = async (messages) => {
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
+          let lastUsage;
           for await (const chunk of stream) {
             yieldedAny = true;
+            if (chunk.usageMetadata) lastUsage = chunk.usageMetadata;
             yield { text: chunk.text };
           }
+          // if (lastUsage) {
+          //   console.log(
+          //     `[Gemini tokens] prompt=${lastUsage.promptTokenCount} output=${lastUsage.candidatesTokenCount} cached=${lastUsage.cachedContentTokenCount ?? 0} total=${lastUsage.totalTokenCount}`,
+          //   );
+          // }
           return;
         } catch (err) {
           if (

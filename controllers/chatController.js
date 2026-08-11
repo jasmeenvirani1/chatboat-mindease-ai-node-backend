@@ -364,7 +364,31 @@ function appendAstriaDobAndMessageContext(
 
 ━━━ USER CONTEXT (attached last — use as primary grounding) ━━━
 Date of Birth: ${dob ? String(dob).trim() : "unknown"}
-Latest User Message: "${String(userMessage || "").trim()} 
+Latest User Message: "${String(userMessage || "").trim()}
+Use this msg and provide answer based on what user asked"
+${extra ? `Additional Context: ${extra}\n` : ""}`;
+}
+
+// DOB-only variant used by lanes that opt into Gemini explicit context
+// caching (e.g. Astria Spanish / Spanish V2). Keeping the live per-turn
+// userMessage OUT of the system prompt lets it stay byte-identical across
+// turns in the same session, which is required for the cache to be
+// reusable. The user message/translated-context framing this omits is
+// instead attached to the final user-turn entry in `messages` — see
+// buildUserTurnMessageContent().
+function appendAstriaDobContext(systemPrompt, dob) {
+  return `${systemPrompt}
+
+━━━ USER CONTEXT (attached last — use as primary grounding) ━━━
+Date of Birth: ${dob ? String(dob).trim() : "unknown"}`;
+}
+
+// Mirrors the "Latest User Message" / "Additional Context" framing that
+// appendAstriaDobAndMessageContext used to bake into the system prompt,
+// but scoped to a single turn so it can travel in `contents` instead.
+function buildUserTurnMessageContent(userMessage, additionalContext) {
+  const extra = String(additionalContext || "").trim();
+  return `Latest User Message: "${String(userMessage || "").trim()}
 Use this msg and provide answer based on what user asked"
 ${extra ? `Additional Context: ${extra}\n` : ""}`;
 }
@@ -1477,7 +1501,9 @@ const chatController = {
         translatedMessage,
         sharedQueryVec,
       );
+      // console.log("All 20 Sentences:", allSentences);
       const sentences = pickRandomUnique(allSentences, 10);
+      // console.log("Picked 10 Sentences:", sentences);
 
       // Get category, subcategory, and chat details
       let chat = null;
@@ -2061,6 +2087,12 @@ const chatController = {
       // Priority: SubCategory > Category > Default
       let systemPrompt = defaultPrompt;
       let promptSource = "default";
+      // Set by lanes that opt into Gemini explicit context caching (e.g.
+      // Astria Spanish / Spanish V2) — holds the "Latest User Message"
+      // framing that would otherwise be baked into systemPrompt, so it can
+      // instead be attached to the final user-turn message. Left null for
+      // every other lane, which keeps their existing behavior unchanged.
+      let userTurnMessageContent = null;
 
       if (subCategoryPrompt && subCategoryPrompt.trim()) {
         systemPrompt = subCategoryPrompt.trim();
@@ -2248,6 +2280,17 @@ const chatController = {
       // locked value instead of `target`'s per-message re-detection above.
       if (isAstriaCanadaV2 && !isNewChat && chat?.chatLang) {
         target = chat.chatLang;
+      }
+
+      // Astria Spanish / Spanish V2 language lock — these categories ARE the
+      // Spanish lane, so always reply in Spanish regardless of what
+      // detectLangFromMessage guessed. Without this, terse/data-heavy
+      // messages (e.g. an Energy Match form submission full of dates, times,
+      // and city names) can contain too few Spanish marker words and get
+      // misdetected as English, causing the LLM to reply in English even
+      // though the user is in the Spanish lane.
+      if ((isAstriaSpanish || isAstriaSpanishV2) && !isAstriaUS) {
+        target = "es";
       }
 
       const currentDomain = v4Classification.domain;
@@ -2868,9 +2911,8 @@ RULES:
             spanishTone: resolvedSpanishTone,
           });
         }
-        systemPrompt = appendAstriaDobAndMessageContext(
-          systemPrompt,
-          selfDob0,
+        systemPrompt = appendAstriaDobContext(systemPrompt, selfDob0);
+        userTurnMessageContent = buildUserTurnMessageContent(
           userMessage,
           translatedMessage !== userMessage ? translatedMessage : null,
         );
@@ -2965,9 +3007,8 @@ RULES:
             spanishTone: resolvedSpanishTone,
           });
         }
-        systemPrompt = appendAstriaDobAndMessageContext(
-          systemPrompt,
-          selfDob0,
+        systemPrompt = appendAstriaDobContext(systemPrompt, selfDob0);
+        userTurnMessageContent = buildUserTurnMessageContent(
           userMessage,
           translatedMessage !== userMessage ? translatedMessage : null,
         );
@@ -6433,19 +6474,7 @@ RULES:
         });
       }
 
-      // ASTRIA VIETNAM ENGINE START — real Tử Vi/lunar-day/compatibility/
-      // phong thủy/tarot lanes (see helper/vietnam/astriaVietnamPromptService.js).
-      // `dob`/`dob_time` prefer vietnamWizard's explicit values over the
-      // generic selfDob0/selfDobTime0 fallback chain: the generic
-      // extractDOBFromText() free-text extractor (used to populate
-      // selfDob0 when the profile has no DOB) is label-blind and matches
-      // the first date-shaped substring anywhere in userMessage — unsafe
-      // for the Compatibility lane, which embeds a SECOND (partner) date
-      // in the same message. The wizard's `dob` is always the frontend
-      // form's explicit self-DOB field, never ambiguous.
-      // `gender` is read from the wizard when available (defaults to
-      // "female" inside computeTuViChart if omitted, only affecting Đại
-      // Hạn direction).
+      // ASTRIA VIETNAM ENGINE START
       let astriaVietnamData = null;
       if (isAstriaVietnam) {
         systemPrompt = buildAstriaVietnamContext({
@@ -6620,6 +6649,11 @@ RULES:
           role: "user",
           content: `${userMessage}\n\n[REMINDER: Reply using ONLY the strict JSON block format specified in the system prompt, wrapped exactly between the <<<ASTRIA_KOREA_V2_DATA>>> / <<<END_ASTRIA_KOREA_V2_DATA>>> sentinels. Do not reply in plain prose, even though earlier turns in this conversation appear as plain text above.]`,
         });
+      } else if (userTurnMessageContent) {
+        // Spanish / Spanish V2 lanes: the "Latest User Message" framing
+        // that used to live in systemPrompt (see appendAstriaDobContext)
+        // travels here instead, keeping systemPrompt cache-stable.
+        messages.push({ role: "user", content: userTurnMessageContent });
       } else {
         messages.push({ role: "user", content: userMessage });
       }
@@ -6735,6 +6769,36 @@ RULES:
           let bhavnaDrishtiJsonData = null;
           let vivahMuhuratJsonData = null;
           let upayMargParsed = null;
+
+          // chat can still be null here for a brand-new session (it's
+          // only created via ChatHistory.create() after the Gemini call,
+          // further below) — track the cache name/expiry in a plain
+          // object so onCacheCreated never dereferences a null chat,
+          // then apply it to whichever chat doc ends up saved.
+          const pendingGeminiCacheInfo = {
+            name: chat?.geminiCacheName || null,
+            expiresAt: chat?.geminiCacheExpiresAt || null,
+          };
+          const geminiCallOptions =
+            isAstriaSpanish ||
+            isAstriaSpanishV2 ||
+            isAstriaKoreaHybrid ||
+            isAstriaJapanHybrid
+              ? {
+                  cache: {
+                    name: pendingGeminiCacheInfo.name,
+                    expiresAt: pendingGeminiCacheInfo.expiresAt,
+                    onCacheCreated: (name, expiresAt) => {
+                      pendingGeminiCacheInfo.name = name;
+                      pendingGeminiCacheInfo.expiresAt = expiresAt;
+                      if (chat) {
+                        chat.geminiCacheName = name;
+                        chat.geminiCacheExpiresAt = expiresAt;
+                      }
+                    },
+                  },
+                }
+              : undefined;
 
           if (phVnIdV2ExpansionPrompt) {
             // Astria Philippines V2 — the seed picked deterministically above
@@ -7111,7 +7175,10 @@ RULES:
             // formatAstriaKoreaV2Response call below routes Daily Flow to the
             // V3-style "daily_flow_v3" schema and enables the "energy match"
             // keyword match.
-            const krHybridStream = await generateGeminiResponseStream(messages);
+            const krHybridStream = await generateGeminiResponseStream(
+              messages,
+              geminiCallOptions,
+            );
             let rawResponse = "";
             for await (const chunk of krHybridStream) {
               if (clientClosed) break;
@@ -7196,7 +7263,10 @@ RULES:
             // All 7 JP Hybrid tabs return the same sentinel-wrapped key-only
             // JSON (see AstriaJapanHybridService.js) — buffer the full stream,
             // extract + validate, then render display text in one shot.
-            const jpHybridStream = await generateGeminiResponseStream(messages);
+            const jpHybridStream = await generateGeminiResponseStream(
+              messages,
+              geminiCallOptions,
+            );
             let rawResponse = "";
             for await (const chunk of jpHybridStream) {
               if (clientClosed) break;
@@ -7619,6 +7689,9 @@ RULES:
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else {
             let stream;
+            // console.log(
+            //   `[Gemini cache debug] categoryName=${JSON.stringify(categoryName)} isAstriaSpanish=${isAstriaSpanish} isAstriaSpanishV2=${isAstriaSpanishV2}`,
+            // );
             if (
               subCategoryName === "ThaiAstro V3" ||
               subCategoryName === "รหัส Healjai V3" ||
@@ -7628,9 +7701,15 @@ RULES:
               categoryName === "Companion Talk"
             ) {
               // stream = await generateClaudeResponseStream(messages);
-              stream = await generateGeminiResponseStream(messages);
+              stream = await generateGeminiResponseStream(
+                messages,
+                geminiCallOptions,
+              );
             } else {
-              stream = await generateGeminiResponseStream(messages);
+              stream = await generateGeminiResponseStream(
+                messages,
+                geminiCallOptions,
+              );
             }
 
             if (isSamayPravah) {
@@ -7852,6 +7931,9 @@ RULES:
                   promptSource,
                   selectedCaseId: selectedCaseId || null,
                   chatLang,
+                  geminiCacheName: pendingGeminiCacheInfo?.name || null,
+                  geminiCacheExpiresAt:
+                    pendingGeminiCacheInfo?.expiresAt || null,
                   ...myv2PartnerDobToPersist,
                   ...krV3PartnerDobToPersist,
                   ...krV3UserCityToPersist,
@@ -8103,6 +8185,30 @@ RULES:
       let finalAiResponse = "";
 
       // Astria PH/VN/ID V2 Response Processing
+      // chat can still be null here for a brand-new session (created via
+      // ChatHistory.create() further below, after this Gemini call) — see
+      // pendingGeminiCacheInfo comment on the streaming path above.
+      const pendingGeminiCacheInfoNonStream = {
+        name: chat?.geminiCacheName || null,
+        expiresAt: chat?.geminiCacheExpiresAt || null,
+      };
+      const nonStreamGeminiCallOptions =
+        isAstriaSpanish || isAstriaSpanishV2
+          ? {
+              cache: {
+                name: pendingGeminiCacheInfoNonStream.name,
+                expiresAt: pendingGeminiCacheInfoNonStream.expiresAt,
+                onCacheCreated: (name, expiresAt) => {
+                  pendingGeminiCacheInfoNonStream.name = name;
+                  pendingGeminiCacheInfoNonStream.expiresAt = expiresAt;
+                  if (chat) {
+                    chat.geminiCacheName = name;
+                    chat.geminiCacheExpiresAt = expiresAt;
+                  }
+                },
+              },
+            }
+          : undefined;
       const completion = phVnIdV2ExpansionPrompt
         ? await generateGeminiResponse([
             { role: "system", content: phVnIdV2ExpansionPrompt },
@@ -8110,7 +8216,7 @@ RULES:
           ])
         : isPhIdV2CopyPackLane
           ? phVnIdV2FinalResponse
-          : await generateGeminiResponse(messages);
+          : await generateGeminiResponse(messages, nonStreamGeminiCallOptions);
       finalAiResponse =
         completion?.trim() || phVnIdV2FinalResponse || "No response";
 
@@ -8908,6 +9014,9 @@ RULES:
               promptSource,
               selectedCaseId: selectedCaseId || null,
               chatLang,
+              geminiCacheName: pendingGeminiCacheInfoNonStream?.name || null,
+              geminiCacheExpiresAt:
+                pendingGeminiCacheInfoNonStream?.expiresAt || null,
               ...myv2PartnerDobToPersist,
               ...myv3PartnerDobToPersist,
               ...krV3PartnerDobToPersist,

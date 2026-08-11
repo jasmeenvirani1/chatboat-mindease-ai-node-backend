@@ -1,59 +1,6 @@
 "use strict";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ASTRIA JAPAN HYBRID SERVICE
-// Full implementation of the client's JP Master Prompt (Jp.txt) — Hybrid +
-// Traditional tabs, all 11 categories, lane logic, fallback rules, memory
-// rules, and a self-scoring engine.
-//
-// Two response modes:
-//   - Hybrid Mode (V3 Hybrid Clear)      — 1–2 lines, clear/minimal/objective
-//   - Traditional Mode (V1 Hybrid Soft)  — 2–3 lines, soft/gentle/warm
-// Both modes share the exact same 11 categories, JSON field names/sentinels,
-// chart data, and framework structure below — only the tone/length
-// instruction block differs (mirrors Astria Korea Hybrid's mode toggle
-// exactly). No metaphor, no imagery, no narrative, no horoscope fantasy.
-//
-// This module does NOT duplicate the Western chart engine. It reuses the real
-// engine from astriaJapanService.js (chart computation, chart formatting,
-// energy-match partner parsing) — same architecture as Astria Japan V3:
-//   - Code provides: structural skeleton, chart data, output format rules
-//   - DB subcategory `prompt` field provides: REFERENCE TONE examples per field
-//   - DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS holds the default reference-tone
-//     pack per tab (derived from the client's jp_hybrid_json_pack examples).
-// Each field's examples are REFERENCE TONE only, not a fixed menu — the model
-// writes fresh Japanese text every turn grounded in the user's real message
-// and chart data (see JP_HYBRID_GENERATION_RULE), so responses stay unique
-// instead of repeating the same handful of canned lines on every reply.
-//
-// 11 Subcategories (Hybrid, per Jp.txt's full structure block):
-//   1. Daily Flow JP Hybrid       — energy/mood/mind-checkin, time-based
-//   2. Daily Companion JP Hybrid  — morning/day/night sets + question
-//   3. Life Map JP Hybrid         — mood/place/lifestyle, location-based
-//   4. Food JP Hybrid             — functional food + drink/mood pair
-//   5. Relationship JP Hybrid     — mood + soft words + action
-//   6. Compatibility JP Hybrid    — score_band (high/medium/low) + theme + advice (needs 2 charts)
-//   7. Energy Match JP Hybrid     — theme + label (needs 2 charts)
-//   8. MateScan JP Hybrid         — overview/communication/distance/pace (needs 2 charts)
-//   9. Lifestyle JP Hybrid        — indoor/outdoor/quiet/active
-//  10. Place JP Hybrid            — cafe/park/home/library
-//  11. Weather JP Hybrid          — sunny/cloudy/rain/hot
-//
-// Every builder also carries: LANE LOGIC (calm/active/social/reflective/
-// neutral), FALLBACK RULES (silent graceful degradation), MEMORY RULES
-// (reuse birth/partner info, ask once), and a SCORING RULE (the model
-// self-scores its own output 0-10 on tone/structure/localization/logic/
-// hybrid_fit/final_score as a sibling "score" JSON key — internal QA data
-// only, never rendered into the visible response text).
-//
-// NO SAJU — the JP lane never uses Saju/Four Pillars, unlike Korea Hybrid.
-// English is allowed only inside "Daily Flow", "Energy Match", "MateScan",
-// "LifeMap" labels per the client spec; every generated string itself stays
-// Japanese.
-//
-// Zero impact on "Astria Japan", "Astria Japan V3", "Astria Japan Talk" — a
-// separate category name, separate builder map, separate default prompts.
-// ─────────────────────────────────────────────────────────────────────────────
+// Astria Japan Hybrid Service — builds the JP Hybrid prompt for each tab, plus
 
 const {
   computeWesternBirthChartJP,
@@ -63,15 +10,9 @@ const {
   isCompatibilitySubcategoryJP,
 } = require("./astriaJapanService");
 
-// Japanese is the only language Hybrid is ever allowed to reply in — the
-// client spec is JP-only content (English permitted only for the handful of
-// UI-facing labels named in the spec, never inside generated sentences).
 const JP_HYBRID_LANG_NAME = "Japanese";
 
-// Current-residence city (NOT birthplace) — used by Life Map JP Hybrid to
-// stop defaulting to Tokyo-only suggestions. Deliberately conservative
-// (present-tense "live in" phrasing only) so it never misfires on a
-// birthplace mention like "生まれたのは東京です" / "born in Tokyo".
+// extract city from text
 function extractCurrentCityFromTextJPHybrid(text = "") {
   const src = String(text || "");
   const patterns = [
@@ -87,6 +28,7 @@ function extractCurrentCityFromTextJPHybrid(text = "") {
   return null;
 }
 
+// HYBRID MODE
 const JP_HYBRID_TONE_MATRIX = `
 JP HYBRID VOICE — CORE IDENTITY (Hybrid Mode = V3 Hybrid Clear):
 - Short, clear, objective, minimal
@@ -98,9 +40,7 @@ JP HYBRID VOICE — CORE IDENTITY (Hybrid Mode = V3 Hybrid Clear):
   identical (see GENERATION RULE below)
 NEVER: metaphor, imagery, narrative, horoscope fantasy.`.trim();
 
-// TRADITIONAL MODE — V1 Hybrid Soft, per Jp.txt jp_master_prompt.rules
-// .traditional_mode: soft, gentle, warm, 2–3 lines per block. Shares the same
-// key packs, JSON shape, and NEVER rules as Hybrid Mode — only length/warmth differs.
+// TRADITIONAL MODE
 const JP_TRADITIONAL_TONE_MATRIX = `
 JP TRADITIONAL VOICE — CORE IDENTITY (Traditional Mode = V1 Hybrid Soft):
 - Soft, gentle, warm — fuller and gentler than Hybrid Mode
@@ -112,30 +52,8 @@ JP TRADITIONAL VOICE — CORE IDENTITY (Traditional Mode = V1 Hybrid Soft):
   identical (see GENERATION RULE below)
 NEVER: metaphor, imagery, narrative, horoscope fantasy.`.trim();
 
-// GENERATION RULE — replaces the old strict verbatim key-selection rule.
-// Each key pack below is REFERENCE TONE (examples of the target voice/length/
-// register), not a fixed menu — the model writes new Japanese sentences every
-// turn, grounded in the user's real message and chart data, matching the
-// reference examples' tone/structure/length exactly. Mirrors Astria Korea
-// Hybrid's "REFERENCE TONE — do not copy verbatim" pattern so JP Hybrid stops
-// producing the same handful of canned lines on every reply.
-const JP_HYBRID_GENERATION_RULE = `
-GENERATION RULE (CRITICAL):
-- The examples under each field below are REFERENCE TONE only — they show the target voice,
-  length, and register. Do NOT copy them verbatim and do NOT treat them as a fixed menu to pick
-  from.
-- Write a FRESH Japanese sentence for every field, every turn, grounded in: the user's actual
-  message, the real computed chart/transit data, and today's context (time of day, weather, lane).
-- Never output the same sentence twice across turns unless the user's situation is genuinely
-  unchanged — vary wording naturally the way a real person would when asked the same thing twice.
-- Stay strictly inside the field's topic/theme (e.g. a "mood" field stays about mood) and the
-  tone/length rules above — freedom is in wording, not in topic, structure, or rule-breaking.`.trim();
-
 const JP_HYBRID_OUTPUT_RULE =
   "OUTPUT FORMAT — CRITICAL: your entire reply must be exactly the sentinel line <<<ASTRIA_JAPAN_HYBRID_DATA>>>, then the JSON object (and nothing else) matching the exact shape shown below, then the sentinel line <<<END_ASTRIA_JAPAN_HYBRID_DATA>>>. Both sentinel lines are LITERAL TEXT you must output verbatim — they are not placeholders or labels, copy them exactly as shown, character for character. Never omit them, never paraphrase them, never wrap the JSON in markdown code fences. Every string value inside the JSON must be freshly written Japanese text per the GENERATION RULE above — never copy a reference example verbatim.";
-
-const JP_HYBRID_LANGUAGE_RULE =
-  "LANGUAGE RULE: Every JSON string value must be written fully in Japanese. Never use English or Thai inside a value, no matter what language the user wrote in.";
 
 // Resolves the tone matrix + role label for the given mode — every builder
 // below calls this once instead of hardcoding JP_HYBRID_TONE_MATRIX.
@@ -145,89 +63,69 @@ function resolveJPModeVoice(mode) {
   const isTraditional = mode === "traditional";
   return {
     isTraditional,
-    toneMatrix: isTraditional ? JP_TRADITIONAL_TONE_MATRIX : JP_HYBRID_TONE_MATRIX,
+    toneMatrix: isTraditional
+      ? JP_TRADITIONAL_TONE_MATRIX
+      : JP_HYBRID_TONE_MATRIX,
     roleLabel: isTraditional
       ? "You are Astria Japan Traditional — soft, gentle, warm JP key-driven readings (2–3 lines per block, V1 Hybrid Soft)."
       : "You are Astria Japan Hybrid — JP V2's warmth combined with JP V3's structure (1–2 lines per block, V3 Hybrid Clear).",
   };
 }
 
-// FOLLOW-UP TIMING RULE — ports the JP Hybrid Follow-up Timing Pack from the
-// client spec (future/present/past tense-matching).
-const JP_HYBRID_FOLLOWUP_TIMING_RULE = `
-FOLLOW-UP TIMING RULE (applies to followUpQuestions, when the tab includes them): match each
-question's tense to when the reading content it follows actually happens —
-- Future → expectation-style question (something later today or still ahead).
-- Present → feeling-style question (something happening right now).
-- Past → reflection-style question — only when the content already described something as done.
-`.trim();
+// SCORING + LANGUAGE tail — kept as its own constant (rather than folded
+// into buildJPHybridStaticRules below) so Compatibility JP Hybrid can insert
+// its own COMPATIBILITY BAND RULE between the fallback/memory rules and
+// scoring; every other builder gets this appended automatically via
+// buildJPHybridStaticRules()'s default includeScoring: true.
+const JP_HYBRID_SCORING_AND_LANGUAGE_RULES = `
+- SCORING: after writing the reading, honestly self-score it 0-10 as a sibling "score" object
+  (never merged into the tab's own fields, never shown inside the reading's own text) — tone (10
+  only if zero metaphor/imagery/narrative/horoscope-fantasy/emotional-essay), structure (10 only if
+  line count and JSON shape are exactly correct), localization (10 only if fully Japanese, no
+  English/Thai leakage), logic (10 only if genuinely grounded in the real data given), hybrid_fit
+  (10 only if tone/length matches the active mode with no drift), final_score (the honest overall —
+  typically the lowest axis, never inflated to 10).
+- LANGUAGE: every JSON string value must be written fully in Japanese. Never use English or Thai
+  inside a value, no matter what language the user wrote in.`.trim();
 
-// LANE LOGIC — ports the JP Master Prompt's lane_logic block (Jp.txt): every
-// tab reads against one of five lanes, picked from the user's actual message
-// tone and today's context — never asked as a separate question. Defaults to
-// "calm" (client spec default_lane) when the message gives no signal, and to
-// "neutral" (fallback_lane) if "calm" itself doesn't fit the content being
-// generated. Mirrors Astria Korea Hybrid's KR_HYBRID_LANE_LOGIC_RULE, kept
-// deliberately compact (folded together with fallback/scoring below) so the
-// OUTPUT FORMAT + sentinel instruction stays close to the JSON template —
-// stacking four separately-headed rule blocks here was pushing the model to
-// drop the literal sentinel strings on short/simple tabs (e.g. Weather).
-const JP_HYBRID_LANE_LOGIC_RULE = `
-LANE LOGIC — silently pick ONE lane from the user's message tone/context (never ask which lane
-they want): calm (quiet/steady, the default), active (energetic/busy), social (people-facing),
-reflective (introspective), or neutral (fallback, only if none of the above fits). Let it shape
-word choice/pacing without naming the lane in the output.
+// Hybrid static rules
+function buildJPHybridStaticRules({
+  includeMemory = true,
+  includeScoring = true,
+} = {}) {
+  return `
+STATIC RULES (apply on every turn):
+- GENERATION: the examples under each field in the framework above are REFERENCE TONE only — they
+  show the target voice, length, and register. Do NOT copy them verbatim and do NOT treat them as
+  a fixed menu to pick from. Write a FRESH Japanese sentence for every field, every turn, grounded
+  in the user's actual message, the real computed chart/transit data, and today's context (time of
+  day, weather, lane). Never repeat the same sentence across turns unless the user's situation is
+  genuinely unchanged. Stay strictly inside each field's topic/theme — freedom is in wording, not
+  topic, structure, or rule-breaking.
+- LANE LOGIC: silently pick ONE lane from the user's message tone/context (never ask which lane
+  they want): calm (quiet/steady, the default), active (energetic/busy), social (people-facing),
+  reflective (introspective), or neutral (fallback, only if none of the above fits). Let it shape
+  word choice/pacing without naming the lane in the output.
+- FALLBACK (apply silently, never as an error/apology): missing lane → calm; missing time-of-day →
+  treat as "day"; missing a key/value this tab would normally fill → a neutral, low-specificity
+  line, never a fabricated detail; missing birth/partner data this reading needs → ask once${includeMemory ? " (see MEMORY below)" : ""}, never repeatedly.${
+    includeMemory
+      ? `
+- MEMORY: reuse the user's own birth info and any known partner info once given — never ask again
+  while unchanged. Ask for missing birth/partner info once, plainly, then move on. If the user
+  introduces a different partner (conflicting name/DOB), treat it as a partner change: drop the
+  old partner's info and ask fresh for the new one, keeping the user's own birth info intact.`
+      : ""
+  }
+${includeScoring ? JP_HYBRID_SCORING_AND_LANGUAGE_RULES : ""}
 `.trim();
-
-// FALLBACK RULES — ports the JP Master Prompt's fallback_rules block (Jp.txt).
-const JP_HYBRID_FALLBACK_RULES = `
-FALLBACK RULES (apply silently, never as an error/apology): missing lane → calm; missing
-time-of-day → treat as "day"; missing a key/value this tab would normally fill → a neutral,
-low-specificity line, never a fabricated detail; missing birth/partner data this reading needs →
-ask once (see MEMORY RULES), never repeatedly.
-`.trim();
-
-// MEMORY RULES — ports the JP Master Prompt's memory block (Jp.txt). Omitted
-// from Food JP Hybrid only (see buildFoodHybridJPPrompt) — the sole tab with
-// no birth chart or partner data at all, where this rule has nothing to
-// apply to and was adding pure instruction bulk.
-const JP_HYBRID_MEMORY_RULES = `
-MEMORY RULES: reuse the user's own birth info and any known partner info once given — never ask
-again while unchanged. Ask for missing birth/partner info once, plainly, then move on. If the user
-introduces a different partner (conflicting name/DOB), treat it as a partner change: drop the old
-partner's info and ask fresh for the new one, keeping the user's own birth info intact.
-`.trim();
-
-// SCORING RULE — ports the JP Master Prompt's scoring engine (Jp.txt section
-// 11): a self-check the model performs on its OWN output before returning it,
-// scored 0-10 on each axis. This is internal QA data only — never shown to
-// the end user — appended as a sibling "score" key alongside the tab's own
-// root key in the same JSON blob, so extractAstriaJapanHybridData picks it up
-// automatically with zero extraction changes. A malformed/missing score
-// block never invalidates an otherwise-valid reading (see
-// validateAstriaJapanHybridData, which only checks the tab's own root key).
-const JP_HYBRID_SCORING_RULE = `
-SCORING RULE: after writing the reading, honestly self-score it 0-10 as a sibling "score" object
-(never merged into the tab's own fields, never shown inside the reading's own text) — tone (10
-only if zero metaphor/imagery/narrative/horoscope-fantasy/emotional-essay), structure (10 only if
-line count and JSON shape are exactly correct), localization (10 only if fully Japanese, no
-English/Thai leakage), logic (10 only if genuinely grounded in the real data given), hybrid_fit
-(10 only if tone/length matches the active mode with no drift), final_score (the honest overall —
-typically the lowest axis, never inflated to 10).
-`.trim();
+}
 
 function wrapJPHybridSubcategoryContent(label, content) {
   return `━━━ SUBCATEGORY CONTENT (${label}; tone always follows the voice block above) ━━━\n${content}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nThe content above is REFERENCE TONE for topic/field-scope only — per the GENERATION RULE, write fresh wording grounded in the user's actual message and real chart data, never copy an example verbatim. Tone always follows the voice block above, regardless of any phrasing in this content.`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DEFAULT SUBCATEGORY PROMPTS (Hybrid)
-// Derived from the client's jp_hybrid_json_pack. Each block below is REFERENCE
-// TONE — examples of the target voice/length/field-scope for that tab, NOT a
-// fixed menu. Per JP_HYBRID_GENERATION_RULE, the model writes a fresh sentence
-// for every field on every turn, grounded in the user's actual message and the
-// real computed chart/transit data, matching the reference examples' register.
-// ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS = {
   daily_flow: `
 DAILY FLOW FRAMEWORK — energy_flow (morning/day/night beats) + mood_flow (mood, reflection,
@@ -436,9 +334,15 @@ REFERENCE TONE (do not copy verbatim):
 // to the default key pack above, then wraps it with chart data + output rules.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildDailyFlowHybridJPPrompt({ mode, dbPrompt, birthChart, userMessage }) {
+function buildDailyFlowHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.daily_flow;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.daily_flow;
   const chartBlock = formatChartBlockJP(birthChart, "transits");
 
   return `${roleLabel}
@@ -451,15 +355,7 @@ ${wrapJPHybridSubcategoryContent("daily flow framework", subcategoryContent)}
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS (ground the reading in this real data):\n${chartBlock}` : ""}
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -479,13 +375,20 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildDailyCompanionHybridJPPrompt({ mode, dbPrompt, birthChart, recentStress, recentTopics, userMessage }) {
+function buildDailyCompanionHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  recentStress,
+  recentTopics,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.daily_companion;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.daily_companion;
   const chartBlock = formatChartBlockJP(birthChart, "transits");
 
   const memoryContext =
@@ -504,15 +407,7 @@ ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS (ground the re
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 ${memoryContext}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -530,13 +425,19 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildLifeMapHybridJPPrompt({ mode, dbPrompt, birthChart, userCity, userMessage }) {
+function buildLifeMapHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  userCity,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.life_map;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.life_map;
   const chartBlock = formatChartBlockJP(birthChart, "transits");
 
   const locationSection = userCity
@@ -557,15 +458,7 @@ ${locationSection}
 ${chartBlock ? `USER'S COMPUTED BIRTH CHART (ground the reading in this real data):\n${chartBlock}` : ""}
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -585,13 +478,13 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
 function buildFoodHybridJPPrompt({ mode, dbPrompt, userMessage }) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.food;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.food;
 
   return `${roleLabel}
 YOUR FOCUS: Food JP Hybrid — fresh functional food + drink/mood suggestion only.
@@ -601,13 +494,7 @@ ${toneMatrix}
 ${wrapJPHybridSubcategoryContent("food framework", subcategoryContent)}
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules({ includeMemory: false })}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -625,19 +512,29 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildRelationshipHybridJPPrompt({ mode, dbPrompt, birthChart, birthChartB, selfName, partnerName, userMessage }) {
+function buildRelationshipHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  birthChartB,
+  selfName,
+  partnerName,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.relationship;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.relationship;
 
   const selfLabel = selfName ? `あなた（${selfName}）` : "あなた";
   const partnerLabel = partnerName ? `相手（${partnerName}）` : "相手";
 
   const chartBlockA = formatChartBlockJP(birthChart, "relationship");
-  const chartBlockB = birthChartB ? formatChartBlockJP(birthChartB, "relationship") : null;
+  const chartBlockB = birthChartB
+    ? formatChartBlockJP(birthChartB, "relationship")
+    : null;
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
@@ -661,15 +558,7 @@ ${chartsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -689,19 +578,29 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildCompatibilityHybridJPPrompt({ mode, dbPrompt, birthChart, birthChartB, selfName, partnerName, userMessage }) {
+function buildCompatibilityHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  birthChartB,
+  selfName,
+  partnerName,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.compatibility;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.compatibility;
 
   const selfLabel = selfName ? `あなた（${selfName}）` : "あなた";
   const partnerLabel = partnerName ? `相手（${partnerName}）` : "相手";
 
   const chartBlockA = formatChartBlockJP(birthChart, "relationship");
-  const chartBlockB = birthChartB ? formatChartBlockJP(birthChartB, "relationship") : null;
+  const chartBlockB = birthChartB
+    ? formatChartBlockJP(birthChartB, "relationship")
+    : null;
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
@@ -724,13 +623,7 @@ ${chartsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
+${buildJPHybridStaticRules({ includeScoring: false })}
 
 COMPATIBILITY BAND RULE — per Jp.txt's compatibility structure (high/medium/low): decide which
 ONE qualitative band this specific pairing's real chart combination actually falls into, set
@@ -743,7 +636,7 @@ matching that band's real meaning:
 Never invent a band that doesn't match the actual chart data, and never soften a genuinely low-ease
 combination into "high" just to sound nicer.
 
-${JP_HYBRID_SCORING_RULE}
+${JP_HYBRID_SCORING_AND_LANGUAGE_RULES}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -764,19 +657,29 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildEnergyMatchHybridJPPrompt({ mode, dbPrompt, birthChart, birthChartB, selfName, partnerName, userMessage }) {
+function buildEnergyMatchHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  birthChartB,
+  selfName,
+  partnerName,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.energy_match;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.energy_match;
 
   const selfLabel = selfName ? `あなた（${selfName}）` : "あなた";
   const partnerLabel = partnerName ? `相手（${partnerName}）` : "相手";
 
   const chartBlockA = formatChartBlockJP(birthChart, "relationship");
-  const chartBlockB = birthChartB ? formatChartBlockJP(birthChartB, "relationship") : null;
+  const chartBlockB = birthChartB
+    ? formatChartBlockJP(birthChartB, "relationship")
+    : null;
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
@@ -800,15 +703,7 @@ ${chartsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 The "you"/"other" label values are code-computed and appended after generation — leave them as
@@ -830,19 +725,29 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildMateScanHybridJPPrompt({ mode, dbPrompt, birthChart, birthChartB, selfName, partnerName, userMessage }) {
+function buildMateScanHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  birthChartB,
+  selfName,
+  partnerName,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.matescan;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.matescan;
 
   const selfLabel = selfName ? `あなた（${selfName}）` : "あなた";
   const partnerLabel = partnerName ? `相手（${partnerName}）` : "相手";
 
   const chartBlockA = formatChartBlockJP(birthChart, "relationship");
-  const chartBlockB = birthChartB ? formatChartBlockJP(birthChartB, "relationship") : null;
+  const chartBlockB = birthChartB
+    ? formatChartBlockJP(birthChartB, "relationship")
+    : null;
 
   let chartsSection = "";
   if (chartBlockA && chartBlockB) {
@@ -866,15 +771,7 @@ ${chartsSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -895,13 +792,19 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildLifestyleHybridJPPrompt({ mode, dbPrompt, birthChart, weatherContext, userMessage }) {
+function buildLifestyleHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  weatherContext,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.lifestyle;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.lifestyle;
   const chartBlock = formatChartBlockJP(birthChart, "transits");
 
   return `${roleLabel}
@@ -915,15 +818,7 @@ ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS (ground the re
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nLet this shape which suggestion leads honestly — do not fabricate weather details beyond what is given.` : ""}
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -944,13 +839,20 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildPlaceHybridJPPrompt({ mode, dbPrompt, birthChart, weatherContext, userCity, userMessage }) {
+function buildPlaceHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  weatherContext,
+  userCity,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.place;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.place;
   const chartBlock = formatChartBlockJP(birthChart, "transits");
 
   const locationSection = userCity
@@ -972,15 +874,7 @@ ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS (ground the re
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nLet this shape which place type leads honestly — do not fabricate weather details beyond what is given.` : ""}
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -1001,13 +895,19 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
-function buildWeatherHybridJPPrompt({ mode, dbPrompt, birthChart, weatherContext, userMessage }) {
+function buildWeatherHybridJPPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  weatherContext,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
-  const subcategoryContent = dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.weather;
+  const subcategoryContent =
+    dbPrompt || DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS.weather;
   const chartBlock = formatChartBlockJP(birthChart, "transits");
 
   return `${roleLabel}
@@ -1021,15 +921,7 @@ ${chartBlock ? `USER'S COMPUTED BIRTH CHART WITH TODAY'S TRANSITS (ground the re
 ${weatherContext ? `\nTODAY'S WEATHER CONTEXT: ${weatherContext}\nLead with the key matching this actual weather — never invent weather details beyond what is given.` : "\nNO WEATHER CONTEXT AVAILABLE. Per FALLBACK RULES, treat today as an ordinary day rather than guessing at specific weather — lead with whichever key reads most neutrally."}
 ${userMessage ? `\nUSER'S MESSAGE (write fresh wording that actually responds to this):\n${userMessage}` : ""}
 
-${JP_HYBRID_GENERATION_RULE}
-
-${JP_HYBRID_LANE_LOGIC_RULE}
-
-${JP_HYBRID_FALLBACK_RULES}
-
-${JP_HYBRID_MEMORY_RULES}
-
-${JP_HYBRID_SCORING_RULE}
+${buildJPHybridStaticRules()}
 
 ${JP_HYBRID_OUTPUT_RULE}
 ${ASTRIA_JAPAN_HYBRID_START}
@@ -1050,8 +942,7 @@ ${ASTRIA_JAPAN_HYBRID_START}
   }
 }
 ${ASTRIA_JAPAN_HYBRID_END}
-
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+`.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1107,7 +998,9 @@ function extractAstriaJapanHybridData(text) {
   const end = src.indexOf(ASTRIA_JAPAN_HYBRID_END);
 
   if (start !== -1 && end !== -1 && end > start) {
-    const jsonStr = src.slice(start + ASTRIA_JAPAN_HYBRID_START.length, end).trim();
+    const jsonStr = src
+      .slice(start + ASTRIA_JAPAN_HYBRID_START.length, end)
+      .trim();
     const parsed = repairAndParseJPHybridJSON(jsonStr);
     if (parsed) return parsed;
     return null;
@@ -1154,7 +1047,8 @@ const JP_HYBRID_TAB_SCHEMA = [
   },
   {
     rootKey: "compatibility",
-    match: (name) => name.includes("compatibility") || name.includes("compatability"),
+    match: (name) =>
+      name.includes("compatibility") || name.includes("compatability"),
     // score_band = which of the three qualitative bands (high/medium/low)
     // this pairing's real chart combination fell into — required so the
     // reading foregrounds the correct band instead of an arbitrary one,
@@ -1229,10 +1123,7 @@ function validateAstriaJapanHybridData(data, subCategoryName) {
     : requiredFields.every(isNonEmptyString);
 }
 
-// Fills the Energy Match "you"/"other" labels from real computed chart data
-// — the model is told to leave them empty (see buildEnergyMatchHybridJPPrompt)
-// so these values can never be invented, mirroring Korea Hybrid's
-// code-computed you/otherPerson birth+zodiac pattern.
+// Extracts You/Other labels for energy match
 function deriveEnergyMatchLabels(data, birthChart, birthChartB) {
   if (!data || !data.energy_match) return data;
   const you = birthChart
@@ -1251,11 +1142,7 @@ function deriveEnergyMatchLabels(data, birthChart, birthChartB) {
   };
 }
 
-// Renders the extracted key-selection JSON into plain display text — no
-// markup, one line per field, in the order the schema defines. Uses
-// displayFields when a schema defines it (e.g. Compatibility's score_band is
-// a routing label, not prose, so it's validated but never shown) — falls
-// back to fields for every other tab, unchanged.
+// Renders the extracted JSON into a display string for the user, using the
 function formatAstriaJapanHybridResponse(data, subCategoryName) {
   const schema = resolveJPHybridTabSchema(subCategoryName);
   if (!schema || !data) return "";
@@ -1270,7 +1157,12 @@ function formatAstriaJapanHybridResponse(data, subCategoryName) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY-LEVEL FALLBACK (Hybrid)
 // ─────────────────────────────────────────────────────────────────────────────
-function buildCategoryFallbackJPHybridPrompt({ mode, dbPrompt, birthChart, userMessage }) {
+function buildCategoryFallbackJPHybridPrompt({
+  mode,
+  dbPrompt,
+  birthChart,
+  userMessage,
+}) {
   const { toneMatrix, roleLabel } = resolveJPModeVoice(mode);
   const chartSummary = birthChart
     ? `USER'S BIRTH CHART:\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}`
@@ -1291,26 +1183,17 @@ Relationship JP Hybrid, Compatibility JP Hybrid, and Energy Match JP Hybrid.
 Answer using whichever framework fits most honestly, writing fresh wording every time per the
 GENERATION RULE — never a generic or repeated line.
 
-${JP_HYBRID_LANGUAGE_RULE}`.trim();
+LANGUAGE RULE: Every JSON string value must be written fully in Japanese. Never use English or Thai inside a value, no matter what language the user wrote in.`.trim();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SUBCATEGORY NAME → BUILDER MAP (Hybrid)
-// Expected subcategory names: "Daily Flow JP Hybrid", "Daily Companion JP
-// Hybrid", "Life Map JP Hybrid", "Food JP Hybrid", "Relationship JP Hybrid",
-// "Compatibility JP Hybrid", "Energy Match JP Hybrid", "MateScan JP Hybrid",
-// "Lifestyle JP Hybrid", "Place JP Hybrid", "Weather JP Hybrid".
-// These keywords only activate inside the isAstriaJapanHybrid block.
-// "energy match", "daily companion", and "matescan"/"mate scan" are checked
-// before their shorter substrings ("relationship"/"companion") so they never
-// collide; "life map" is checked before "place" for the same reason (a place
-// suggestion inside Life Map's own framework should never resolve to the
-// standalone Place tab).
-// ─────────────────────────────────────────────────────────────────────────────
 const JP_HYBRID_SUBCATEGORY_BUILDERS = [
   { keywords: ["energy match"], builder: buildEnergyMatchHybridJPPrompt },
   { keywords: ["matescan", "mate scan"], builder: buildMateScanHybridJPPrompt },
-  { keywords: ["compatibility", "compatability"], builder: buildCompatibilityHybridJPPrompt },
+  {
+    keywords: ["compatibility", "compatability"],
+    builder: buildCompatibilityHybridJPPrompt,
+  },
   { keywords: ["daily flow"], builder: buildDailyFlowHybridJPPrompt },
   { keywords: ["daily companion"], builder: buildDailyCompanionHybridJPPrompt },
   { keywords: ["life map"], builder: buildLifeMapHybridJPPrompt },
@@ -1338,7 +1221,9 @@ function subcategoryNameMatches(subCategoryName, { anyOf, noneOf }) {
 }
 
 const isCompatibilitySubcategoryJPHybrid = (subCategoryName) =>
-  subcategoryNameMatches(subCategoryName, { anyOf: ["compatibility", "compatability"] });
+  subcategoryNameMatches(subCategoryName, {
+    anyOf: ["compatibility", "compatability"],
+  });
 
 const isEnergyMatchSubcategoryJPHybrid = (subCategoryName) =>
   subcategoryNameMatches(subCategoryName, { anyOf: ["energy match"] });
@@ -1407,7 +1292,12 @@ function buildAstriaJapanHybridContext({
 
   const builder = resolveJPHybridSubcategoryBuilder(subCategoryName);
   if (builder) return builder(params);
-  return buildCategoryFallbackJPHybridPrompt({ mode: params.mode, dbPrompt, birthChart, userMessage });
+  return buildCategoryFallbackJPHybridPrompt({
+    mode: params.mode,
+    dbPrompt,
+    birthChart,
+    userMessage,
+  });
 }
 
 module.exports = {

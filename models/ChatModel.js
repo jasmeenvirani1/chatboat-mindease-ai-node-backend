@@ -119,6 +119,13 @@ const ChatHistorySchema = new Schema(
       default: "New Chat",
     },
 
+    // Gemini explicit context cache for this chat session's static system
+    // instruction (persona/profile prefix). Set once per session, reused
+    // on later turns until it expires, scoped to this chat doc so a new
+    // chat thread starts fresh.
+    geminiCacheName: { type: String, default: null },
+    geminiCacheExpiresAt: { type: Date, default: null },
+
     chats: {
       type: [ChatMessageSchema],
       required: true,
