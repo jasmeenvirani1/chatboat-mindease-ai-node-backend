@@ -10,6 +10,9 @@ const {
 const HeadlineModel = require("../models/HeadlineModel.js");
 const TrendingTopicModel = require("../models/TrendingTopicModel.js");
 const User = require("../models/UserModel.js");
+const {
+  SPANISH_TONE_LOCK_VALUES_SET,
+} = require("../helper/spanishToneLock.js");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 const { generateClaudeResponseStream } = require("../helper/claudeService.js");
 const {
@@ -17,7 +20,7 @@ const {
   getSentencesForEmotion,
 } = require("../helper/SentencesGenerator.js");
 const { translateText } = require("../helper/translation.js");
-const { buildPrompt } = require("../helper/search.js");
+const { buildPrompt, embedQuery } = require("../helper/search.js");
 const UserMusicMemory = require("../models/UserMusicMemoryModel.js");
 const {
   detectMusicIntent,
@@ -83,6 +86,7 @@ const {
 } = require("../helper/astriaUSService");
 const {
   buildAstriaSpanishContext,
+  buildAstriaSpanishV2Context,
   computeWesternBirthChart: computeWesternBirthChartES,
   parseEnergyMatchPartners: parseEnergyMatchPartnersES,
   buildEnergyMatchMissingQuestion: buildEnergyMatchMissingQuestionES,
@@ -139,7 +143,8 @@ const {
   buildAstriaKoreaHybridContext,
   computeWesternBirthChartKR: computeWesternBirthChartKRHybrid,
   parseCompatibilityPartnersKR: parseCompatibilityPartnersKRHybrid,
-  buildCompatibilityMissingQuestionKR: buildCompatibilityMissingQuestionKRHybrid,
+  buildCompatibilityMissingQuestionKR:
+    buildCompatibilityMissingQuestionKRHybrid,
   isRelationshipEngineSubcategoryKRHybrid,
   isRelationshipSetSubcategoryKRHybrid,
   isCompatibilitySubcategoryKRHybrid,
@@ -333,6 +338,21 @@ const {
 } = require("../helper/AstriaTalkEngine");
 
 // Append the user's date of birth and latest message to the system prompt
+// Only the first Astria lane whose category matches should fire, so each
+// new lane also has to check that none of the earlier lanes already
+// matched. pickFirstMatch() tracks which lanes matched so far and applies
+// that exclusion automatically, instead of every lane repeating its own
+// "&& !isX && !isY && ...".
+function astriaLanePicker() {
+  const matchedLanes = [];
+  return function pickFirstMatch(isCandidateLane) {
+    const matched =
+      Boolean(isCandidateLane) && matchedLanes.every((lane) => !lane);
+    matchedLanes.push(matched);
+    return matched;
+  };
+}
+
 function appendAstriaDobAndMessageContext(
   systemPrompt,
   dob,
@@ -1091,10 +1111,7 @@ function extractBirthPlaceFromText(text = "") {
   return null;
 }
 
-// Current-residence city (NOT birthplace) — used by Astria Korea V3 Life Map
-// to stop defaulting to Seoul-only suggestions. Deliberately conservative
-// (present-tense "live in" phrasing only) so it never misfires on a
-// birthplace mention like "태어난 곳은 서울" or "born in Seoul".
+// extract city from text (Korean + English)
 function extractCurrentCityFromTextKRV3(text = "") {
   const src = String(text || "");
   const patterns = [
@@ -1168,9 +1185,7 @@ function formatRecentConversationContext(chats = [], limit = 4) {
     .join("\n\n");
 }
 
-// ============================================
-// NEW: CULTURAL LOCALIZATION HELPER
-// ============================================
+// cultural localization based on language
 function getCulturalLocalizationPrompt(lang) {
   const rules = {
     en: `Cultural Style: Focus on self-awareness, emotional growth, and empowerment. Direct but warm language.`,
@@ -1309,9 +1324,7 @@ async function streamWordsSSE(res, text, isClosed) {
   }
 }
 
-// ============================================
-// MAIN CONTROLLER
-// ============================================
+// Main controller
 const chatController = {
   createChat: async (req, res) => {
     try {
@@ -1325,17 +1338,9 @@ const chatController = {
         userPersona,
         language,
         spanishTone,
-        // koreaHybridMode: "hybrid" (default) | "traditional" — UI toggle above
-        // the message input for the Astria Korea Hybrid category only. Purely
-        // additive: existing callers that never send this field keep getting
-        // Hybrid responses exactly as before (see buildAstriaKoreaHybridContext's
-        // default in AstriaKoreaHybridService.js).
+        // koreaHybrid Mode
         koreaHybridMode,
-        // japanHybridMode: "hybrid" (default) | "traditional" — UI toggle above
-        // the message input for the Astria Japan Hybrid category only. Purely
-        // additive: existing callers that never send this field keep getting
-        // Hybrid responses exactly as before (see buildAstriaJapanHybridContext's
-        // default in AstriaJapanHybridService.js). Mirrors koreaHybridMode.
+        // japanHybrid Mode
         japanHybridMode,
         japan3BoxSelf,
         japan3BoxPartner,
@@ -1370,11 +1375,12 @@ const chatController = {
       let roleId;
       let userRegion;
       let userGccToneMode;
+      let userSpanishToneLock;
       let userMusicMemory = null;
 
       if (userId) {
         const user = await User.findById(userId).select(
-          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId preferredLanguage region gccToneMode",
+          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId preferredLanguage region gccToneMode spanishToneLock",
         );
         if (user) {
           dob0 = user.dob;
@@ -1386,6 +1392,7 @@ const chatController = {
           subscriptionStatus = user.subscriptionStatus;
           roleId = user.roleId;
           userGccToneMode = user.gccToneMode;
+          userSpanishToneLock = user.spanishToneLock;
         }
         userMusicMemory = await UserMusicMemory.findOne({ userId }).lean();
       }
@@ -1435,13 +1442,13 @@ const chatController = {
         getDefaultLanguageByOrigin(userRegion) ||
         "en";
 
-      // GCC Gulf tone engine: request body override wins (frontend switcher),
-      // then the user's saved profile setting, then the spec default ("gulf").
+      // GCC tone mode
       const GCC_VALID_TONE_MODES = new Set(["msa_fusha", "gulf", "kuwaiti"]);
       const resolvedGccToneMode =
         [gccToneMode, userGccToneMode].find((m) =>
           GCC_VALID_TONE_MODES.has(m),
         ) || "gulf";
+
       // Translate ALL non-English input to English for internal processing
       let translatedMessage;
       if (target !== "en") {
@@ -1458,7 +1465,18 @@ const chatController = {
       const emotionType = emotionData.emotion;
       const emotionIntensity = emotionData.intensity;
 
-      const allSentences = await getSentencesForEmotion(emotionType, 20);
+      // translatedMessage === userMessage when target is already "en", so the
+      // embedding computed here can be safely reused by the buildPrompt call
+      // further below instead of re-embedding the same text a second time.
+      const sharedQueryVec =
+        target === "en" ? await embedQuery(translatedMessage) : null;
+
+      const allSentences = await getSentencesForEmotion(
+        emotionType,
+        20,
+        translatedMessage,
+        sharedQueryVec,
+      );
       const sentences = pickRandomUnique(allSentences, 10);
 
       // Get category, subcategory, and chat details
@@ -1545,7 +1563,7 @@ const chatController = {
           subCategoryName === "Samay Pravah") &&
         !isAstriaIndiaV2CategoryForLegacyGuard;
 
-      // Vyaktitva Darshan Engine — structured personality profile via Vedic birth chart
+      // Vyaktitva Darshan Flag
       const isVyaktivaDarshan =
         (categoryName === "Vyaktitva Darshan" ||
           subCategoryName === "Vyaktitva Darshan") &&
@@ -1576,67 +1594,53 @@ const chatController = {
           subCategoryName === "Sambandh Taal Mel") &&
         !isAstriaIndiaV2CategoryForLegacyGuard;
 
-      // Astria US Engine — Modern psychology-based Western astrology (US lane)
-      const isAstriaUS = categoryName === "Astria US";
+      const pickFirstMatch = astriaLanePicker();
 
-      // Astria India Engine — Soft, polite, minimal, emotionally-reserved Western astrology (India lane)
-      const isAstriaIndiaCategory =
-        categoryName === "Astria India" && !isAstriaUS;
+      // Astria US Flag
+      const isAstriaUS = pickFirstMatch(categoryName === "Astria US");
 
-      // Astria India V2 Engine — Soft, polite, minimal, emotionally-reserved Western astrology (India lane)
+      // Astria India Flag
+      const isAstriaIndiaCategory = pickFirstMatch(
+        categoryName === "Astria India",
+      );
+
+      // Astria India V2 Flag (outside the chain — only isAstriaUS blocks it)
       const isAstriaIndiaV2 = categoryName === "Astria India V2" && !isAstriaUS;
 
-      // Astria India V3 Engine
+      // Astria India V3 Flag (outside the chain — only isAstriaUS blocks it)
       const isAstriaIndiaV3 = categoryName === "Astria India V3" && !isAstriaUS;
 
-      // Astria Japan Engine — Soft, polite, minimal, emotionally-reserved Western astrology (Japan lane)
-      const isAstriaJapan =
-        categoryName === "Astria Japan" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory;
+      // Astria Japan Flag
+      const isAstriaJapan = pickFirstMatch(categoryName === "Astria Japan");
 
-      // Astria Korea V2 Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
-      const isAstriaKoreaV2 =
-        categoryName === "Astria Korea V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan;
+      // Astria Korea V2 Flag
+      const isAstriaKoreaV2 = pickFirstMatch(
+        categoryName === "Astria Korea V2",
+      );
 
-      // Astria Korea Engine — Soft, polite, minimal, emotionally-reserved Western astrology (South Korea lane)
+      // Astria Korea Flag
       const hasKorea3BoxData =
         !isAstriaKoreaV2 &&
         korea3BoxSelf &&
         korea3BoxPartner &&
         (korea3BoxSelf.blood_type || korea3BoxSelf.dob) &&
         (korea3BoxPartner.blood_type || korea3BoxPartner.dob);
-      const isAstriaKorea =
-        (categoryName === "Astria Korea" || hasKorea3BoxData) &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKoreaV2;
+      const isAstriaKorea = pickFirstMatch(
+        categoryName === "Astria Korea" || hasKorea3BoxData,
+      );
 
-      // Astria Korea Talk Engine — isolated flag for "Astria Korea Talk"
-      const isAstriaKoreaTalk =
+      // Astria Korea Talk Flag
+      const isAstriaKoreaTalk = pickFirstMatch(
         categoryName === "Astria Korea Talk" &&
-        subcategoryName === "Astria Korea Talk" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2;
+          subcategoryName === "Astria Korea Talk",
+      );
 
-      // Astria Korea V3 Engine — Deep, restrained, destiny-driven Western astrology (South Korea lane)
-      const isAstriaKoreaV3 =
-        categoryName === "Astria Korea V3" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk;
+      // Astria Korea V3 Flag
+      const isAstriaKoreaV3 = pickFirstMatch(
+        categoryName === "Astria Korea V3",
+      );
 
-      // Astria Korea Hybrid Engine — V2 warmth + V3 structure (South Korea lane)
+      // Astria Korea Hybrid Flag (outside the chain — no later lane excludes it)
       const isAstriaKoreaHybrid =
         categoryName === "Astria Korea Hybrid" &&
         !isAstriaUS &&
@@ -1647,33 +1651,20 @@ const chatController = {
         !isAstriaKoreaTalk &&
         !isAstriaKoreaV3;
 
-      // Astria Japan Talk Engine — isolated flag for "Astria Japan Talk" (companion voice)
-      const isAstriaJapanTalk =
+      // Astria Japan Talk Flag
+      const isAstriaJapanTalk = pickFirstMatch(
         (categoryName === "Astria Japan Talk" ||
           subCategoryName === "Astria Japan Talk") &&
-        subCategoryName !== "Kyusei Viral JP" &&
-        subCategoryName !== "Timing Flow JP" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3;
+          subCategoryName !== "Kyusei Viral JP" &&
+          subCategoryName !== "Timing Flow JP",
+      );
 
-      // Astria Japan V3 Engine — Deep, restrained, destiny-driven Western astrology (Japan lane)
-      const isAstriaJapanV3 =
-        categoryName === "Astria Japan V3" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk;
+      // Astria Japan V3 Flag
+      const isAstriaJapanV3 = pickFirstMatch(
+        categoryName === "Astria Japan V3",
+      );
 
-      // Astria Japan V3 Talk Engine
+      // Astria Japan V3 Talk Flag
       const ASTRIA_JAPAN_V3_TALK_TAB_NAMES = new Set([
         "astria japan talk",
         "astria japan talk v3",
@@ -1685,136 +1676,69 @@ const chatController = {
           subCategoryName.trim().toLowerCase(),
         );
 
-      // Astria Japan Hybrid Engine — JP V2 warmth + JP V3 structure, key-driven
-      // output, NO SAJU (client "JP Hybrid" spec). Mirrors isAstriaKoreaHybrid —
-      // separate category name, separate service module, zero impact on
-      // "Astria Japan" / "Astria Japan V3" / "Astria Japan Talk".
-      const isAstriaJapanHybrid =
-        categoryName === "Astria Japan Hybrid" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3;
+      // Astria Japan Hybrid Flag
+      const isAstriaJapanHybrid = pickFirstMatch(
+        categoryName === "Astria Japan Hybrid",
+      );
 
-      // Astria Spanish Engine — Spanish-lane astrology with 3 tone variants
-      const isAstriaSpanish =
-        categoryName === "Astria Spanish" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid;
-      // spanishTone: "neutral" (default) | "spain" | "mexico"
-      const resolvedSpanishTone =
-        !isAstriaUS && isAstriaSpanish && spanishTone
+      // Astria Spanish Flag
+      const isAstriaSpanish = pickFirstMatch(categoryName === "Astria Spanish");
+
+      // Astria Spanish V2 Flag
+      const isAstriaSpanishV2 = pickFirstMatch(
+        categoryName === "Astria Spanish V2",
+      );
+      // spanishTone 7 tones
+      const requestedSpanishTone =
+        !isAstriaUS && (isAstriaSpanish || isAstriaSpanishV2) && spanishTone
           ? String(spanishTone).toLowerCase()
-          : "neutral";
+          : null;
 
-      // Astria Brazil Engine — Warm, expressive, spiritual Western astrology (Brazil lane)
-      const isAstriaBrazil =
-        categoryName === "Astria Brazil" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish;
+      let resolvedSpanishTone = requestedSpanishTone || "neutral";
 
-      // PSM lane: Philippines, Singapore, Malaysia — 3 separate category names, one engine
-      const isAstriaPSM =
-        (categoryName === "Astria Philippines" ||
+      if ((isAstriaSpanish || isAstriaSpanishV2) && userId) {
+        if (userSpanishToneLock) {
+          // Already locked — the locked value always wins, regardless of
+          // what the client sent.
+          resolvedSpanishTone = userSpanishToneLock;
+        } else if (
+          requestedSpanishTone &&
+          SPANISH_TONE_LOCK_VALUES_SET.has(requestedSpanishTone)
+        ) {
+          // First pick for this tester — lock it in.
+          await User.findByIdAndUpdate(userId, {
+            spanishToneLock: requestedSpanishTone,
+          });
+          resolvedSpanishTone = requestedSpanishTone;
+        }
+      }
+
+      // Astria Brazil Flag
+      const isAstriaBrazil = pickFirstMatch(categoryName === "Astria Brazil");
+
+      // Astria PSM Flag (Philippines, Singapore, Malaysia share one engine)
+      const isAstriaPSM = pickFirstMatch(
+        categoryName === "Astria Philippines" ||
           categoryName === "Astria Singapore" ||
-          categoryName === "Astria Malaysia") &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil;
+          categoryName === "Astria Malaysia",
+      );
 
-      // Astria Singapore V2 Engine — Compatibility Engine v2 (practical, direct,
-      // weighted 0-100 score). Separate category from "Astria Singapore" (PSM) —
-      // v1 stays untouched, same pattern as Astria Korea V2 / GCC V2.
-      const isAstriaSingaporeV2 =
-        categoryName === "Astria Singapore V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM;
+      // Astria Singapore V2 Flag
+      const isAstriaSingaporeV2 = pickFirstMatch(
+        categoryName === "Astria Singapore V2",
+      );
 
-      // Astria Singapore V3 Engine — direct, pragmatic, format-flexible
-      // lane (Koie + Jae Sy client feedback, 2026-08-03). Separate category
-      // from "Astria Singapore V2" — v2 stays untouched, same pattern as
-      // Astria Malaysia V3.
-      const isAstriaSingaporeV3 =
-        categoryName === "Astria Singapore V3" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2;
+      // Astria Singapore V3 Flag
+      const isAstriaSingaporeV3 = pickFirstMatch(
+        categoryName === "Astria Singapore V3",
+      );
 
       // Astria Malaysia V2 Flag
-      const isAstriaMalaysiaV2 =
-        categoryName === "Astria Malaysia V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaSingaporeV3;
+      const isAstriaMalaysiaV2 = pickFirstMatch(
+        categoryName === "Astria Malaysia V2",
+      );
 
-      //Astria Malaysia V3 Flag
-      // Astria Malaysia V3 Flag
+      // Astria Malaysia V3 Flag (outside the chain — no later lane excludes it)
       const isAstriaMalaysiaV3 =
         categoryName === "Astria Malaysia V3" &&
         !isAstriaUS &&
@@ -1828,401 +1752,72 @@ const chatController = {
         !isAstriaJapanV3 &&
         !isAstriaJapanHybrid &&
         !isAstriaSpanish &&
+        !isAstriaSpanishV2 &&
         !isAstriaBrazil &&
         !isAstriaPSM &&
         !isAstriaSingaporeV2 &&
         !isAstriaSingaporeV3 &&
         !isAstriaMalaysiaV2;
 
-      // Astria GCC Engine — Spiritual, elegant, respectful Western astrology (GCC lane)
-      const isAstriaGCC =
-        categoryName === "Astria GCC" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2;
+      // Astria GCC Flag
+      const isAstriaGCC = pickFirstMatch(categoryName === "Astria GCC");
 
-      // Astria GCC v2 Engine — "Global Lane v2" soft-premium emotional AI (GCC v2 lane, 7 tabs)
-      const isAstriaGCCV2 =
-        categoryName === "Astria GCC V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC;
+      // Astria GCC V2 Flag
+      const isAstriaGCCV2 = pickFirstMatch(categoryName === "Astria GCC V2");
 
-      // Astria UK Engine — Calm, understated, warm-polite Western astrology (UK lane)
-      const isAstriaUK =
-        categoryName === "Astria UK" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2;
+      // Astria UK Flag
+      const isAstriaUK = pickFirstMatch(categoryName === "Astria UK");
 
-      // Astria Canada V2 Engine — Calm, grounded, understated, emotionally
-      // precise, practical, warm-polite Western astrology (Canada V2 lane).
-      // Separate category from the untouched legacy "Astria Canada".
-      // Tabs: Big 3, Companion Talk, Daily Flow only — no MateScan or
-      // Energy Match.
-      const isAstriaCanadaV2 =
-        categoryName === "Astria Canada V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK;
+      // Astria Canada V2 Flag
+      const isAstriaCanadaV2 = pickFirstMatch(
+        categoryName === "Astria Canada V2",
+      );
 
-      // Astria Indonesia Engine — Calm, gentle, respectful, soft-contained Western astrology (Indonesia lane)
-      const isAstriaIndonesia =
-        categoryName === "Astria Indonesia" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2;
+      // Astria Indonesia Flag
+      const isAstriaIndonesia = pickFirstMatch(
+        categoryName === "Astria Indonesia",
+      );
 
-      // Astria Philippines V2 Engine — Calm, gentle, respectful, soft-contained emotional astrology (Philippines V2 lane)
-      const isAstriaPhilippinesV2 =
-        categoryName === "Astria Philippines V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia;
+      // Astria Philippines V2 Flag
+      const isAstriaPhilippinesV2 = pickFirstMatch(
+        categoryName === "Astria Philippines V2",
+      );
 
-      // Astria Indonesia V2 Engine — Calm, gentle, respectful, soft-contained emotional astrology (Indonesia V2 lane)
-      const isAstriaIndonesiaV2 =
-        categoryName === "Astria Indonesia V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2;
+      // Astria Indonesia V2 Flag
+      const isAstriaIndonesiaV2 = pickFirstMatch(
+        categoryName === "Astria Indonesia V2",
+      );
 
       // Astria Indonesia Talk Flag
-      const isAstriaIndonesiaTalk =
-        categoryName === "Astria Indonesia Talk" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2;
+      const isAstriaIndonesiaTalk = pickFirstMatch(
+        categoryName === "Astria Indonesia Talk",
+      );
 
-      // Astria Vietnam V2 Engine — Calm, gentle, respectful, soft-contained emotional astrology (Vietnam V2 lane)
-      const isAstriaVietnamV2 =
-        categoryName === "Astria Vietnam V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2 &&
-        !isAstriaIndonesiaTalk;
+      // Astria Vietnam V2 Flag
+      const isAstriaVietnamV2 = pickFirstMatch(
+        categoryName === "Astria Vietnam V2",
+      );
 
-      // Astria Vietnam Engine — real Tử Vi (birth chart), lunar day
-      // selection, compatibility, phong thủy, and tarot (5-lane category,
-      // per-lane LLM reasoning grounded on real computed chart facts — see
-      // helper/vietnam/astriaVietnamPromptService.js). Distinct from "Astria
-      // Vietnam V2" (generic deterministic emotional copy-pack, untouched).
-      const isAstriaVietnam =
-        categoryName === "Astria Vietnam" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2 &&
-        !isAstriaIndonesiaTalk &&
-        !isAstriaVietnamV2;
+      // Astria Vietnam Flag
+      const isAstriaVietnam = pickFirstMatch(categoryName === "Astria Vietnam");
 
-      // Astria Brazil V2 Engine — Calm, warm, expressive, soft-contained emotional astrology (Brazil V2 lane)
-      const isAstriaBrazilV2 =
-        categoryName === "Astria Brazil V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2 &&
-        !isAstriaIndonesiaTalk &&
-        !isAstriaVietnamV2 &&
-        !isAstriaVietnam;
+      // Astria Brazil V2 Flag
+      const isAstriaBrazilV2 = pickFirstMatch(
+        categoryName === "Astria Brazil V2",
+      );
 
-      // Astria Mexico V2 Engine — Warm, expressive, grounded, soft-contained emotional astrology (Mexico V2 lane)
-      const isAstriaMexicoV2 =
-        categoryName === "Astria Mexico V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaBrazilV2 &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2 &&
-        !isAstriaIndonesiaTalk &&
-        !isAstriaVietnamV2 &&
-        !isAstriaVietnam;
+      // Astria Mexico V2 Flag
+      const isAstriaMexicoV2 = pickFirstMatch(
+        categoryName === "Astria Mexico V2",
+      );
 
-      // Astria UK V2 Engine — UK Room: calm-warm, understated, dry humour,
-      // soft-direct British emotional precision (Energy Match, MateScan,
-      // Companion Talk, Cosmic UK, Relationship, Daily Flow, Zodiac
-      // Personality). Separate category from "Astria UK" (v1) — v1 stays
-      // untouched, same pattern as Astria Korea V2 / Singapore V2.
-      const isAstriaUKV2 =
-        categoryName === "Astria UK V2" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2 &&
-        !isAstriaIndonesiaTalk &&
-        !isAstriaVietnamV2 &&
-        !isAstriaVietnam &&
-        !isAstriaBrazilV2 &&
-        !isAstriaMexicoV2;
+      // Astria UK V2 Flag
+      const isAstriaUKV2 = pickFirstMatch(categoryName === "Astria UK V2");
 
-      // Astria Mexico Engine — warm-expressive-grounded, astrology-forward
-      // Mexican Spanish lane (Energy Match, Compatibility, Cosmic Message,
-      // Relationship, Companion Talk, Daily Flow, Zodiac Personality).
-      // Separate category from "Astria Mexico V2" (the existing daily
-      // check-in copy-pack lane) — that lane stays untouched, same pattern
-      // as Astria Korea V2 / Singapore V2 / UK V2.
-      const isAstriaMexico =
-        categoryName === "Astria Mexico" &&
-        !isAstriaUS &&
-        !isAstriaIndiaCategory &&
-        !isAstriaJapan &&
-        !isAstriaKorea &&
-        !isAstriaKoreaV2 &&
-        !isAstriaKoreaTalk &&
-        !isAstriaKoreaV3 &&
-        !isAstriaJapanTalk &&
-        !isAstriaJapanV3 &&
-        !isAstriaJapanHybrid &&
-        !isAstriaSpanish &&
-        !isAstriaBrazil &&
-        !isAstriaPSM &&
-        !isAstriaSingaporeV2 &&
-        !isAstriaSingaporeV3 &&
-        !isAstriaMalaysiaV2 &&
-        !isAstriaGCC &&
-        !isAstriaGCCV2 &&
-        !isAstriaUK &&
-        !isAstriaCanadaV2 &&
-        !isAstriaIndonesia &&
-        !isAstriaPhilippinesV2 &&
-        !isAstriaIndonesiaV2 &&
-        !isAstriaIndonesiaTalk &&
-        !isAstriaVietnamV2 &&
-        !isAstriaVietnam &&
-        !isAstriaBrazilV2 &&
-        !isAstriaMexicoV2 &&
-        !isAstriaUKV2;
+      // Astria Mexico Flag
+      const isAstriaMexico = pickFirstMatch(categoryName === "Astria Mexico");
 
-      // Astria Talk Engine - FLAG
+      // Astria Talk Flag
       const isAstriaTalk =
         categoryName === "Astria Talk" || categoryName === "Companion Talk";
 
@@ -2504,7 +2099,11 @@ const chatController = {
 
       if (!containsDate(userMessage)) {
         const fetchCount = engineState === "DEEP_HEALING" ? 10 : 5;
-        const { prompt, matches } = await buildPrompt(userMessage, fetchCount);
+        const { prompt, matches } = await buildPrompt(
+          userMessage,
+          fetchCount,
+          sharedQueryVec,
+        );
         matches2 = matches;
 
         if (engineState === "DEEP_HEALING") {
@@ -3266,6 +2865,103 @@ RULES:
             target,
             userMessage,
             birthChart: astriaSpanishBirthChart,
+            spanishTone: resolvedSpanishTone,
+          });
+        }
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+
+      // ASTRIA SPANISH V2 ENGINE — Astria Spanish V2 category ONLY. Same
+      // chart/energy-match plumbing as Astria Spanish above, but prompts via
+      // buildAstriaSpanishV2Context so the reply follows the client's
+      // "Spanish Lane v4" premium section-block format (see
+      // astriaSpanishService.js).
+      let energyMatchMissingQuestionESV2 = null;
+      if (isAstriaSpanishV2 && !isAstriaUS) {
+        if (isEnergyMatchSubcategoryES(subCategoryName)) {
+          const emPartnersESV2 = parseEnergyMatchPartnersES(
+            userMessage,
+            dob0,
+            dob_time0,
+            dob_place0,
+          );
+
+          if (emPartnersESV2.missingFields.length > 0) {
+            energyMatchMissingQuestionESV2 = buildEnergyMatchMissingQuestionES(
+              emPartnersESV2.missingFields,
+              !!(dob0 && String(dob0).trim()),
+              target,
+            );
+          } else {
+            let chartAESV2 = null;
+            let chartBESV2 = null;
+            try {
+              if (emPartnersESV2.personA.dob) {
+                chartAESV2 = computeWesternBirthChartES({
+                  dob: emPartnersESV2.personA.dob,
+                  dob_time: emPartnersESV2.personA.time || null,
+                  dob_place: emPartnersESV2.personA.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error(
+                "Astria Spanish V2 Energy Match - chartA error:",
+                err,
+              );
+            }
+            try {
+              if (emPartnersESV2.personB.dob) {
+                chartBESV2 = computeWesternBirthChartES({
+                  dob: emPartnersESV2.personB.dob,
+                  dob_time: emPartnersESV2.personB.time || null,
+                  dob_place: emPartnersESV2.personB.place || null,
+                });
+              }
+            } catch (err) {
+              logger.error(
+                "Astria Spanish V2 Energy Match - chartB error:",
+                err,
+              );
+            }
+
+            systemPrompt = buildAstriaSpanishV2Context({
+              subCategoryName: subCategoryName || null,
+              categoryPrompt: categoryPrompt || null,
+              subCategoryPrompt: subCategoryPrompt || null,
+              target,
+              userMessage,
+              birthChart: chartAESV2,
+              birthChartB: chartBESV2,
+              spanishTone: resolvedSpanishTone,
+            });
+          }
+        } else {
+          // All other Astria Spanish V2 subcategories — single user chart
+          let astriaSpanishV2BirthChart = null;
+          if (selfDob0) {
+            try {
+              astriaSpanishV2BirthChart = computeWesternBirthChartES({
+                dob: String(selfDob0).trim(),
+                dob_time: selfDobTime0 || null,
+                dob_place: selfDobPlace0 || null,
+              });
+            } catch (chartErr) {
+              logger.error("Astria Spanish V2 birth chart error:", chartErr);
+            }
+          }
+
+          systemPrompt = buildAstriaSpanishV2Context({
+            subCategoryName: subCategoryName || null,
+            categoryPrompt: categoryPrompt || null,
+            subCategoryPrompt: subCategoryPrompt || null,
+            target,
+            userMessage,
+            birthChart: astriaSpanishV2BirthChart,
             spanishTone: resolvedSpanishTone,
           });
         }
@@ -4278,12 +3974,14 @@ RULES:
               try {
                 const selfDob = korea3BoxSelf.dob || selfDob0;
                 if (selfDob) {
-                  astriaKoreaHybridBirthChart = computeWesternBirthChartKRHybrid({
-                    dob: String(selfDob).trim(),
-                    dob_time: korea3BoxSelf.birth_time || selfDobTime0 || null,
-                    dob_place:
-                      korea3BoxSelf.birth_city || selfDobPlace0 || null,
-                  });
+                  astriaKoreaHybridBirthChart =
+                    computeWesternBirthChartKRHybrid({
+                      dob: String(selfDob).trim(),
+                      dob_time:
+                        korea3BoxSelf.birth_time || selfDobTime0 || null,
+                      dob_place:
+                        korea3BoxSelf.birth_city || selfDobPlace0 || null,
+                    });
                 }
               } catch (err) {
                 logger.error(
@@ -4293,11 +3991,12 @@ RULES:
               }
               try {
                 if (korea3BoxPartner.dob) {
-                  astriaKoreaHybridBirthChartB = computeWesternBirthChartKRHybrid({
-                    dob: String(korea3BoxPartner.dob).trim(),
-                    dob_time: korea3BoxPartner.birth_time || null,
-                    dob_place: korea3BoxPartner.birth_city || null,
-                  });
+                  astriaKoreaHybridBirthChartB =
+                    computeWesternBirthChartKRHybrid({
+                      dob: String(korea3BoxPartner.dob).trim(),
+                      dob_time: korea3BoxPartner.birth_time || null,
+                      dob_place: korea3BoxPartner.birth_city || null,
+                    });
                 }
               } catch (err) {
                 logger.error(
@@ -4348,11 +4047,12 @@ RULES:
               } else {
                 try {
                   if (compatPartnersHybrid.personA.dob) {
-                    astriaKoreaHybridBirthChart = computeWesternBirthChartKRHybrid({
-                      dob: compatPartnersHybrid.personA.dob,
-                      dob_time: compatPartnersHybrid.personA.time || null,
-                      dob_place: compatPartnersHybrid.personA.place || null,
-                    });
+                    astriaKoreaHybridBirthChart =
+                      computeWesternBirthChartKRHybrid({
+                        dob: compatPartnersHybrid.personA.dob,
+                        dob_time: compatPartnersHybrid.personA.time || null,
+                        dob_place: compatPartnersHybrid.personA.place || null,
+                      });
                   }
                 } catch (err) {
                   logger.error(
@@ -4362,11 +4062,12 @@ RULES:
                 }
                 try {
                   if (compatPartnersHybrid.personB.dob) {
-                    astriaKoreaHybridBirthChartB = computeWesternBirthChartKRHybrid({
-                      dob: compatPartnersHybrid.personB.dob,
-                      dob_time: compatPartnersHybrid.personB.time || null,
-                      dob_place: compatPartnersHybrid.personB.place || null,
-                    });
+                    astriaKoreaHybridBirthChartB =
+                      computeWesternBirthChartKRHybrid({
+                        dob: compatPartnersHybrid.personB.dob,
+                        dob_time: compatPartnersHybrid.personB.time || null,
+                        dob_place: compatPartnersHybrid.personB.place || null,
+                      });
                   }
                 } catch (err) {
                   logger.error(
@@ -4380,7 +4081,8 @@ RULES:
                   compatPartnersHybrid.personB.dob
                 ) {
                   krHybridPartnerDobToPersist = {
-                    astriaKoreaHybridPartnerDob: compatPartnersHybrid.personB.dob,
+                    astriaKoreaHybridPartnerDob:
+                      compatPartnersHybrid.personB.dob,
                     astriaKoreaHybridPartnerDobTime:
                       compatPartnersHybrid.personB.time || null,
                     astriaKoreaHybridPartnerDobPlace:
@@ -4427,11 +4129,12 @@ RULES:
             } else {
               try {
                 if (compatPartnersHybrid.personA.dob) {
-                  astriaKoreaHybridBirthChart = computeWesternBirthChartKRHybrid({
-                    dob: compatPartnersHybrid.personA.dob,
-                    dob_time: compatPartnersHybrid.personA.time || null,
-                    dob_place: compatPartnersHybrid.personA.place || null,
-                  });
+                  astriaKoreaHybridBirthChart =
+                    computeWesternBirthChartKRHybrid({
+                      dob: compatPartnersHybrid.personA.dob,
+                      dob_time: compatPartnersHybrid.personA.time || null,
+                      dob_place: compatPartnersHybrid.personA.place || null,
+                    });
                 }
               } catch (err) {
                 logger.error(
@@ -4441,11 +4144,12 @@ RULES:
               }
               try {
                 if (compatPartnersHybrid.personB.dob) {
-                  astriaKoreaHybridBirthChartB = computeWesternBirthChartKRHybrid({
-                    dob: compatPartnersHybrid.personB.dob,
-                    dob_time: compatPartnersHybrid.personB.time || null,
-                    dob_place: compatPartnersHybrid.personB.place || null,
-                  });
+                  astriaKoreaHybridBirthChartB =
+                    computeWesternBirthChartKRHybrid({
+                      dob: compatPartnersHybrid.personB.dob,
+                      dob_time: compatPartnersHybrid.personB.time || null,
+                      dob_place: compatPartnersHybrid.personB.place || null,
+                    });
                 }
               } catch (err) {
                 logger.error(
@@ -4454,7 +4158,10 @@ RULES:
                 );
               }
 
-              if (astriaKoreaHybridBirthChartB && compatPartnersHybrid.personB.dob) {
+              if (
+                astriaKoreaHybridBirthChartB &&
+                compatPartnersHybrid.personB.dob
+              ) {
                 krHybridPartnerDobToPersist = {
                   astriaKoreaHybridPartnerDob: compatPartnersHybrid.personB.dob,
                   astriaKoreaHybridPartnerDobTime:
@@ -4474,7 +4181,10 @@ RULES:
                   dob_place: selfDobPlace0 || null,
                 });
               } catch (chartErr) {
-                logger.error("Astria Korea Hybrid birth chart error:", chartErr);
+                logger.error(
+                  "Astria Korea Hybrid birth chart error:",
+                  chartErr,
+                );
               }
               try {
                 astriaKoreaHybridSajuData = computeSajuV4KRHybrid({
@@ -4488,7 +4198,10 @@ RULES:
                   astriaKoreaHybridSajuFacts = astriaKoreaHybridSajuData;
                 }
               } catch (sajuErr) {
-                logger.error("Astria Korea Hybrid Saju compute error:", sajuErr);
+                logger.error(
+                  "Astria Korea Hybrid Saju compute error:",
+                  sajuErr,
+                );
               }
             }
           } else if (selfDob0) {
@@ -4760,7 +4473,8 @@ RULES:
       let jpHybridPartnerDobToPersist = null;
       let jpHybridUserCityToPersist = null;
       if (isAstriaJapanHybrid) {
-        const jpHybridCityFromMessage = extractCurrentCityFromTextJPHybrid(userMessage);
+        const jpHybridCityFromMessage =
+          extractCurrentCityFromTextJPHybrid(userMessage);
         const jpHybridUserCity =
           jpHybridCityFromMessage || chat?.astriaJapanHybridUserCity || null;
         if (jpHybridCityFromMessage && chat) {
@@ -4770,9 +4484,8 @@ RULES:
           Object.assign(chat, jpHybridUserCityToPersist);
         }
 
-        const isCompatibilityTabJPHybrid = isCompatibilitySubcategoryJPHybrid(
-          subCategoryName,
-        );
+        const isCompatibilityTabJPHybrid =
+          isCompatibilitySubcategoryJPHybrid(subCategoryName);
         const isEnergyMatchTabJPHybrid =
           !isCompatibilityTabJPHybrid &&
           isEnergyMatchSubcategoryJPHybrid(subCategoryName);
@@ -4812,11 +4525,13 @@ RULES:
             }
             try {
               if (japan3BoxPartner.dob) {
-                astriaJapanHybridBirthChartB = computeWesternBirthChartJPHybrid({
-                  dob: String(japan3BoxPartner.dob).trim(),
-                  dob_time: japan3BoxPartner.birth_time || null,
-                  dob_place: japan3BoxPartner.birth_city || null,
-                });
+                astriaJapanHybridBirthChartB = computeWesternBirthChartJPHybrid(
+                  {
+                    dob: String(japan3BoxPartner.dob).trim(),
+                    dob_time: japan3BoxPartner.birth_time || null,
+                    dob_place: japan3BoxPartner.birth_city || null,
+                  },
+                );
               }
             } catch (err) {
               logger.error("Astria Japan Hybrid 3-Box chartB error:", err);
@@ -4853,11 +4568,12 @@ RULES:
             } else {
               try {
                 if (compatPartnersJPHybrid.personA.dob) {
-                  astriaJapanHybridBirthChart = computeWesternBirthChartJPHybrid({
-                    dob: compatPartnersJPHybrid.personA.dob,
-                    dob_time: compatPartnersJPHybrid.personA.time || null,
-                    dob_place: compatPartnersJPHybrid.personA.place || null,
-                  });
+                  astriaJapanHybridBirthChart =
+                    computeWesternBirthChartJPHybrid({
+                      dob: compatPartnersJPHybrid.personA.dob,
+                      dob_time: compatPartnersJPHybrid.personA.time || null,
+                      dob_place: compatPartnersJPHybrid.personA.place || null,
+                    });
                 }
               } catch (err) {
                 logger.error(
@@ -4867,11 +4583,12 @@ RULES:
               }
               try {
                 if (compatPartnersJPHybrid.personB.dob) {
-                  astriaJapanHybridBirthChartB = computeWesternBirthChartJPHybrid({
-                    dob: compatPartnersJPHybrid.personB.dob,
-                    dob_time: compatPartnersJPHybrid.personB.time || null,
-                    dob_place: compatPartnersJPHybrid.personB.place || null,
-                  });
+                  astriaJapanHybridBirthChartB =
+                    computeWesternBirthChartJPHybrid({
+                      dob: compatPartnersJPHybrid.personB.dob,
+                      dob_time: compatPartnersJPHybrid.personB.time || null,
+                      dob_place: compatPartnersJPHybrid.personB.place || null,
+                    });
                 }
               } catch (err) {
                 logger.error(
@@ -4885,7 +4602,8 @@ RULES:
                 compatPartnersJPHybrid.personB.dob
               ) {
                 jpHybridPartnerDobToPersist = {
-                  astriaJapanHybridPartnerDob: compatPartnersJPHybrid.personB.dob,
+                  astriaJapanHybridPartnerDob:
+                    compatPartnersJPHybrid.personB.dob,
                   astriaJapanHybridPartnerDobTime:
                     compatPartnersJPHybrid.personB.time || null,
                   astriaJapanHybridPartnerDobPlace:
@@ -4941,11 +4659,13 @@ RULES:
             }
             try {
               if (compatPartnersJPHybrid.personB.dob) {
-                astriaJapanHybridBirthChartB = computeWesternBirthChartJPHybrid({
-                  dob: compatPartnersJPHybrid.personB.dob,
-                  dob_time: compatPartnersJPHybrid.personB.time || null,
-                  dob_place: compatPartnersJPHybrid.personB.place || null,
-                });
+                astriaJapanHybridBirthChartB = computeWesternBirthChartJPHybrid(
+                  {
+                    dob: compatPartnersJPHybrid.personB.dob,
+                    dob_time: compatPartnersJPHybrid.personB.time || null,
+                    dob_place: compatPartnersJPHybrid.personB.place || null,
+                  },
+                );
               }
             } catch (err) {
               logger.error(
@@ -4954,7 +4674,10 @@ RULES:
               );
             }
 
-            if (astriaJapanHybridBirthChartB && compatPartnersJPHybrid.personB.dob) {
+            if (
+              astriaJapanHybridBirthChartB &&
+              compatPartnersJPHybrid.personB.dob
+            ) {
               jpHybridPartnerDobToPersist = {
                 astriaJapanHybridPartnerDob: compatPartnersJPHybrid.personB.dob,
                 astriaJapanHybridPartnerDobTime:
@@ -5816,7 +5539,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error(`Astria Mexico ${mexicoTabKey} - chartA error:`, err);
+              logger.error(
+                `Astria Mexico ${mexicoTabKey} - chartA error:`,
+                err,
+              );
             }
             try {
               if (mexicoPartners.personB.dob) {
@@ -5827,7 +5553,10 @@ RULES:
                 });
               }
             } catch (err) {
-              logger.error(`Astria Mexico ${mexicoTabKey} - chartB error:`, err);
+              logger.error(
+                `Astria Mexico ${mexicoTabKey} - chartB error:`,
+                err,
+              );
             }
 
             systemPrompt = buildAstriaMexicoContext({
@@ -6774,6 +6503,7 @@ RULES:
         !isAstriaIndiaCategory &&
         !isAstriaUS &&
         !isAstriaSpanish &&
+        !isAstriaSpanishV2 &&
         !isAstriaJapan &&
         !isAstriaJapanTalk &&
         !isAstriaJapanV3 &&
@@ -6795,6 +6525,7 @@ RULES:
         !isAstriaIndiaCategory &&
         !isAstriaUS &&
         !isAstriaSpanish &&
+        !isAstriaSpanishV2 &&
         !isAstriaJapan &&
         !isAstriaJapanTalk &&
         !isAstriaJapanV3 &&
@@ -6864,7 +6595,7 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
-      console.log("System prompt: ", systemPrompt);
+      //console.log("System prompt: ", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -7213,6 +6944,13 @@ RULES:
           ) {
             finalAiResponse = energyMatchMissingQuestionES;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (
+            isAstriaSpanishV2 &&
+            !isAstriaUS &&
+            energyMatchMissingQuestionESV2
+          ) {
+            finalAiResponse = energyMatchMissingQuestionESV2;
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaJapan && energyMatchMissingQuestionJP) {
             finalAiResponse = energyMatchMissingQuestionJP;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
@@ -7471,7 +7209,10 @@ RULES:
 
             if (
               astriaJapanHybridData &&
-              validateAstriaJapanHybridData(astriaJapanHybridData, subCategoryName)
+              validateAstriaJapanHybridData(
+                astriaJapanHybridData,
+                subCategoryName,
+              )
             ) {
               if (isEnergyMatchSubcategoryJPHybrid(subCategoryName)) {
                 astriaJapanHybridData = deriveEnergyMatchLabels(
@@ -7557,7 +7298,10 @@ RULES:
 
             if (
               astriaSingaporeV3Data &&
-              validateAstriaSingaporeV3Data(astriaSingaporeV3Data, subCategoryName)
+              validateAstriaSingaporeV3Data(
+                astriaSingaporeV3Data,
+                subCategoryName,
+              )
             ) {
               astriaSingaporeV3Data = {
                 ...astriaSingaporeV3Data,
@@ -8432,6 +8176,10 @@ RULES:
         finalAiResponse = energyMatchMissingQuestionES;
       }
 
+      if (isAstriaSpanishV2 && !isAstriaUS && energyMatchMissingQuestionESV2) {
+        finalAiResponse = energyMatchMissingQuestionESV2;
+      }
+
       if (isAstriaJapan && energyMatchMissingQuestionJP) {
         finalAiResponse = energyMatchMissingQuestionJP;
       }
@@ -8781,7 +8529,10 @@ RULES:
         ) {
           astriaMexicoData = {
             ...astriaMexicoData,
-            ...deriveAstriaMexicoDisplaySections(astriaMexicoData, subCategoryName),
+            ...deriveAstriaMexicoDisplaySections(
+              astriaMexicoData,
+              subCategoryName,
+            ),
           };
           finalAiResponse = formatAstriaMexicoResponse(
             astriaMexicoData,
@@ -9120,7 +8871,9 @@ RULES:
             : isAstriaKoreaHybrid
               ? astriaKoreaHybridData
               : null,
-        astriaJapanHybridData: isAstriaJapanHybrid ? astriaJapanHybridData : null,
+        astriaJapanHybridData: isAstriaJapanHybrid
+          ? astriaJapanHybridData
+          : null,
         astriaSingaporeV2Data: isAstriaSingaporeV2
           ? astriaSingaporeV2Data
           : null,
@@ -9235,7 +8988,9 @@ RULES:
             : isAstriaKoreaHybrid
               ? astriaKoreaHybridData
               : null,
-        astriaJapanHybridData: isAstriaJapanHybrid ? astriaJapanHybridData : null,
+        astriaJapanHybridData: isAstriaJapanHybrid
+          ? astriaJapanHybridData
+          : null,
         astriaSingaporeV2Data: isAstriaSingaporeV2
           ? astriaSingaporeV2Data
           : null,

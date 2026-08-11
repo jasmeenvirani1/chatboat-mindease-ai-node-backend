@@ -9,6 +9,7 @@ const TempOtp = require("../models/OTPmodel");
 const { OAuth2Client } = require("google-auth-library");
 const Chat = require("../models/ChatModel");
 const { generateAppleClientSecret } = require("../utils/appleClientSecret");
+const { isValidSpanishToneLock } = require("../helper/spanishToneLock");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = "jwttoken";
 
@@ -125,6 +126,7 @@ const userController = {
           dob_place: user.dob_place,
           preferredLanguage: user.preferredLanguage,
           gccToneMode: user.gccToneMode || "gulf",
+          spanishToneLock: user.spanishToneLock || null,
           roleId: user.roleId,
           subscriptionId: user.subscriptionId,
           subscriptionStartDate: user.subscriptionStartDate,
@@ -147,8 +149,15 @@ const userController = {
   },
 
   register: async (req, res) => {
-    const { roleId, email, username, password, mobileNo, preferredLanguage, region } =
-      req.body;
+    const {
+      roleId,
+      email,
+      username,
+      password,
+      mobileNo,
+      preferredLanguage,
+      region,
+    } = req.body;
 
     logger.log(`Registration attempt for ${email}`);
 
@@ -209,8 +218,16 @@ const userController = {
   // Create User from Admin Panel (includes Admin, User, and Tester roles)
   createUserFromAdmin: async (req, res) => {
     const {
-      roleId, email, username, password, mobileNo,
-      preferredLanguage, dob, dob_time, dob_place, region
+      roleId,
+      email,
+      username,
+      password,
+      mobileNo,
+      preferredLanguage,
+      dob,
+      dob_time,
+      dob_place,
+      region,
     } = req.body;
 
     logger.log(`Creating user from admin panel: ${email}, roleId: ${roleId}`);
@@ -355,6 +372,7 @@ const userController = {
           dob_place: user.dob_place,
           preferredLanguage: user.preferredLanguage,
           gccToneMode: user.gccToneMode || "gulf",
+          spanishToneLock: user.spanishToneLock || null,
           roleId: user.roleId,
           subscriptionId: user.subscriptionId,
           subscriptionStartDate: user.subscriptionStartDate,
@@ -465,6 +483,7 @@ const userController = {
           dob_place: user.dob_place,
           preferredLanguage: user.preferredLanguage,
           gccToneMode: user.gccToneMode || "gulf",
+          spanishToneLock: user.spanishToneLock || null,
           roleId: user.roleId,
           subscriptionId: user.subscriptionId,
           subscriptionStartDate: user.subscriptionStartDate,
@@ -827,6 +846,51 @@ const userController = {
     } catch (err) {
       logger.error(
         `Error updating FCM token for user ID ${req.params.id}`,
+        err,
+      );
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  // get spanish tone lock for a user by id
+  getSpanishToneLock: async (req, res) => {
+    try {
+      const user = await User.findById(req.params.id).select("spanishToneLock");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.status(200).json({ spanishToneLock: user.spanishToneLock || null });
+    } catch (err) {
+      logger.error(
+        `Error fetching spanishToneLock for user ID ${req.params.id}`,
+        err,
+      );
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  // set spanish tone lock for a user by id
+  setSpanishToneLock: async (req, res) => {
+    try {
+      const requested = String(req.body.spanishTone || "").toLowerCase();
+      if (!isValidSpanishToneLock(requested)) {
+        return res.status(400).json({ message: "Invalid spanishTone" });
+      }
+
+      const user = await User.findById(req.params.id).select("spanishToneLock");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (!user.spanishToneLock) {
+        user.spanishToneLock = requested;
+        await user.save();
+      }
+
+      res.status(200).json({ spanishToneLock: user.spanishToneLock });
+    } catch (err) {
+      logger.error(
+        `Error setting spanishToneLock for user ID ${req.params.id}`,
         err,
       );
       res.status(500).json({ error: err.message });

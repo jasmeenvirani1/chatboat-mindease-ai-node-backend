@@ -26,6 +26,20 @@ const userSchema = new Schema(
       enum: ["msa_fusha", "gulf", "kuwaiti"],
       default: "gulf",
     },
+    // Spanish tone lock
+    spanishToneLock: {
+      type: String,
+      enum: [
+        "neutral",
+        "spain",
+        "mexico",
+        "argentina",
+        "colombia",
+        "chile",
+        "peru",
+      ],
+      default: null,
+    },
     otp: { type: String },
     otpExpiry: { type: Date },
     fcmToken: { type: String, default: "" },
@@ -39,10 +53,7 @@ const userSchema = new Schema(
     allRegionsPending: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
-    // Set true once the Social Compatibility form is fully submitted — lets
-    // the sidebar route straight to /matches without a profile-check API
-    // call on every click (mirrors CompatibilityProfile.isProfileComplete,
-    // duplicated here so it's available on the already-loaded User doc).
+    //set true if user filled social compatability form
     hasCompatibilityProfile: { type: Boolean, default: false },
   },
   {

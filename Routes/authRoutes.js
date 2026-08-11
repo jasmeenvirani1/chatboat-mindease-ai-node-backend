@@ -64,6 +64,8 @@ router.post('/sendOtp', userController.sendOtp);
 router.post('/verifyOtp', userController.verifyOtp);
 router.put('/resetPasswordWithOtp', userController.resetPasswordWithOtp);
 router.put('/fcmToken/:id', userController.updatefcmToken);
+router.get('/spanishToneLock/:id', userController.getSpanishToneLock);
+router.post('/spanishToneLock/:id', userController.setSpanishToneLock);
 router.get('/settings', SettingController.index);
 router.post('/googleLogin', userController.googleLogin);
 router.get("/auth/apple/start", userController.appleStart);

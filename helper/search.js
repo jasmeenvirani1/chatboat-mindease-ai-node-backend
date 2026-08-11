@@ -256,7 +256,19 @@ export async function loadIndex() {
   }
 }
 
-export async function search(userMessage, topK = 10) {
+// Embeds a query once so callers that need multiple searches for the same
+// text (e.g. emotion-based sentence pick + reply-match pick) can share one
+// embedder call instead of paying the inference cost twice per request.
+export async function embedQuery(userMessage) {
+  if (!embedder) return null;
+  const output = await embedder([userMessage], {
+    pooling: "mean",
+    normalize: true,
+  });
+  return output[0].data; // normalized Float32Array
+}
+
+export async function search(userMessage, topK = 10, precomputedVec = null) {
   if (!embedder || !index || !meta) {
     const canned = cannedRepliesFor(userMessage);
     return canned.slice(0, topK).map((sentence, i) => ({
@@ -278,13 +290,9 @@ export async function search(userMessage, topK = 10) {
     }));
   }
 
-  const output = await embedder([userMessage], {
-    pooling: "mean",
-    normalize: true,
-  });
-
   // ← Quantize+dequantize the query vector to match the precision of stored vectors
-  const queryVecFloat32 = output[0].data; // normalized Float32Array
+  const queryVecFloat32 =
+    precomputedVec || (await embedQuery(userMessage));
   const queryVec = Array.from(quantizeVec(Array.from(queryVecFloat32)));
 
   // Pull a larger set then rerank to look more like a *reply* (not an echo).
@@ -328,8 +336,8 @@ export async function search(userMessage, topK = 10) {
     .map((c) => ({ sentence: c.sentence, score: c.baseScore, index: c.index }));
 }
 
-export async function buildPrompt(userMessage, topK = 10) {
-  const matches = await search(userMessage, topK);
+export async function buildPrompt(userMessage, topK = 10, precomputedVec = null) {
+  const matches = await search(userMessage, topK, precomputedVec);
   const context = matches.map((m) => m.sentence).join("\n");
 
   return {
