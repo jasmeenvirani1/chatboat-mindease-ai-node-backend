@@ -39,6 +39,8 @@ const corsOptions = {
     "https://healjaispace.com",
     "https://www.healjaispace.com",
     "https://test.healjaispace.com",
+    "https://astria.fyi",
+    "https://www.astria.fyi",
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
