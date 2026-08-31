@@ -8,7 +8,7 @@ const { getJose, getAppleJwks } = require("../utils/appleJose"); // ✅ adjust p
 const { makeUsernameFromEmail } = require("../utils/makeUsername"); // ✅ adjust path
 
 const appleLoginService = async ({ code, roleId }) => {
-    const JWT_SECRET = 'jwttoken';
+    const JWT_SECRET = require('../helper/jwtSecret');
     if (!code) throw new Error("authorization code is required");
 
   const clientSecret = generateAppleClientSecret();

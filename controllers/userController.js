@@ -11,7 +11,7 @@ const Chat = require("../models/ChatModel");
 const { generateAppleClientSecret } = require("../utils/appleClientSecret");
 const { isValidSpanishToneLock } = require("../helper/spanishToneLock");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-const JWT_SECRET = "jwttoken";
+const JWT_SECRET = require("../helper/jwtSecret");
 
 const makeUsernameFromEmail = (email) => {
   const base = (email || "user").split("@")[0];
@@ -638,7 +638,7 @@ const userController = {
 
       let decoded;
       try {
-        const jwtkey = "jwttoken";
+        const jwtkey = JWT_SECRET;
         decoded = jwt.verify(resetToken, jwtkey);
       } catch (err) {
         logger.log(`Password reset failed: Invalid or expired reset token`);

@@ -2,6 +2,21 @@ const mongoose = require("mongoose");
 
 const { Schema, model } = mongoose;
 
+const UserSubscriptionSchema = new Schema(
+  {
+    subscriptionId: { type: Schema.Types.ObjectId, ref: "SubscriptionPlans" },
+    startDate: { type: Date },
+    endDate: { type: Date },
+    status: {
+      type: String,
+      enum: ["active", "expired", "cancelled", "trialing"],
+      default: "active",
+    },
+    stripeSessionId: { type: String },
+  },
+  { _id: false },
+);
+
 const userSchema = new Schema(
   {
     roleId: {
@@ -48,6 +63,14 @@ const userSchema = new Schema(
     subscriptionStartDate: { type: String, default: "" },
     subscriptionEndDate: { type: String, default: "" },
     subscriptionStatus: { type: String, default: "" },
+    // Full history of every plan this user has held. Previously written to
+    // with $push but never declared, so strict mode silently dropped it.
+    subscriptions: { type: [UserSubscriptionSchema], default: [] },
+    // Stripe Customer id, reused across checkouts so saved cards and payment
+    // history stay attached to one customer record.
+    stripeCustomerId: { type: String, default: "", index: true },
+    // Set once a user consumes their free trial so it cannot be claimed twice.
+    hasUsedFreeTrial: { type: Boolean, default: false },
     region: { type: String, default: "healjai" },
     allRegionsApproved: { type: Boolean, default: false },
     allRegionsPending: { type: Boolean, default: false },

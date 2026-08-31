@@ -3,6 +3,7 @@ const OpenAI = require("openai");
 const DailyMessage = require("../models/HeadlineModel"); // <-- your model path
 const User = require("../models/UserModel");
 const { generateGeminiResponse } = require("../helper/geminiService");
+const { ACTIVE_STATUSES } = require("../helper/subscriptionAccess.js");
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -86,8 +87,13 @@ async function expireUserSubscriptionsIfNeeded() {
   // Compare by DATE (Asia/Kolkata), not by time
   const todayKey = getKolkataMidnightDate();
 
+  // Trials are stored as "trialing", not "active". Querying only "active"
+  // left every free-trial user with permanent access, so both statuses are
+  // swept here. ACTIVE_STATUSES is shared with the chat access gate so the
+  // two cannot drift apart.
+  const activeStatuses = [...ACTIVE_STATUSES];
   const activeUsers = await User.find({
-    subscriptionStatus: "active",
+    subscriptionStatus: { $in: activeStatuses },
     subscriptionEndDate: { $exists: true, $ne: "" },
   })
     .select("_id subscriptionEndDate")
@@ -103,7 +109,12 @@ async function expireUserSubscriptionsIfNeeded() {
     if (endDateKey.getTime() < todayKey.getTime()) {
       ops.push({
         updateOne: {
-          filter: { _id: user._id, subscriptionStatus: "active" },
+          // Re-check the status in the filter so a subscription renewed
+          // between the read and this write is not clobbered back to expired.
+          filter: {
+            _id: user._id,
+            subscriptionStatus: { $in: activeStatuses },
+          },
           update: { $set: { subscriptionStatus: "expired" } },
         },
       });

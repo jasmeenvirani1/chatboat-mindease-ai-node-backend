@@ -1,476 +1,415 @@
-const Stripe = require("stripe");
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const { stripe } = require("../helper/stripeClient");
+const logger = require("../helper/logger");
 const User = require("../models/UserModel");
 const SubscriptionHistory = require("../models/SubscriptionHistoryModel");
-const Subscription = require("../models/SubscriptionPlansModel");
-// const nodemailer = require("nodemailer");
-// const PDFDocument = require("pdfkit"); // ✅ ADD THIS
+const SubscriptionPlans = require("../models/SubscriptionPlansModel");
+const {
+  DEFAULT_CURRENCY,
+  parsePlanPrice,
+  toStripeAmount,
+  fromStripeAmount,
+  resolveDuration,
+  addDays,
+  isFreePlan,
+} = require("../helper/planPricing");
 
 const clientUrl = process.env.PAYMENT_URL;
-let isMonthlyPlan;
 
-// ✅ Initialize transporter WITH verification
-// const transporter = nodemailer.createTransport({
-//   service: "gmail",
-//   auth: {
-//     user: process.env.SUPPORT_EMAIL,
-//     pass: process.env.SUPPORT_PASSWORD,
-//   },
-// });
+/**
+ * Apply a paid plan to a user and record it in history.
+ *
+ * Idempotent: activation is claimed with a single atomic upsert keyed on
+ * stripeSessionId, so a replayed session, a double-submitted success page, or
+ * a webhook racing the /verify call all resolve to exactly one history row and
+ * one subscription entry. Both /verify and the webhook funnel through here,
+ * so whichever arrives first wins and the rest are no-ops.
+ */
+async function activateSubscription({ session, user, plan, durationDays }) {
+  const startDate = new Date();
+  const endDate = addDays(startDate, durationDays);
 
-// Verify transporter on startup
-// transporter.verify(function (error, success) {
-//   if (error) {
-//     console.error("❌ SMTP Connection Error:", error);
-//   } else {
-// console.log("✅ SMTP Server is ready to send emails");
-//   }
-// });
+  const currency = (session.currency || DEFAULT_CURRENCY).toUpperCase();
+  const amount = fromStripeAmount(session.amount_total || 0, currency);
 
-// ✅ Helper function for money formatting
-// function money(amount, currency = "USD") {
-//   try {
-//     return new Intl.NumberFormat("en-US", {
-//       style: "currency",
-//       currency,
-//     }).format(amount);
-//   } catch {
-//     return `${amount} ${currency}`;
-//   }
-// }
-// function drawLine(doc, y) {
-//   doc.strokeColor("#E5E7EB").lineWidth(1).moveTo(50, y).lineTo(545, y).stroke();
-// }
+  // Claim this session atomically. upsert on stripeSessionId means only the
+  // first caller inserts; a concurrent double-submit or a webhook racing the
+  // /verify call finds the existing row and stops. This does not depend on the
+  // unique index existing, so it is correct even before that migration runs —
+  // the index is defence in depth, not the mechanism.
+  const claim = await SubscriptionHistory.findOneAndUpdate(
+    { stripeSessionId: session.id },
+    {
+      $setOnInsert: {
+        userId: user._id,
+        planId: plan._id,
+        stripeSessionId: session.id,
+        stripePaymentIntentId:
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id || null,
+        stripeCustomerId:
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id || null,
+        amount,
+        currency,
+        status: "active",
+        startDate,
+        endDate,
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+      // Returns lastErrorObject, whose `upserted` field is set only when this
+      // call performed the insert. That is what distinguishes the first
+      // caller from a replay. (rawResult is deprecated in Mongoose 8 and
+      // returns a plain document with no such metadata.)
+      includeResultMetadata: true,
+    },
+  ).catch(async (err) => {
+    // With the unique index in place a lost upsert race surfaces as 11000.
+    if (err.code === 11000) return null;
+    throw err;
+  });
 
-// ✅ PDF Generation function (moved here since it's only used here)
-// function generateInvoicePdfBuffer({
-//   invoiceNo,
-//   invoiceDate,
-//   customerName,
-//   customerEmail,
-//   planName,
-//   amount,
-//   currency,
-//   paymentId,
-//   company = {
-//     brand: "Global Scrap Exchange",
-//     legalName: "Scrap Don",
-//     address1: "Address",
-//     address2: "City, Country",
-//     email: "support@scrapexchange.com",
-//     website: "www.scrapexchange.com",
-//   },
-// }) {
-//   return new Promise((resolve, reject) => {
-//    try {
-//      const doc = new PDFDocument({ size: "A4", margin: 50 });
-//      const chunks = [];
+  // null => lost an index-enforced race; lastErrorObject.upserted set => we
+  // performed the insert and are the one caller that should apply the plan.
+  const isFirstClaim = !!claim && !!claim.lastErrorObject?.upserted;
+  const history = claim
+    ? claim.value
+    : await SubscriptionHistory.findOne({ stripeSessionId: session.id });
 
-//      doc.on("data", (c) => chunks.push(c));
-//      doc.on("end", () => resolve(Buffer.concat(chunks)));
+  if (!isFirstClaim) {
+    logger.log(
+      `Session ${session.id} already processed; skipping duplicate activation`,
+    );
+    return { alreadyProcessed: true, history };
+  }
 
-//      // ===== Header (Company left, Invoice right) =====
-//      doc
-//        .font("Helvetica-Bold")
-//        .fontSize(22)
-//        .fillColor("#111827")
-//        .text(company.brand || "Company", 50, 50);
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        subscriptionId: String(plan._id),
+        subscriptionStartDate: startDate,
+        subscriptionEndDate: endDate,
+        subscriptionStatus: "active",
+      },
+      $push: {
+        subscriptions: {
+          subscriptionId: plan._id,
+          startDate,
+          endDate,
+          status: "active",
+          stripeSessionId: session.id,
+        },
+      },
+    },
+  );
 
-//      doc
-//        .font("Helvetica")
-//        .fontSize(10)
-//        .fillColor("#374151")
-//        .text(company.legalName || "", 50, 78)
-//        .text(company.address1 || "", 50, 92)
-//        .text(company.address2 || "", 50, 106)
-//        .text(company.email || "", 50, 120)
-//        .text(company.website || "", 50, 134);
+  logger.log(
+    `Subscription activated: user=${user._id} plan=${plan._id} session=${session.id}`,
+  );
 
-//      // ===== Right Header (no overlap) =====
-//      const rightX = 350; // starting x of right block
-//      const rightW = 195; // width (A4 page minus margins approx)
-//      let yRight = 50;
+  return { alreadyProcessed: false, history };
+}
 
-//      doc
-//        .font("Helvetica-Bold")
-//        .fontSize(18)
-//        .fillColor("#111827")
-//        .text("INVOICE", rightX, yRight, { width: rightW, align: "right" });
-
-//      yRight = doc.y + 6;
-
-//      doc
-//        .font("Helvetica")
-//        .fontSize(10)
-//        .fillColor("#374151")
-//        .text(`Invoice No: ${invoiceNo}`, rightX, yRight, {
-//          width: rightW,
-//          align: "right",
-//        });
-
-//      doc.text(`Date: ${invoiceDate}`, rightX, doc.y + 2, {
-//        width: rightW,
-//        align: "right",
-//      });
-
-//      doc.text(`Payment Ref: ${paymentId || "-"}`, rightX, doc.y + 2, {
-//        width: rightW,
-//        align: "right",
-//      });
-
-//      drawLine(doc, 160);
-
-//      // ===== Bill To =====
-//      doc
-//        .font("Helvetica-Bold")
-//        .fontSize(12)
-//        .fillColor("#111827")
-//        .text("Bill To", 50, 175);
-
-//      doc
-//        .font("Helvetica")
-//        .fontSize(10)
-//        .fillColor("#374151")
-//        .text(customerName || "Customer", 50, 195)
-//        .text(customerEmail || "-", 50, 210);
-
-//      // ===== Table Header =====
-//      const tableTop = 245;
-//      drawLine(doc, tableTop - 10);
-
-//      doc
-//        .font("Helvetica-Bold")
-//        .fontSize(10)
-//        .fillColor("#111827")
-//        .text("Description", 50, tableTop)
-//        .text("Qty", 350, tableTop, { width: 40, align: "right" })
-//        .text("Unit Price", 410, tableTop, { width: 70, align: "right" })
-//        .text("Amount", 495, tableTop, { width: 50, align: "right" });
-
-//      drawLine(doc, tableTop + 18);
-
-//      // ===== Table Row =====
-//      const rowY = tableTop + 30;
-//      const qty = 1;
-//      const unitPrice = amount;
-
-//      doc
-//        .font("Helvetica")
-//        .fontSize(10)
-//        .fillColor("#374151")
-//        .text(`${planName} (Monthly subscription)`, 50, rowY, { width: 280 })
-//        .text(String(qty), 350, rowY, { width: 40, align: "right" })
-//        .text(money(unitPrice, currency), 410, rowY, {
-//          width: 70,
-//          align: "right",
-//        })
-//        .text(money(amount, currency), 495, rowY, { width: 50, align: "right" });
-
-//      drawLine(doc, rowY + 25);
-
-//      // ===== Totals =====
-//      const total = amount;
-
-//      const totalsTop = rowY + 45;
-
-//      doc.font("Helvetica").fontSize(10).fillColor("#374151");
-
-//      // Subtotal
-//      doc.text("Subtotal", 400, totalsTop, { width: 90, align: "right" });
-//      doc.text(money(amount, currency), 495, totalsTop, {
-//        width: 50,
-//        align: "right",
-//      });
-
-//      // Line
-//      drawLine(doc, totalsTop + 18);
-
-//      // Total (Bold)
-//      doc
-//        .font("Helvetica-Bold")
-//        .fontSize(12)
-//        .fillColor("#111827")
-//        .text("Total", 400, totalsTop + 28, {
-//          width: 90,
-//          align: "right",
-//        });
-
-//      doc
-//        .font("Helvetica-Bold")
-//        .fontSize(12)
-//        .fillColor("#111827")
-//        .text(money(total, currency), 495, totalsTop + 28, {
-//          width: 50,
-//          align: "right",
-//        });
-
-//      // if (taxRate > 0) {
-//      //   doc.text(`${taxLabel} (${Math.round(taxRate * 100)}%)`, 400, totalsTop + 16, {
-//      //     width: 90,
-//      //     align: "right",
-//      //   });
-//      //   doc.text(money(taxAmount, currency), 495, totalsTop + 16, {
-//      //     width: 50,
-//      //     align: "right",
-//      //   });
-//      // }
-
-//      // drawLine(doc, totalsTop + (taxRate > 0 ? 40 : 24));
-
-//      // doc
-//      //   .font("Helvetica-Bold")
-//      //   .fontSize(12)
-//      //   .fillColor("#111827")
-//      //   .text("Total", 400, totalsTop + (taxRate > 0 ? 48 : 32), {
-//      //     width: 90,
-//      //     align: "right",
-//      //   });
-
-//      // doc
-//      //   .font("Helvetica-Bold")
-//      //   .fontSize(12)
-//      //   .fillColor("#111827")
-//      //   .text(money(total, currency), 495, totalsTop + (taxRate > 0 ? 48 : 32), {
-//      //     width: 50,
-//      //     align: "right",
-//      //   });
-
-//      // ===== Footer Note =====
-//      doc
-//        .font("Helvetica")
-//        .fontSize(9)
-//        .fillColor("#6B7280")
-//        .text(
-//          "This invoice was generated electronically and is valid without a signature.",
-//          50,
-//          740,
-//          { align: "left" },
-//        );
-
-//      doc.end();
-//    } catch (e) {
-//       reject(e);
-//     }
-//   });
-// }
-
-// ✅ Create checkout session
+/**
+ * POST /api/payment/checkout
+ *
+ * Creates a Stripe Checkout Session. The client sends only a planId — the
+ * price, currency and duration are all read from the database, so a tampered
+ * request body cannot change what the user is charged.
+ */
 const createCheckoutSession = async (req, res) => {
   try {
-    const { planId, name, price, userId, isMonthly } = req.body;
+    const { planId } = req.body;
+    const userId = req.userId; // set by auth middleware, never from the body
 
-    if (!planId || !userId) {
-      return res.status(400).json({ message: "planId and userId required" });
+    if (!planId) {
+      return res.status(400).json({ message: "planId is required" });
     }
 
-    isMonthlyPlan = isMonthly;
+    const plan = await SubscriptionPlans.findById(planId);
+    if (!plan || plan.isActive === false) {
+      return res.status(404).json({ message: "Plan not found or inactive" });
+    }
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card", "sepa_debit", "ideal", "klarna"],
-      line_items: [
-        {
-          price_data: {
-            currency: "thb",
-            product_data: { name: name || "Subscription Plan" },
-            unit_amount: Math.round(price * 100),
-          },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      success_url: `${clientUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}&plan_id=${planId}`,
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const price = parsePlanPrice(plan.price);
+    if (price === null) {
+      logger.error(`Plan ${plan._id} has an unusable price: ${plan.price}`);
+      return res.status(500).json({ message: "Plan is misconfigured" });
+    }
+
+    const duration = resolveDuration(plan.billingCadence);
+    if (!duration) {
+      logger.error(
+        `Plan ${plan._id} has an unreadable cadence: ${plan.billingCadence}`,
+      );
+      return res.status(500).json({ message: "Plan is misconfigured" });
+    }
+
+    // Reuse one Stripe Customer per user so saved cards and receipts stay
+    // together instead of creating a new customer on every purchase.
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: user.username,
+        metadata: { userId: String(user._id) },
+      });
+      customerId = customer.id;
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { stripeCustomerId: customerId } },
+      );
+    }
+
+    const currency = (plan.currency || DEFAULT_CURRENCY).toLowerCase();
+    const isTrial = isFreePlan(plan.price);
+
+    if (isTrial && user.hasUsedFreeTrial) {
+      return res
+        .status(409)
+        .json({ message: "Free trial has already been used" });
+    }
+
+    const metadata = {
+      userId: String(user._id),
+      planId: String(plan._id),
+      durationDays: String(duration.days),
+      isTrial: String(isTrial),
+    };
+
+    const commonParams = {
+      customer: customerId,
+      client_reference_id: String(user._id),
+      metadata,
+      success_url: `${clientUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${clientUrl}/payment-cancel`,
-    });
+      // Abandoned sessions stop being payable after 30 minutes.
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+    };
 
-    res.status(200).json({ url: session.url });
+    let session;
+    if (isTrial) {
+      // A zero-amount Checkout is rejected by Stripe, so a free trial runs in
+      // setup mode: it collects and saves the card without charging it, which
+      // is what "get card details for the free trial" requires.
+      session = await stripe.checkout.sessions.create({
+        ...commonParams,
+        mode: "setup",
+        payment_method_types: ["card"],
+        currency,
+        setup_intent_data: { metadata },
+      });
+    } else {
+      session = await stripe.checkout.sessions.create({
+        ...commonParams,
+        mode: "payment",
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency,
+              product_data: {
+                name: plan.planName || "Subscription Plan",
+                ...(plan.highlight ? { description: plan.highlight } : {}),
+              },
+              // Amount comes from the DB price, never from the request.
+              unit_amount: toStripeAmount(price, currency),
+            },
+            quantity: 1,
+          },
+        ],
+        payment_intent_data: {
+          metadata,
+          setup_future_usage: "off_session",
+        },
+        invoice_creation: { enabled: true },
+      });
+    }
+
+    logger.log(
+      `Checkout session ${session.id} created for user=${user._id} plan=${plan._id}`,
+    );
+
+    return res.status(200).json({ url: session.url, sessionId: session.id });
   } catch (err) {
-    console.error("Stripe Checkout Error:", err);
-    res
-      .status(500)
-      .json({ message: "Stripe checkout failed", error: err.message });
+    logger.error("Stripe checkout failed", err);
+    return res.status(500).json({ message: "Stripe checkout failed" });
   }
 };
 
-// ✅ Verify session & update user plan
+/**
+ * POST /api/payment/verify
+ *
+ * Called by the success page. This is a convenience path so the UI can show a
+ * confirmed state immediately — the webhook is the authoritative record, and
+ * either path alone is sufficient to activate the plan.
+ */
 const verifyAndSavePlan = async (req, res) => {
   try {
-    let { session_id, user_id, plan_id } = req.body;
+    const { session_id } = req.body;
+    const userId = req.userId;
 
     if (!session_id) {
       return res.status(400).json({ message: "session_id is required" });
     }
 
-    console.log("✅ verifyAndSavePlan HIT", req.body);
-    console.log("📧 Email Config Check:");
-    console.log("- SUPPORT_EMAIL exists:", !!process.env.SUPPORT_EMAIL);
-    console.log("- SUPPORT_PASSWORD exists:", !!process.env.SUPPORT_PASSWORD);
-
     const session = await stripe.checkout.sessions.retrieve(session_id);
 
-    if (session.payment_status !== "paid") {
+    // The session must belong to the caller. Without this check any logged-in
+    // user could paste someone else's session id and claim their plan.
+    if (String(session.metadata?.userId) !== String(userId)) {
+      logger.error(
+        `Session ownership mismatch: session=${session_id} belongs to ${session.metadata?.userId}, caller ${userId}`,
+      );
+      return res.status(403).json({ message: "Session does not belong to you" });
+    }
+
+    const isTrial = session.metadata?.isTrial === "true";
+    const durationDays = parseInt(session.metadata?.durationDays, 10);
+    if (!Number.isFinite(durationDays) || durationDays <= 0) {
+      return res.status(400).json({ message: "Session is missing plan duration" });
+    }
+
+    // For a paid plan Stripe must confirm the money landed. For a trial the
+    // card only needs to have been saved successfully.
+    if (isTrial) {
+      if (session.status !== "complete") {
+        return res.status(400).json({ message: "Card setup not completed" });
+      }
+    } else if (session.payment_status !== "paid") {
       return res.status(400).json({ message: "Payment not completed" });
     }
 
-    // Fallback to session metadata
-    if (!user_id) user_id = session.metadata?.userId;
-    if (!plan_id) plan_id = session.metadata?.planId;
-
-    if (!user_id || !plan_id) {
-      return res.status(400).json({
-        message:
-          "Missing user_id/plan_id (not in body and not in session metadata)",
-      });
-    }
-
-    const user = await User.findById(user_id);
+    const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const plan = await Subscription.findById(plan_id);
+    const plan = await SubscriptionPlans.findById(session.metadata?.planId);
     if (!plan) return res.status(404).json({ message: "Plan not found" });
 
-    // const planUserType = plan.userType?.[0];
-    // if (!planUserType) {
-    //   return res.status(400).json({ message: "Invalid plan configuration" });
-    // }
-
-    const startDate = new Date();
-    const endDate = new Date(startDate);
-
-    if (isMonthlyPlan) {
-      endDate.setDate(endDate.getDate() + 30);
-    } else {
-      endDate.setDate(endDate.getDate() + 365);
-    }
-
-    // Update user subscriptions
-    // await User.updateOne(
-    //   { _id: user._id },
-    //   { $pull: { subscriptions: { userType: planUserType } } },
-    // );
-
-    await User.updateOne(
-      { _id: user._id },
-      {
-        $push: {
-          subscriptions: {
-            subscriptionId: plan_id,
-            // userType: planUserType,
-            startDate,
-            endDate,
-            status: "active",
-            stripeSessionId: session_id,
-          },
-        },
-      },
-    );
-
-    user.subscriptionId = plan_id;
-    user.subscriptionStartDate = startDate;
-    user.subscriptionEndDate = endDate;
-    user.subscriptionStatus = "active";
-    await user.save({ validateModifiedOnly: true });
-
-    await SubscriptionHistory.create({
-      userId: user_id,
-      // userType: planUserType,
-      planId: plan_id,
-      stripeSessionId: session_id,
-      amount: (session.amount_total || 0) / 100,
-      currency: session.currency || "THB",
-      status: "active",
-      startDate,
-      endDate,
-    });
-
-    // ✅ INVOICE + EMAIL
-    // const amount = (session.amount_total || 0) / 100;
-    // const currency = (session.currency || "thb").toUpperCase(); // ✅ FIXED: "dol" → "eur"
-    // const invoiceNo = `INV-${new Date().getFullYear()}-${Date.now()}`;
-    // const invoiceDate = new Date().toISOString().slice(0, 10);
-
-    // console.log("📄 Generating invoice", invoiceNo);
-
-    // Email sending function
-    // const sendInvoice = async () => {
-    //   try {
-    //     console.log("✉️ Preparing to send email to:", user.email);
-
-    //     // Generate PDF
-    //     const pdfBuffer = await generateInvoicePdfBuffer({
-    //       invoiceNo,
-    //       invoiceDate,
-    //       customerName: user.name,
-    //       customerEmail: user.email,
-    //       planName: plan.name || "Subscription Plan",
-    //       amount,
-    //       currency,
-    //       paymentId: session.payment_intent || session_id,
-    //     });
-
-    //     console.log("✅ PDF generated successfully");
-
-    //     // Prepare email
-    //     const subject = `Your Invoice ${invoiceNo}`;
-    //     const html = `
-    //       <div style="font-family: Arial, sans-serif; line-height:1.6">
-    //         <p>Hi ${user.name || "there"},</p>
-    //         <p>Thank you for your payment.</p>
-    //         <p>Your invoice <b>${invoiceNo}</b> is attached with this email.</p>
-    //         <p>If you have any questions, reply to this email.</p>
-    //         <br/>
-    //         <p>Regards,<br/>Support Team</p>
-    //       </div>
-    //     `;
-
-    //     console.log("📤 Sending email via SMTP...");
-
-    //     // Send email
-    //     const info = await transporter.sendMail({
-    //       from: `"Support" <${process.env.SUPPORT_EMAIL}>`,
-    //       to: user.email,
-    //       subject,
-    //       html,
-    //       attachments: [
-    //         {
-    //           filename: `${invoiceNo}.pdf`,
-    //           content: pdfBuffer,
-    //           contentType: "application/pdf",
-    //         },
-    //       ],
-    //     });
-
-    //     console.log(`✅ Invoice email sent successfully to ${user.email}`);
-    //     console.log(`📧 Message ID: ${info.messageId}`);
-    //     return true;
-    //   } catch (err) {
-    //     console.error("❌ Invoice email failed:");
-    //     console.error("Error Code:", err.code);
-    //     console.error("Error Message:", err.message);
-    //     console.error("Full Error:", err);
-    //     return false;
-    //   }
-    // };
-
-    // Send the email
-    // const emailSent = await sendInvoice();
+    const result = isTrial
+      ? await activateTrial({ session, user, plan, durationDays })
+      : await activateSubscription({ session, user, plan, durationDays });
 
     return res.status(200).json({
       success: true,
-      message: "Plan saved successfully",
-      subscriptionId: plan_id,
-      subscriptionStartDate: startDate,
-      subscriptionEndDate: endDate,
-      subscriptionStatus: "active",
-      // invoiceNo,
-      // emailSent,
+      message: result.alreadyProcessed
+        ? "Subscription already active"
+        : "Plan saved successfully",
+      subscriptionId: String(plan._id),
+      subscriptionStartDate: result.history?.startDate,
+      subscriptionEndDate: result.history?.endDate,
+      subscriptionStatus: result.history?.status,
     });
   } catch (err) {
-    console.error("Verify Plan Error:", err);
-    return res.status(500).json({
-      message: "Failed to verify and save plan",
-      error: err.message,
-    });
+    logger.error("Verify plan failed", err);
+    return res.status(500).json({ message: "Failed to verify and save plan" });
   }
 };
 
-module.exports = { createCheckoutSession, verifyAndSavePlan };
+/**
+ * Activate a free trial. Same idempotency guarantees as a paid activation,
+ * plus a one-per-user flag so the trial cannot be claimed repeatedly.
+ */
+async function activateTrial({ session, user, plan, durationDays }) {
+  const startDate = new Date();
+  const endDate = addDays(startDate, durationDays);
+
+  // Same atomic claim as the paid path: only the first caller inserts.
+  const claim = await SubscriptionHistory.findOneAndUpdate(
+    { stripeSessionId: session.id },
+    {
+      $setOnInsert: {
+        userId: user._id,
+        planId: plan._id,
+        stripeSessionId: session.id,
+        stripeCustomerId:
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id || null,
+        amount: 0,
+        currency: (session.currency || DEFAULT_CURRENCY).toUpperCase(),
+        status: "trialing",
+        startDate,
+        endDate,
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+      includeResultMetadata: true,
+    },
+  ).catch((err) => {
+    if (err.code === 11000) return null;
+    throw err;
+  });
+
+  const isFirstClaim = !!claim && !!claim.lastErrorObject?.upserted;
+  const history = claim
+    ? claim.value
+    : await SubscriptionHistory.findOne({ stripeSessionId: session.id });
+
+  if (!isFirstClaim) {
+    logger.log(`Trial session ${session.id} already processed; skipping`);
+    return { alreadyProcessed: true, history };
+  }
+
+  // Claim the one-per-user trial atomically. The check in
+  // createCheckoutSession is a fast fail for the common case, but two
+  // concurrent checkouts can both pass it before either writes the flag; this
+  // conditional update is what actually enforces the limit. Setting the flag
+  // here in the same operation means only one caller can ever win.
+  const trialClaim = await User.updateOne(
+    { _id: user._id, hasUsedFreeTrial: { $ne: true } },
+    { $set: { hasUsedFreeTrial: true } },
+  );
+
+  if (trialClaim.modifiedCount === 0) {
+    logger.error(
+      `Trial session ${session.id}: user ${user._id} has already used their free trial; not granting a second one`,
+    );
+    return { alreadyProcessed: true, history };
+  }
+
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        subscriptionId: String(plan._id),
+        subscriptionStartDate: startDate,
+        subscriptionEndDate: endDate,
+        subscriptionStatus: "trialing",
+      },
+      $push: {
+        subscriptions: {
+          subscriptionId: plan._id,
+          startDate,
+          endDate,
+          status: "trialing",
+          stripeSessionId: session.id,
+        },
+      },
+    },
+  );
+
+  logger.log(`Trial activated: user=${user._id} plan=${plan._id}`);
+  return { alreadyProcessed: false, history };
+}
+
+module.exports = {
+  createCheckoutSession,
+  verifyAndSavePlan,
+  activateSubscription,
+  activateTrial,
+};

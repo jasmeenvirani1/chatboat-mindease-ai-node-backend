@@ -55,6 +55,11 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
 app.options("*", cors(corsOptions));
+// Stripe webhooks must be mounted BEFORE the JSON body parser: signature
+// verification runs over the exact raw bytes Stripe sent, and express.json()
+// would consume and re-serialise them, breaking every signature check.
+app.use("/api/payment", paymentRoutes);
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use("/api/public", express.static(path.join(__dirname, "public")));
@@ -75,7 +80,6 @@ app.use("/api/backend/compatibility", socialCompatabilityRoutes);
 app.use("/api/generate-reading", indonesiaModulesRoutes);
 app.use("/api/backend", adminRoutes);
 app.use("/api", authRoutes);
-app.use("/api/payment", paymentRoutes);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "127.0.0.1", () => {

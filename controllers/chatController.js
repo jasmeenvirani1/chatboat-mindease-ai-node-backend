@@ -3,6 +3,7 @@ const ChatHistory = require("../models/ChatModel.js");
 const Category = require("../models/CategoryModel.js");
 const SubCategory = require("../models/SubCategoryModel.js");
 const logger = require("../helper/logger.js");
+const { hasPaidAccess } = require("../helper/subscriptionAccess.js");
 const {
   generateGeminiResponse,
   generateGeminiResponseStream,
@@ -1517,7 +1518,7 @@ const chatController = {
           "name prompt freeUserPrompt",
         );
         if (category) {
-          if (subscriptionId && subscriptionStatus === "Active") {
+          if (hasPaidAccess(subscriptionId, subscriptionStatus)) {
             categoryPrompt = category.prompt?.trim() || null;
           } else {
             categoryPrompt = category.freeUserPrompt?.trim() || null;
@@ -1531,7 +1532,7 @@ const chatController = {
           "name prompt categoryId freeUserPrompt",
         );
         if (subCategory) {
-          if (subscriptionId && subscriptionStatus === "Active") {
+          if (hasPaidAccess(subscriptionId, subscriptionStatus)) {
             subCategoryPrompt = subCategory.prompt?.trim() || null;
           } else {
             subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;

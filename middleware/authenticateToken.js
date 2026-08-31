@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/UserModel");
 // const Menu = require("../models/MenuModel");
 
-const jwtkey = "jwttoken";
+const jwtkey = require("../helper/jwtSecret");
 
 const authenticateToken = async (req, res, next) => {
   try {
