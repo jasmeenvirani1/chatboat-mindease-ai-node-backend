@@ -29,8 +29,38 @@ const {
 
 const { buildAstriaKoreaTalkContext } = require("./AstriaKoreaTalkService");
 
-// Korean is the only language V3 is ever allowed to reply in.
+// Reply language is dynamic — it follows the user's resolved `target` language
+// code (threaded in from chatController). Korean stays the default only when no
+// target is provided, so existing Korean-only callers are unaffected.
 const KR_V3_LANG_NAME = "Korean";
+
+const KR_V3_LANG_NAME_MAP = {
+  en: "English",
+  th: "Thai",
+  hi: "Hindi",
+  hinglish: "Hinglish (natural mix of Hindi and English in Roman script)",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  pt: "Portuguese",
+  ja: "Japanese",
+  ko: "Korean",
+  zh: "Chinese (Simplified)",
+  ar: "Arabic",
+  ru: "Russian",
+  vi: "Vietnamese",
+  id: "Indonesian",
+};
+
+function resolveKRV3LangName(target) {
+  if (!target) return "Korean";
+  return KR_V3_LANG_NAME_MAP[String(target).toLowerCase()] || "Korean";
+}
+
+function krV3LanguageRuleFor(langName) {
+  return `LANGUAGE RULE: Reply in ${langName} only, no matter what language the user wrote in. Every single word must be in ${langName}. Never mix languages.`;
+}
 
 // TONE MATRIX (V3)
 // Single source of truth for KR tone/forbidden-word rules lives in
@@ -609,6 +639,7 @@ const isCompanionTalkSubcategoryKRV3 = (subCategoryName) =>
 // MAIN EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
 function buildAstriaKoreaV3Context({
+  target,
   subCategoryName,
   categoryPrompt,
   subCategoryPrompt,
@@ -660,8 +691,31 @@ function buildAstriaKoreaV3Context({
   };
 
   const builder = resolveKRV3SubcategoryBuilder(subCategoryName);
-  if (builder) return builder(params);
-  return buildCategoryFallbackKRV3Prompt({ dbPrompt, birthChart });
+  const prompt = builder
+    ? builder(params)
+    : buildCategoryFallbackKRV3Prompt({ dbPrompt, birthChart });
+
+  return applyKRV3ReplyLanguage(prompt, target);
+}
+
+// Every builder above embeds the same hardcoded Korean-only phrases. Rather
+// than thread `target` through every builder signature, swap them here once on
+// the assembled prompt. When `target` is missing/unknown the phrases resolve
+// back to Korean, so the historical Korean-only behaviour is unchanged. Only
+// the reply-LANGUAGE phrases are swapped — the Saju domain wording ("Four
+// Pillars", "사주", "Korean astrology") is left intact.
+function applyKRV3ReplyLanguage(prompt, target) {
+  const langName = resolveKRV3LangName(target);
+  if (langName === "Korean") return prompt;
+  return String(prompt || "")
+    .split(KR_V3_LANGUAGE_RULE)
+    .join(krV3LanguageRuleFor(langName))
+    .split("Every string value must be written fully in Korean (한국어).")
+    .join(`Every string value must be written fully in ${langName}.`)
+    .split("each\n  under 12 words, in Korean")
+    .join(`each\n  under 12 words, in ${langName}`)
+    .split("under 400 Korean characters")
+    .join(`under 400 characters`);
 }
 
 module.exports = {
@@ -682,4 +736,6 @@ module.exports = {
   formatSajuBlockKR,
   formatSajuDailyLuckBlockKR,
   KR_V3_LANG_NAME,
+  KR_V3_LANG_NAME_MAP,
+  resolveKRV3LangName,
 };

@@ -25,6 +25,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.18.2",
+    "franc-min": "^5.0.0",
     "google-auth-library": "^10.5.0",
     "hnswlib-node": "^3.0.0",
     "jose": "^6.1.3",

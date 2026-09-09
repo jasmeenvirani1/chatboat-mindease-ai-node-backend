@@ -10,7 +10,110 @@ const {
   isCompatibilitySubcategoryJP,
 } = require("./astriaJapanService");
 
+// ─────────────────────────────────────────────────────────────────────────────
+// REPLY LANGUAGE
+// ─────────────────────────────────────────────────────────────────────────────
+// Historically every JP Hybrid prompt hard-coded "reply in Japanese only".
+// It now follows the user's resolved `target` language code, which
+// chatController threads into buildAstriaJapanHybridContext({ target }).
+//
+// HOW IT WORKS
+//   1. Each prompt builder still WRITES the Japanese-only wording (the
+//      DEFAULT_LANGUAGE_* constants below). Builders were left untouched so
+//      this change stays small and every builder keeps one obvious language
+//      line you can read in place.
+//   2. buildAstriaJapanHybridContext() assembles the finished prompt, then
+//      calls applyJPHybridReplyLanguage(prompt, target) ONCE. That helper
+//      rewrites the Japanese-only wording to the resolved language.
+//   3. When `target` is missing or unknown it resolves to "Japanese", so the
+//      helper is a no-op and behaviour is byte-for-byte the old behaviour.
+//
+// IF YOU EDIT A LANGUAGE LINE IN A BUILDER: update the matching
+// DEFAULT_LANGUAGE_* constant below to the exact same text, or the rewrite in
+// applyJPHybridReplyLanguage() will silently stop matching and non-Japanese
+// users will get a Japanese-only instruction again. A unit test
+// (test/jpHybridLanguage.test.js) guards this.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Default when no target is supplied — keeps legacy Japanese-only callers working.
 const JP_HYBRID_LANG_NAME = "Japanese";
+
+// target code -> human-readable language name used in the prompt.
+const JP_HYBRID_LANG_NAME_BY_CODE = {
+  en: "English",
+  th: "Thai",
+  hi: "Hindi",
+  hinglish: "Hinglish (natural mix of Hindi and English in Roman script)",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  pt: "Portuguese",
+  ja: "Japanese",
+  ko: "Korean",
+  zh: "Chinese (Simplified)",
+  ar: "Arabic",
+  ru: "Russian",
+  vi: "Vietnamese",
+  id: "Indonesian",
+};
+
+function resolveJPHybridLangName(target) {
+  if (!target) return JP_HYBRID_LANG_NAME;
+  return (
+    JP_HYBRID_LANG_NAME_BY_CODE[String(target).toLowerCase()] ||
+    JP_HYBRID_LANG_NAME
+  );
+}
+
+// The exact Japanese-only sentences the builders below emit. Each entry is
+// { find: <literal text a builder writes>, make: (langName) => <replacement> }.
+// applyJPHybridReplyLanguage() runs each one against the finished prompt.
+const JP_HYBRID_DEFAULT_LANGUAGE_LINES = [
+  {
+    // from JP_HYBRID_SCORING_AND_LANGUAGE_RULES (the "- LANGUAGE:" bullet)
+    find:
+      "- LANGUAGE: every JSON string value must be written fully in Japanese. Never use English or Thai\n" +
+      "  inside a value, no matter what language the user wrote in.",
+    make: (langName) =>
+      `- LANGUAGE: every JSON string value must be written fully in ${langName}. Never mix languages\n` +
+      `  inside a value, no matter what language the user wrote in.`,
+  },
+  {
+    // from JP_HYBRID_SCORING_AND_LANGUAGE_RULES (the "localization" score item)
+    find:
+      "localization (10 only if fully Japanese, no\n  English/Thai leakage)",
+    make: (langName) =>
+      `localization (10 only if fully ${langName}, no\n  other-language leakage)`,
+  },
+  {
+    // from buildCompatibilityHybridJPPrompt (its standalone LANGUAGE RULE line)
+    find:
+      "LANGUAGE RULE: Every JSON string value must be written fully in Japanese. Never use English or Thai inside a value, no matter what language the user wrote in.",
+    make: (langName) =>
+      `LANGUAGE RULE: Every JSON string value must be written fully in ${langName}. Never mix languages inside a value, no matter what language the user wrote in.`,
+  },
+];
+
+/**
+ * Rewrite the Japanese-only language instructions in a finished JP Hybrid
+ * prompt to the language named by `target`. No-op (returns the prompt
+ * unchanged) when `target` is missing/unknown or already resolves to Japanese.
+ *
+ * @param {string} prompt  the fully assembled prompt from a builder
+ * @param {string} [target] resolved reply-language code, e.g. "th", "pt", "en"
+ * @returns {string}
+ */
+function applyJPHybridReplyLanguage(prompt, target) {
+  const langName = resolveJPHybridLangName(target);
+  if (langName === JP_HYBRID_LANG_NAME) return prompt;
+
+  let out = String(prompt || "");
+  for (const line of JP_HYBRID_DEFAULT_LANGUAGE_LINES) {
+    out = out.split(line.find).join(line.make(langName));
+  }
+  return out;
+}
 
 // extract city from text
 function extractCurrentCityFromTextJPHybrid(text = "") {
@@ -1257,6 +1360,9 @@ const isWeatherSubcategoryJPHybrid = (subCategoryName) =>
 // ─────────────────────────────────────────────────────────────────────────────
 function buildAstriaJapanHybridContext({
   mode,
+  // Resolved reply-language code from chatController (e.g. "th", "pt", "en").
+  // Omit it and the prompt stays Japanese-only, exactly as before.
+  target,
   subCategoryName,
   categoryPrompt,
   subCategoryPrompt,
@@ -1290,14 +1396,20 @@ function buildAstriaJapanHybridContext({
     weatherContext,
   };
 
+  // 1. Build the prompt (builders always write the Japanese-only wording).
   const builder = resolveJPHybridSubcategoryBuilder(subCategoryName);
-  if (builder) return builder(params);
-  return buildCategoryFallbackJPHybridPrompt({
-    mode: params.mode,
-    dbPrompt,
-    birthChart,
-    userMessage,
-  });
+  const prompt = builder
+    ? builder(params)
+    : buildCategoryFallbackJPHybridPrompt({
+        mode: params.mode,
+        dbPrompt,
+        birthChart,
+        userMessage,
+      });
+
+  // 2. Rewrite the language instruction to `target` (no-op if target is
+  //    missing / unknown / Japanese). See the REPLY LANGUAGE section up top.
+  return applyJPHybridReplyLanguage(prompt, target);
 }
 
 module.exports = {
@@ -1326,4 +1438,7 @@ module.exports = {
   ASTRIA_JAPAN_HYBRID_END,
   DEFAULT_JP_HYBRID_SUBCATEGORY_PROMPTS,
   JP_HYBRID_LANG_NAME,
+  JP_HYBRID_LANG_NAME_BY_CODE,
+  resolveJPHybridLangName,
+  applyJPHybridReplyLanguage,
 };

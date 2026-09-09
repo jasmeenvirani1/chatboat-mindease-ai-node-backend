@@ -63,9 +63,44 @@ const { KR_V2_VOICE_RULES } = require("./AstriaKoreaV2Service");
 
 const { buildAstriaKoreaTalkContext } = require("./AstriaKoreaTalkService");
 
-// Korean is the only language Hybrid is ever allowed to reply in — same
-// restriction as V3, since the client spec is Korean-only content.
+// Reply language is dynamic — it follows the user's resolved `target` language
+// code (threaded in from chatController). Korean stays the default only when no
+// target is provided, so existing Korean-only callers are unaffected.
 const KR_HYBRID_LANG_NAME = "Korean";
+
+const KR_HYBRID_LANG_NAME_MAP = {
+  en: "English",
+  th: "Thai",
+  hi: "Hindi",
+  hinglish: "Hinglish (natural mix of Hindi and English in Roman script)",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  pt: "Portuguese",
+  ja: "Japanese",
+  ko: "Korean",
+  zh: "Chinese (Simplified)",
+  ar: "Arabic",
+  ru: "Russian",
+  vi: "Vietnamese",
+  id: "Indonesian",
+};
+
+// Resolves the human-readable language name for a `target` code. Defaults to
+// Korean when target is missing/unknown so the historical Korean-only
+// behaviour is preserved for callers that do not pass one.
+function resolveKRHybridLangName(target) {
+  if (!target) return "Korean";
+  return KR_HYBRID_LANG_NAME_MAP[String(target).toLowerCase()] || "Korean";
+}
+
+// The single hardcoded Korean-only rule string every builder embeds. Kept as a
+// literal so buildAstriaKoreaHybridContext can swap it for the dynamic
+// per-language rule in one place, without touching ~19 builder signatures.
+function krHybridLanguageRuleFor(langName) {
+  return `LANGUAGE RULE: Reply in ${langName} only, no matter what language the user wrote in. Every single word must be in ${langName}. Never mix languages.`;
+}
 
 // TONE MATRIX (Hybrid) — per the KR Hybrid spec (Korea.txt kr_master_prompt /
 // fixes.txt kr_auto_validator): hybrid_mode = { lines: "1-2", style: "clear,
@@ -1724,6 +1759,7 @@ const isWeatherSubcategoryKRHybrid = (subCategoryName) =>
 // ─────────────────────────────────────────────────────────────────────────────
 function buildAstriaKoreaHybridContext({
   mode,
+  target,
   subCategoryName,
   categoryPrompt,
   subCategoryPrompt,
@@ -1778,12 +1814,29 @@ function buildAstriaKoreaHybridContext({
   };
 
   const builder = resolveKRHybridSubcategoryBuilder(subCategoryName);
-  if (builder) return builder(params);
-  return buildCategoryFallbackKRHybridPrompt({
-    mode: params.mode,
-    dbPrompt,
-    birthChart,
-  });
+  const prompt = builder
+    ? builder(params)
+    : buildCategoryFallbackKRHybridPrompt({
+        mode: params.mode,
+        dbPrompt,
+        birthChart,
+      });
+
+  return applyKRHybridReplyLanguage(prompt, target);
+}
+
+// Every builder above embeds the same two hardcoded Korean-only phrases. Rather
+// than thread `target` through ~19 builder signatures, swap them here once on
+// the assembled prompt. When `target` is missing/unknown the phrases resolve
+// back to Korean, so the historical Korean-only behaviour is unchanged.
+function applyKRHybridReplyLanguage(prompt, target) {
+  const langName = resolveKRHybridLangName(target);
+  if (langName === "Korean") return prompt;
+  return String(prompt || "")
+    .split(KR_HYBRID_LANGUAGE_RULE)
+    .join(krHybridLanguageRuleFor(langName))
+    .split("Every string value must be written fully in Korean (한국어).")
+    .join(`Every string value must be written fully in ${langName}.`);
 }
 
 module.exports = {
@@ -1812,4 +1865,6 @@ module.exports = {
   formatSajuDailyLuckBlockKR,
   DEFAULT_KR_HYBRID_SUBCATEGORY_PROMPTS,
   KR_HYBRID_LANG_NAME,
+  KR_HYBRID_LANG_NAME_MAP,
+  resolveKRHybridLangName,
 };

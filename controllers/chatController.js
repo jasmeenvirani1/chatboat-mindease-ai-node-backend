@@ -337,6 +337,18 @@ const {
 const {
   buildPrompt: buildAstriaTalkPrompt,
 } = require("../helper/AstriaTalkEngine");
+// Sticky per-turn reply-language resolution. resolveReplyLanguage() keeps a
+// chat on its established language when the current message is too short /
+// form-like to detect confidently (a Thai chat sending "ok" or an Energy
+// Match date form stays Thai instead of flipping to English), while a
+// confident detection still lets the user switch languages mid-chat.
+// regionDefaultLang() replaces the local getDefaultLanguageByOrigin() so the
+// region fallback emits real codes ("ko"/"ja"/"id", not "kr"/"jp"/"in").
+const {
+  resolveReplyLanguage,
+  regionDefaultLang,
+  langName: resolveLangName,
+} = require("../helper/languageDetect.js");
 
 // Append the user's date of birth and latest message to the system prompt
 // Only the first Astria lane whose category matches should fire, so each
@@ -1461,10 +1473,14 @@ const chatController = {
       //   }
       // }
 
-      // Fallback chain: detected language
+      // Provisional reply language for the early internal steps only (RAG
+      // translation, emotion, embeddings) — the AUTHORITATIVE value is
+      // resolved via resolveReplyLanguage() after the chat doc loads, so a
+      // terse/ambiguous turn keeps this chat's established language instead of
+      // silently falling back to the region default / English here.
       let target =
         detectLangFromMessage(userMessage, true) ||
-        getDefaultLanguageByOrigin(userRegion) ||
+        regionDefaultLang(userRegion) ||
         "en";
 
       // GCC tone mode
@@ -1659,7 +1675,7 @@ const chatController = {
       // Astria Korea Talk Flag
       const isAstriaKoreaTalk = pickFirstMatch(
         categoryName === "Astria Korea Talk" &&
-          subcategoryName === "Astria Korea Talk",
+          subCategoryName === "Astria Korea Talk",
       );
 
       // Astria Korea V3 Flag
@@ -2197,7 +2213,7 @@ const chatController = {
       - If userMessage is a date, ignore the emotional sentences and focus on the birth details.
 
       LANGUAGE RULE (RESTRICTED):
-      - Always reply in ${{ en: "English", th: "Thai", es: "Spanish", hi: "Hindi", hinglish: "Hinglish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ja: "Japanese", ko: "Korean", zh: "Chinese", ar: "Arabic", ru: "Russian", vi: "Vietnamese", id: "Indonesian" }[target] || "English"} language.
+      - Always reply in ${resolveLangName(target)} language.
       - ${target === "hinglish" ? "Hinglish means naturally mixing Hindi and English words in the same sentence, written entirely in Roman script (no Devanagari). Match the user's casual code-switching style." : "Output ONLY in the user's language. Never mix languages."}
       - Do NOT show any English intermediate in your reply.
 
@@ -2243,7 +2259,7 @@ const chatController = {
           planetData: userProvidedPlanets,
           userMessage,
           translatedMessage,
-          trendingContext: buildTrendingTopicCogcc3BoxPartnerntext(
+          trendingContext: buildTrendingTopicContext(
             trendingTopicData,
             categoryName,
           ),
@@ -2269,9 +2285,46 @@ const chatController = {
         }
       }
 
-      const chatLang = isNewChat
-        ? detectLangFromMessage(userMessage)
-        : chat?.chatLang || "en";
+      // ── AUTHORITATIVE REPLY LANGUAGE ──────────────────────────────────────
+      // One sticky rule for every lane (the per-lane locks below still
+      // override `target` afterwards, exactly as before):
+      //   1. message detected confidently  -> reply in that language
+      //      (lets a user switch language mid-chat)
+      //   2. not confident + existing chat  -> keep chat.chatLang
+      //      (terse "ok" / a date-only form no longer flips Thai -> English)
+      //   3. first message + not confident  -> region default -> English
+      let chatLang;
+      {
+        const priorChatLang = isNewChat ? null : chat?.chatLang || null;
+        const resolved = resolveReplyLanguage({
+          userMessage,
+          chatLang: priorChatLang,
+          isNewChat,
+          regionDefault: regionDefaultLang(userRegion),
+        });
+        target = resolved.code;
+        chatLang = isNewChat ? target : priorChatLang || target;
+        // Persist a genuine mid-chat language switch so later turns treat the
+        // new language as this chat's established one. Skipped for Astria
+        // Canada, whose client spec locks the language to whatever the chat
+        // opened in (its own lock below then restores target too).
+        if (
+          !isNewChat &&
+          chat &&
+          chat.chatLang !== target &&
+          !isAstriaCanadaV2
+        ) {
+          chatLang = target;
+          chat.chatLang = target;
+        }
+        try {
+          logger.log(
+            `[lang] category="${categoryName}" detected=${resolved.detection.code} ` +
+              `(conf=${resolved.detection.confident},src=${resolved.detection.source}) ` +
+              `priorChatLang=${priorChatLang || "-"} => target=${target}`,
+          );
+        } catch {}
+      }
 
       // Astria Canada language lock — the client spec requires the lane to
       // stay on whichever language the user opened the conversation in,
@@ -2373,7 +2426,7 @@ const chatController = {
           - AGE VIBE ENFORCED: ${ageInfo.group} — all suggestions, examples, and tone must match this age group.
           ${getCulturalLocalizationPrompt(target)}
           - ANTI-DRIFT: No therapist language, no healing templates, no emotional clichés.
-          - LANGUAGE LOCK: Reply only in ${target} language. Never mix languages.
+          - LANGUAGE LOCK: Reply only in ${resolveLangName(target)} language. Never mix languages.
           - STRICT RULE: Your response must be exactly 3-4 sentences long.
           - Do NOT use phrases like "ฟังดูเหมือน...", "ฉันอยู่ตรงนี้กับคุณนะ", "หัวใจ", "เยียวยา", "สู้ๆ".
           `.trim();
@@ -2398,7 +2451,7 @@ const chatController = {
           - AGE VIBE ENFORCED: ${ageInfo.group} — emotional support style must match this age group.
           ${getCulturalLocalizationPrompt(target)}
           - ANTI-DRIFT: No "that must be difficult", no "journey of healing", no coaching phrases.
-          - LANGUAGE LOCK: Reply only in ${target} language. Never mix languages.
+          - LANGUAGE LOCK: Reply only in ${resolveLangName(target)} language. Never mix languages.
           - STRICT RULE: Your response must be exactly 3-4 sentences long.
           - Do NOT use phrases like "ฉันรับรู้ถึงความหนักหน่วง", "ประคองความรู้สึก", "สู้ๆ".
           `.trim();
@@ -2438,7 +2491,7 @@ const chatController = {
 
           ${getCulturalLocalizationPrompt(target)}
 
-          LANGUAGE LOCK: Every single word of the response MUST be in ${target} language only.
+          LANGUAGE LOCK: Every single word of the response MUST be in ${resolveLangName(target)} language only.
           FINAL RULE: Exactly 3 sentences. No more, no less.
           `.trim();
       }
@@ -2483,14 +2536,11 @@ const chatController = {
 
       // Vyaktitva Darshan Engine — overrides systemPrompt with Vedic birth chart + structured JSON output
       if (isVyaktivaDarshan) {
-        const langName =
-          target === "th"
-            ? "Thai"
-            : target === "hi"
-              ? "Hindi"
-              : target === "en"
-                ? "English"
-                : target;
+        // Full language coverage — a Vyaktitva Darshan user writing in any
+        // supported language now gets the correct language NAME in the prompt
+        // (previously only th/hi/en were mapped and every other code leaked
+        // through raw, e.g. "pt" instead of "Portuguese").
+        const langName = resolveLangName(target);
 
         const vyaktivaBasePrompt = await buildAstriaIndiaContext({
           dob: selfDob0,
@@ -3557,6 +3607,7 @@ RULES:
 
         if (isCompanionTalkTab) {
           systemPrompt = buildAstriaKoreaV3Context({
+            target,
             subCategoryName: subCategoryName || null,
             categoryPrompt: categoryPrompt || null,
             subCategoryPrompt: subCategoryPrompt || null,
@@ -3867,6 +3918,7 @@ RULES:
 
           if (!compatibilityMissingQuestionKRV3) {
             systemPrompt = buildAstriaKoreaV3Context({
+              target,
               subCategoryName: subCategoryName || null,
               categoryPrompt: categoryPrompt || null,
               subCategoryPrompt: subCategoryPrompt || null,
@@ -3928,6 +3980,7 @@ RULES:
 
         if (isCompanionTalkTabHybrid) {
           systemPrompt = buildAstriaKoreaHybridContext({
+            target,
             subCategoryName: subCategoryName || null,
             categoryPrompt: categoryPrompt || null,
             subCategoryPrompt: subCategoryPrompt || null,
@@ -4264,6 +4317,7 @@ RULES:
               // ChatInterface.tsx isAstriaKoreaHybrid block) — defaults to
               // "hybrid" inside buildAstriaKoreaHybridContext when omitted,
               // so this is purely additive for every existing caller.
+              target,
               mode:
                 String(koreaHybridMode || "").toLowerCase() === "traditional"
                   ? "traditional"
@@ -4337,9 +4391,12 @@ RULES:
 
       // ASTRIA JAPAN V3 ENGINE — Astria Japan V3 category ONLY
       let energyMatchMissingQuestionJPV3 = null;
-      // Astria Japan V3 always replies in Japanese, regardless of the
-
-      const astriaJapanV3Target = "ja";
+      // Reply language follows the user's actual message: `target` is the
+      // sticky value from resolveReplyLanguage() above (a Thai message gets a
+      // Thai reply, a Japanese message gets Japanese, etc.). buildAstria*
+      // helpers below map it to a language name via their LANG_NAME_MAP and
+      // fall back to Japanese when it is missing/unknown.
+      const astriaJapanV3Target = target;
       if (isAstriaJapanV3) {
         if (isAstriaJapanV3TalkTab) {
           systemPrompt = buildAstriaJapanTalkContext({
@@ -4748,6 +4805,7 @@ RULES:
             // ChatInterface.tsx isAstriaJapanHybrid block) — defaults to
             // "hybrid" inside buildAstriaJapanHybridContext when omitted,
             // so this is purely additive for every existing caller.
+            target,
             mode:
               String(japanHybridMode || "").toLowerCase() === "traditional"
                 ? "traditional"
@@ -6549,7 +6607,7 @@ RULES:
         musicRecommendation?.shouldRecommend
       ) {
         systemPrompt = `${musicRecommendation.promptBlock}
-        LANGUAGE LOCK: Reply only in ${target} language. Never mix languages. Never use Thai unless target is Thai.`;
+        LANGUAGE LOCK: Reply only in ${resolveLangName(target)} language. Never mix languages. Never use Thai unless target is Thai.`;
       } else if (
         !isAstriaIndia &&
         !isAstriaIndiaCategory &&
@@ -8988,7 +9046,6 @@ RULES:
           ? astriaSingaporeV3Data
           : null,
         astriaMalaysiaV2Data: isAstriaMalaysiaV2 ? astriaMalaysiaV2Data : null,
-        astriaMalaysiaV3Data: isAstriaMalaysiaV3 ? astriaMalaysiaV3Data : null,
         astriaMalaysiaV3Data: isAstriaMalaysiaV3 ? astriaMalaysiaV3Data : null,
         astriaUKV2Data: isAstriaUKV2 ? astriaUKV2Data : null,
         astriaMexicoData: isAstriaMexico ? astriaMexicoData : null,
