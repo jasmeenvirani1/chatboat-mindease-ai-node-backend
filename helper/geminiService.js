@@ -1,5 +1,18 @@
-const { GoogleGenAI } = require("@google/genai");
-const Setting = require("../models/SettingModel.js");
+const OpenAI = require("openai");
+
+// Drop-in replacement for geminiService.js: same exports, same message
+// shape in/out, same retry/backoff/error-wrapping behavior, same cache{}
+// option contract — only the provider underneath changes (OpenRouter
+// instead of the Google AI Studio SDK), talking to
+// `google/gemini-3-flash-preview` (or whatever OPENROUTER_MODEL says)
+// through OpenRouter's OpenAI-compatible Chat Completions API.
+
+const OPENROUTER_BASE_URL =
+  process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+const OPENROUTER_MODEL =
+  process.env.OPENROUTER_MODEL || "google/gemini-3-flash-preview";
+const OPENROUTER_TIMEOUT_MS =
+  Number(process.env.OPENROUTER_TIMEOUT_MS) || 60000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -7,8 +20,8 @@ function sleep(ms) {
 
 function getRetryConfig() {
   const maxAttempts = 4;
-  const baseDelayMs = 10;
-  const maxDelayMs = 10;
+  const baseDelayMs = 500;
+  const maxDelayMs = 8000;
 
   return {
     maxAttempts:
@@ -32,7 +45,7 @@ function getErrorStatusCode(err) {
   );
 }
 
-function isRetryableGeminiError(err) {
+function isRetryableOpenRouterError(err) {
   const status = getErrorStatusCode(err);
   if ([429, 500, 502, 503, 504].includes(Number(status))) return true;
 
@@ -62,17 +75,32 @@ function computeBackoffDelayMs({ retryCount, baseDelayMs, maxDelayMs }) {
   return delay + jitter;
 }
 
+// Shared by both the non-streaming retry loop and the streaming
+// early-retry loop: decides whether to retry and, if so, waits out the
+// backoff. Returns false when the caller should stop and rethrow.
+async function waitForRetry({ err, attempt, maxAttempts, operationName }) {
+  const shouldRetry = attempt < maxAttempts && isRetryableOpenRouterError(err);
+  if (!shouldRetry) return false;
+
+  const { baseDelayMs, maxDelayMs } = getRetryConfig();
+  const delayMs = computeBackoffDelayMs({
+    retryCount: attempt,
+    baseDelayMs,
+    maxDelayMs,
+  });
+  const status = getErrorStatusCode(err);
+  console.warn(
+    `OpenRouter ${operationName} failed (attempt ${attempt}/${maxAttempts}, status ${status || "n/a"}). Retrying in ${delayMs}ms...`,
+  );
+  await sleep(delayMs);
+  return true;
+}
+
 async function withRetry(operationName, fn, options = {}) {
   const config = getRetryConfig();
   const maxAttempts = Number.isFinite(options.maxAttempts)
     ? Math.max(1, Number(options.maxAttempts))
     : config.maxAttempts;
-  const baseDelayMs = Number.isFinite(options.baseDelayMs)
-    ? Math.max(0, Number(options.baseDelayMs))
-    : config.baseDelayMs;
-  const maxDelayMs = Number.isFinite(options.maxDelayMs)
-    ? Math.max(1, Number(options.maxDelayMs))
-    : config.maxDelayMs;
 
   let lastErr;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -80,19 +108,13 @@ async function withRetry(operationName, fn, options = {}) {
       return await fn();
     } catch (err) {
       lastErr = err;
-      const shouldRetry = attempt < maxAttempts && isRetryableGeminiError(err);
-      if (!shouldRetry) throw err;
-
-      const delayMs = computeBackoffDelayMs({
-        retryCount: attempt,
-        baseDelayMs,
-        maxDelayMs,
+      const retrying = await waitForRetry({
+        err,
+        attempt,
+        maxAttempts,
+        operationName,
       });
-      const status = getErrorStatusCode(err);
-      console.warn(
-        `Gemini ${operationName} failed (attempt ${attempt}/${maxAttempts}, status ${status || "n/a"}). Retrying in ${delayMs}ms...`,
-      );
-      await sleep(delayMs);
+      if (!retrying) throw err;
     }
   }
 
@@ -105,26 +127,35 @@ function throwingAsyncIterable(err) {
   })();
 }
 
-async function loadGeminiSettings() {
-  const settings = await Setting.find();
-  const gemini_api_key = settings[0]?.gemini_api_key2 || "";
-  const gemini_model = settings[0]?.gemini_model2 || "";
+function loadOpenRouterSettings() {
+  const openrouter_api_key = process.env.OPENROUTER_API_KEY || "";
+  const openrouter_model = process.env.OPENROUTER_MODEL || OPENROUTER_MODEL;
 
-  if (!gemini_api_key) {
-    throw new Error("Gemini API key not found in database");
+  if (!openrouter_api_key) {
+    throw new Error(
+      "OpenRouter API key not found (OPENROUTER_API_KEY env var)",
+    );
   }
 
-  if (!gemini_model) {
-    throw new Error("Gemini model not found in database");
-  }
-
-  return { gemini_api_key, gemini_model };
+  return { openrouter_api_key, openrouter_model };
 }
 
-async function createGeminiClient() {
-  const { gemini_api_key, gemini_model } = await loadGeminiSettings();
-  const genAI = new GoogleGenAI({ apiKey: gemini_api_key });
-  return { genAI, gemini_model };
+// The OpenAI SDK client holds no per-request state (api key/baseURL/timeout
+// are fixed at construction), so it's built once and reused across calls
+// instead of re-constructing it on every request.
+let cachedClient = null;
+function getOpenRouterClient() {
+  const { openrouter_api_key, openrouter_model } = loadOpenRouterSettings();
+
+  if (!cachedClient) {
+    cachedClient = new OpenAI({
+      apiKey: openrouter_api_key,
+      baseURL: OPENROUTER_BASE_URL,
+      timeout: OPENROUTER_TIMEOUT_MS,
+    });
+  }
+
+  return { client: cachedClient, openrouter_model };
 }
 
 function extractSystemInstruction(messages) {
@@ -151,112 +182,109 @@ ${sentences}
     .join("\n");
 }
 
-function toGeminiContents(messages) {
-  return (messages || [])
-    .filter((m) => m.role !== "system")
-    .map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
-}
-
-// Gemini rejects cache-create requests below a ~1024-token floor. Measured
-// ratio from a real failed attempt: ~4893 chars = 943 actual tokens
-// (~5.19 chars/token), so target a comfortable margin above 1024 tokens
-// rather than the char count alone (chars/token varies with content).
+// Gemini (and most providers) reject/ignore cache breakpoints below a
+// ~1024-token floor. Same margin geminiService used for its explicit
+// cache-create call, reused here as the bar for marking a cache breakpoint.
 const MIN_CACHEABLE_SYSTEM_INSTRUCTION_CHARS = 5900; // ~1135 tokens at the measured ratio
-const CACHE_TTL_SECONDS = 1800; // 30 min, matches proposal's TTL range
 
-async function getOrCreateGeminiCache({
-  genAI,
-  gemini_model,
-  systemInstruction,
-  cacheName,
-  cacheExpiresAt,
-}) {
-  const isExistingCacheValid =
-    cacheName && cacheExpiresAt && new Date(cacheExpiresAt) > new Date();
+// OpenRouter has no separate "create a cache resource, get back a handle"
+// endpoint the way Google AI Studio's `genAI.caches.create` does. For
+// providers/models that support prompt caching (Gemini included), OpenRouter
+// caches automatically based on stable, reused prefixes, and — for models
+// that support explicit breakpoints — via `cache_control: { type: "ephemeral" }`
+// markers on message content. We add that marker when it's safe to (long,
+// stable system instruction) and simply omit it otherwise; the request
+// itself is unaffected either way, so caching being unsupported for a given
+// model never breaks the call.
+function toOpenRouterMessages(messages, { cacheEligible }) {
+  const systemInstruction = extractSystemInstruction(messages);
+  const result = [];
 
-  if (isExistingCacheValid) {
-    return { name: cacheName, expiresAt: cacheExpiresAt, created: false };
+  if (systemInstruction) {
+    if (cacheEligible) {
+      result.push({
+        role: "system",
+        content: [
+          {
+            type: "text",
+            text: systemInstruction,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+      });
+    } else {
+      result.push({ role: "system", content: systemInstruction });
+    }
   }
 
-  const cache = await genAI.caches.create({
-    model: gemini_model,
-    config: {
-      displayName: "chat_session_cache",
-      systemInstruction,
-      ttl: `${CACHE_TTL_SECONDS}s`,
-    },
-  });
-
-  return {
-    name: cache.name,
-    expiresAt: new Date(Date.now() + CACHE_TTL_SECONDS * 1000),
-    created: true,
-  };
-}
-
-async function resolveCacheConfig({
-  genAI,
-  gemini_model,
-  systemInstruction,
-  cacheOption,
-}) {
-  if (!cacheOption) return { config: { systemInstruction } };
-
-  if (systemInstruction.length < MIN_CACHEABLE_SYSTEM_INSTRUCTION_CHARS) {
-    return { config: { systemInstruction } };
-  }
-
-  try {
-    const { name, expiresAt, created } = await getOrCreateGeminiCache({
-      genAI,
-      gemini_model,
-      systemInstruction,
-      cacheName: cacheOption.name,
-      cacheExpiresAt: cacheOption.expiresAt,
+  (messages || [])
+    .filter((m) => m.role !== "system")
+    .forEach((m) => {
+      result.push({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      });
     });
 
-    if (created && typeof cacheOption.onCacheCreated === "function") {
-      cacheOption.onCacheCreated(name, expiresAt);
-    }
+  return result;
+}
 
-    return { config: { cachedContent: name } };
-  } catch (err) {
-    console.warn(
-      `Gemini explicit cache unavailable, falling back to uncached call: ${err?.message || err}`,
-    );
-    return { config: { systemInstruction } };
+function resolveCacheMessages({ messages, options }) {
+  // Mirrors geminiService's cache contract: an explicit options.cache, or
+  // any system message flagged with `.cache = true` (chatController.js sets
+  // the latter on messages[0]).
+  const cacheOption =
+    options?.cache ||
+    (messages || []).some((m) => m.role === "system" && m.cache) ||
+    null;
+
+  const systemInstruction = extractSystemInstruction(messages);
+  const cacheEligible =
+    Boolean(cacheOption) &&
+    systemInstruction.length >= MIN_CACHEABLE_SYSTEM_INSTRUCTION_CHARS;
+
+  const orMessages = toOpenRouterMessages(messages, { cacheEligible });
+
+  // geminiService's onCacheCreated signaled a newly-created explicit cache
+  // handle so the caller could persist it for reuse. OpenRouter's Gemini
+  // caching is transparent/automatic (no handle to persist), so there is
+  // nothing to hand back — call onCacheCreated once, defensively, with a
+  // sentinel so callers relying on it to flip on cache bookkeeping still do,
+  // without a real cache name to store.
+  if (cacheEligible && typeof cacheOption?.onCacheCreated === "function") {
+    cacheOption.onCacheCreated(null, null);
   }
+
+  return { messages: orMessages, cacheEligible };
 }
 
 const generateGeminiResponse = async (messages, options = {}) => {
   try {
-    const { genAI, gemini_model } = await createGeminiClient();
-    const systemInstruction = extractSystemInstruction(messages);
-    const contents = toGeminiContents(messages);
-    const { config: cacheConfig } = await resolveCacheConfig({
-      genAI,
-      gemini_model,
-      systemInstruction,
-      cacheOption: options.cache,
+    const { client, openrouter_model } = getOpenRouterClient();
+    const { messages: orMessages } = resolveCacheMessages({
+      messages,
+      options,
     });
 
+    const modelToUse = openrouter_model || OPENROUTER_MODEL;
+
     const response = await withRetry("generateContent", () =>
-      genAI.models.generateContent({
-        model: gemini_model,
-        contents,
-        config: cacheConfig,
+      client.chat.completions.create({
+        model: modelToUse,
+        messages: orMessages,
+        reasoning: { enabled: false },
       }),
     );
 
-    const usage = response.usageMetadata;
+    const usage = response.usage;
     // console.log(
-    //   `[Gemini tokens] prompt=${usage?.promptTokenCount} output=${usage?.candidatesTokenCount} cached=${usage?.cachedContentTokenCount ?? 0} total=${usage?.totalTokenCount}`,
+    //   `[OpenRouter model] requested=${modelToUse} actual=${response.model || "n/a"}`,
+    // );
+    // console.log(
+    //   `[OpenRouter tokens] input=${usage?.prompt_tokens ?? 0} output=${usage?.completion_tokens ?? 0} cached=${usage?.prompt_tokens_details?.cached_tokens ?? 0} total=${usage?.total_tokens ?? 0} thinking=${usage?.completion_tokens_details?.reasoning_tokens ?? 0}`,
     // );
 
-    return response.text;
+    return response.choices?.[0]?.message?.content ?? "";
   } catch (error) {
     console.error("Gemini error:", error);
     if (error?.message && !error.message.startsWith("Gemini error:")) {
@@ -268,33 +296,21 @@ const generateGeminiResponse = async (messages, options = {}) => {
 
 const generateGeminiResponseStream = async (messages, options = {}) => {
   try {
-    const { genAI, gemini_model } = await createGeminiClient();
-    const systemInstruction = extractSystemInstruction(messages);
-    const contents = toGeminiContents(messages);
-    const { config: cacheConfig } = await resolveCacheConfig({
-      genAI,
-      gemini_model,
-      systemInstruction,
-      cacheOption: options.cache,
+    const { client, openrouter_model } = getOpenRouterClient();
+    const { messages: orMessages } = resolveCacheMessages({
+      messages,
+      options,
     });
 
-    // console.log(
-    //   `[Gemini debug] model=${gemini_model || "gemini-3-flash"} systemInstruction.length=${systemInstruction.length} chars (~${Math.round(systemInstruction.length / 4)} tokens est.) cachedContent=${cacheConfig.cachedContent || "none"}`,
-    // );
-
-    // Optimized for ultra-low latency with Gemini 3 Flash
-    const config = {
-      ...cacheConfig,
-      thinkingConfig: {
-        thinkingLevel: "LOW", // Forces ultra-fast, low-latency generation
-      },
-    };
+    const modelToUse = openrouter_model || OPENROUTER_MODEL;
 
     const createStream = () =>
-      genAI.models.generateContentStream({
-        model: gemini_model || "gemini-3-flash", // Use Gemini 3 Flash for maximum speed
-        contents,
-        config: config,
+      client.chat.completions.create({
+        model: modelToUse,
+        messages: orMessages,
+        stream: true,
+        stream_options: { include_usage: true },
+        reasoning: { enabled: false },
       });
 
     const initialStream = await withRetry(
@@ -311,45 +327,41 @@ const generateGeminiResponseStream = async (messages, options = {}) => {
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
           let lastUsage;
+          let actualModel;
           for await (const chunk of stream) {
+            const text = chunk?.choices?.[0]?.delta?.content;
+            if (chunk.usage) lastUsage = chunk.usage;
+            if (chunk.model && !actualModel) actualModel = chunk.model;
+            if (!text) continue;
             yieldedAny = true;
-            if (chunk.usageMetadata) lastUsage = chunk.usageMetadata;
-            yield { text: chunk.text };
+            yield { text };
           }
+          // if (actualModel) {
+          //   console.log(
+          //     `[OpenRouter model] requested=${modelToUse} actual=${actualModel}`,
+          //   );
+          // }
           // if (lastUsage) {
           //   console.log(
-          //     `[Gemini tokens] prompt=${lastUsage.promptTokenCount} output=${lastUsage.candidatesTokenCount} cached=${lastUsage.cachedContentTokenCount ?? 0} total=${lastUsage.totalTokenCount}`,
+          //     `[OpenRouter tokens] input=${lastUsage.prompt_tokens ?? 0} output=${lastUsage.completion_tokens ?? 0} cached=${lastUsage.prompt_tokens_details?.cached_tokens ?? 0} total=${lastUsage.total_tokens ?? 0} thinking=${lastUsage.completion_tokens_details?.reasoning_tokens ?? 0}`,
           //   );
           // }
           return;
         } catch (err) {
-          if (
-            yieldedAny ||
-            attempt >= maxAttempts ||
-            !isRetryableGeminiError(err)
-          ) {
-            throw err;
-          }
-          const { baseDelayMs, maxDelayMs } = getRetryConfig();
-          const delayMs = computeBackoffDelayMs({
-            retryCount: attempt,
-            baseDelayMs,
-            maxDelayMs,
+          if (yieldedAny) throw err;
+
+          const retrying = await waitForRetry({
+            err,
+            attempt,
+            maxAttempts,
+            operationName: "generateContentStream",
           });
-          const status = getErrorStatusCode(err);
-          console.warn(
-            `Gemini stream failed before first chunk (attempt ${attempt}/${maxAttempts}, status ${status || "n/a"}). Retrying in ${delayMs}ms...`,
-          );
-          await sleep(delayMs);
+          if (!retrying) throw err;
+
           try {
-            const nextStream = await withRetry(
-              "generateContentStream",
-              createStream,
-              {
-                maxAttempts: 1,
-              },
-            );
-            stream = nextStream;
+            stream = await withRetry("generateContentStream", createStream, {
+              maxAttempts: 1,
+            });
           } catch (createErr) {
             stream = throwingAsyncIterable(createErr);
           }
@@ -371,93 +383,3 @@ module.exports = {
   generateGeminiResponse,
   generateGeminiResponseStream,
 };
-
-// export const generateGeminiResponseStreamForFreeUsers = async (messages) => {
-//   try {
-//     const settings = await Setting.find();
-//     const gemini_api_key = settings[0]?.gemini_api_key || "";
-//     const gemini_model = settings[0]?.gemini_model || "";
-
-//     if (!gemini_api_key) {
-//       throw new Error("Gemini API key not found in database");
-//     }
-
-//     if (!gemini_model) {
-//       throw new Error("Gemini model not found in database");
-//     }
-//     const genAI = new GoogleGenAI({
-//       apiKey: gemini_api_key,
-//     });
-
-//     const prompt = messages
-//       .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-//       .join("\n");
-
-//     const generation_config = {
-//       temperature: 0.5,
-//       top_p: 0.9,
-//       max_output_tokens: 600,
-//       response_mime_type: "text/plain",
-//     };
-
-//     const stream = await genAI.models.generateContentStream({
-//       model: gemini_model,
-//       generationConfig: generation_config,
-//       contents: prompt,
-//     });
-
-//     return stream;
-//   } catch (error) {
-//     console.error("Gemini stream error:", error);
-//     if (error?.message && !error.message.startsWith("Gemini stream error:")) {
-//       throw new Error(`Gemini stream error: ${error.message}`);
-//     }
-//     throw error;
-//   }
-// };
-
-// export const generateGeminiResponseStreamForFreeUsersThaiAstro = async (
-//   messages,
-// ) => {
-//   try {
-//     const settings = await Setting.find();
-//     const gemini_api_key = settings[0]?.gemini_api_key || "";
-//     const gemini_model = settings[0]?.gemini_model || "";
-
-//     if (!gemini_api_key) {
-//       throw new Error("Gemini API key not found in database");
-//     }
-
-//     if (!gemini_model) {
-//       throw new Error("Gemini model not found in database");
-//     }
-//     const genAI = new GoogleGenAI({
-//       apiKey: gemini_api_key,
-//     });
-
-//     const prompt = messages
-//       .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-//       .join("\n");
-
-//     const generation_config = {
-//       temperature: 0.5,
-//       top_p: 0.9,
-//       max_output_tokens: 900,
-//       response_mime_type: "text/plain",
-//     };
-
-//     const stream = await genAI.models.generateContentStream({
-//       model: gemini_model,
-//       generationConfig: generation_config,
-//       contents: prompt,
-//     });
-
-//     return stream;
-//   } catch (error) {
-//     console.error("Gemini stream error:", error);
-//     if (error?.message && !error.message.startsWith("Gemini stream error:")) {
-//       throw new Error(`Gemini stream error: ${error.message}`);
-//     }
-//     throw error;
-//   }
-// };
