@@ -273,6 +273,10 @@ const generateGeminiResponse = async (messages, options = {}) => {
         model: modelToUse,
         messages: orMessages,
         reasoning: { enabled: false },
+        provider: {
+          order: ["google-ai-studio"],
+          allow_fallbacks: false,
+        },
       }),
     );
 
@@ -310,6 +314,10 @@ const generateGeminiResponseStream = async (messages, options = {}) => {
         messages: orMessages,
         stream: true,
         stream_options: { include_usage: true },
+        provider: {
+          order: ["google-ai-studio"],
+          allow_fallbacks: true,
+        },
         reasoning: { enabled: false },
       });
 
