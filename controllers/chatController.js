@@ -7653,13 +7653,18 @@ RULES:
                 if (res.flush) res.flush();
               }
             } else {
-              // GCC & Japan Compatibility return JSON — suppress raw stream, parse after
+              // GCC, Japan & Indonesia Compatibility return JSON — suppress raw stream, parse after
               const suppressStream =
                 (isAstriaGCC &&
                   isCompatibilitySubcategoryGCC(subCategoryName)) ||
                 ((isAstriaJapan || isAstriaJapanV3) &&
                   !isAstriaJapanV3TalkTab &&
-                  isCompatibilitySubcategoryJP(subCategoryName));
+                  isCompatibilitySubcategoryJP(subCategoryName)) ||
+                (isAstriaIndonesia &&
+                  subCategoryName &&
+                  subCategoryName.toLowerCase().includes("compatibility") &&
+                  indonesia3BoxSelf &&
+                  indonesia3BoxPartner);
 
               for await (const chunk of stream) {
                 if (clientClosed) break;
@@ -7741,6 +7746,64 @@ RULES:
             }
           }
           // ====== END ASTRIA VIETNAM RESPONSE PROCESSING ======
+
+          // INDONESIA COMPATIBILITY PARSING (streaming)
+          let indonesiaCompatibilityDataStream = null;
+          const isIndonesiaCompatStream =
+            isAstriaIndonesia &&
+            subCategoryName &&
+            subCategoryName.toLowerCase().includes("compatibility") &&
+            indonesia3BoxSelf &&
+            indonesia3BoxPartner;
+          if (isIndonesiaCompatStream) {
+            try {
+              const cleaned = finalAiResponse
+                .replace(/```json\n?/gi, "")
+                .replace(/```\n?/g, "")
+                .trim();
+              let parsed = null;
+              try {
+                parsed = JSON.parse(cleaned);
+              } catch {
+                const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  try {
+                    parsed = JSON.parse(jsonMatch[0]);
+                  } catch {
+                    const fixed = jsonMatch[0].replace(/,\s*([}\]])/g, "$1");
+                    parsed = JSON.parse(fixed);
+                  }
+                }
+              }
+              indonesiaCompatibilityDataStream = parsed;
+              if (parsed) {
+                finalAiResponse =
+                  `**Kecocokan Emosional**\n\n` +
+                  `Skor: ${parsed?.pages?.[0]?.components?.scoreGauge?.value || "N/A"}/100\n\n` +
+                  (parsed?.pages?.[1]?.cards || [])
+                    .map((card) => `**${card.title}**\n${card.description}`)
+                    .join("\n\n");
+              } else {
+                finalAiResponse =
+                  finalAiResponse
+                    .replace(/```json\n?/gi, "")
+                    .replace(/```\n?/g, "")
+                    .trim() || "No response";
+                logger.error(
+                  "Indonesia Compatibility: no valid JSON found. Raw (first 300 chars):",
+                  finalAiResponse.substring(0, 300),
+                );
+              }
+              await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+            } catch (err) {
+              logger.error(
+                "Indonesia Compatibility JSON parse error:",
+                err.message,
+              );
+              await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+            }
+          }
+          // ====== END INDONESIA COMPATIBILITY PARSING ======
 
           if (clientClosed) return;
 
@@ -7904,49 +7967,6 @@ RULES:
                 err.message,
                 "Raw (first 300 chars):",
                 finalAiResponse.substring(0, 300),
-              );
-            }
-          }
-
-          // INDONESIA COMPATIBILITY PARSING (streaming)
-          let indonesiaCompatibilityDataStream = null;
-          const isIndonesiaCompatStream =
-            isAstriaIndonesia &&
-            subCategoryName &&
-            subCategoryName.toLowerCase().includes("compatibility") &&
-            indonesia3BoxSelf &&
-            indonesia3BoxPartner;
-          if (isIndonesiaCompatStream) {
-            try {
-              const cleaned = finalAiResponse
-                .replace(/```json\n?/gi, "")
-                .replace(/```\n?/g, "")
-                .trim();
-              let parsed = null;
-              try {
-                parsed = JSON.parse(cleaned);
-              } catch {
-                const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  try {
-                    parsed = JSON.parse(jsonMatch[0]);
-                  } catch {
-                    const fixed = jsonMatch[0].replace(/,\s*([}\]])/g, "$1");
-                    parsed = JSON.parse(fixed);
-                  }
-                }
-              }
-              indonesiaCompatibilityDataStream = parsed;
-              if (!parsed) {
-                logger.error(
-                  "Indonesia Compatibility: no valid JSON found. Raw (first 300 chars):",
-                  finalAiResponse.substring(0, 300),
-                );
-              }
-            } catch (err) {
-              logger.error(
-                "Indonesia Compatibility JSON parse error:",
-                err.message,
               );
             }
           }
@@ -8799,10 +8819,10 @@ RULES:
           indonesiaCompatibilityData = parsed;
           if (parsed) {
             finalAiResponse =
-              `✦ Kecocokan Emosional ✦\n\n` +
+              `**Kecocokan Emosional**\n\n` +
               `Skor: ${parsed?.pages?.[0]?.components?.scoreGauge?.value || "N/A"}/100\n\n` +
               (parsed?.pages?.[1]?.cards || [])
-                .map((card) => `【${card.title}】\n${card.description}`)
+                .map((card) => `**${card.title}**\n${card.description}`)
                 .join("\n\n");
           }
         } catch (err) {

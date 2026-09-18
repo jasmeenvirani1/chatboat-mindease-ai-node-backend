@@ -1278,6 +1278,23 @@ const UK_V2_MODULES = {
       required: ["reading"],
       planFields: [],
     },
+    // The model sometimes ignores the single-"reading" skeleton and returns
+    // a multi-field shape instead (opening/core_energy/inner_alignment/
+    // cosmic_tension/guidance/closing) — stitch those into "reading" rather
+    // than falling through to the raw-JSON fallback.
+    normalize(data) {
+      if (data.reading) return data;
+      const parts = [
+        data.opening,
+        data.core_energy,
+        data.inner_alignment,
+        data.cosmic_tension,
+        data.guidance,
+        data.closing,
+      ].filter((v) => typeof v === "string" && v.trim());
+      if (parts.length === 0) return data;
+      return { ...data, reading: parts.join(" ") };
+    },
     toDisplay(data) {
       return {
         reading: data.reading || "",
@@ -1347,6 +1364,22 @@ const UK_V2_MODULES = {
     schema: {
       required: ["reading"],
       planFields: [],
+    },
+    // Same tolerance as Cosmic UK above — the model sometimes returns
+    // opening/emotional_balance/strengths/soft_adjustment/connection_rhythm/
+    // closing instead of a single "reading" field.
+    normalize(data) {
+      if (data.reading) return data;
+      const parts = [
+        data.opening,
+        data.emotional_balance,
+        data.strengths,
+        data.soft_adjustment,
+        data.connection_rhythm,
+        data.closing,
+      ].filter((v) => typeof v === "string" && v.trim());
+      if (parts.length === 0) return data;
+      return { ...data, reading: parts.join(" ") };
     },
     toDisplay(data) {
       return {
@@ -1504,6 +1537,17 @@ function validateAstriaUKV2Data(data, subCategoryName) {
   const tabKey = resolveUKV2TabKey(subCategoryName);
   const module = tabKey && UK_V2_MODULES[tabKey];
   if (!module || !data) return false;
+
+  // Tolerate the model returning an alternate field shape (e.g. Cosmic UK /
+  // Compatibility sometimes send opening/core_energy/... instead of a single
+  // "reading") — normalize in place before checking required fields, so
+  // formatAstriaUKV2Response sees the same object downstream.
+  if (typeof module.normalize === "function") {
+    const normalized = module.normalize(data);
+    if (normalized && normalized !== data) {
+      Object.assign(data, normalized);
+    }
+  }
 
   const { schema } = module;
   for (const field of schema.required) {
