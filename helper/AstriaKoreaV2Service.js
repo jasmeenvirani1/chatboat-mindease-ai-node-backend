@@ -1,6 +1,5 @@
 "use strict";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ASTRIA KOREA V2 SERVICE
 // Extends Astria Korea with a Life Map / Relationship Engine / Daily Companion
 // layer, driven by Korean astrology (Saju) with Western chart as texture.
@@ -22,7 +21,6 @@
 //
 // Zero impact on "Astria Korea" (v1) — separate category name, separate
 // builder map, separate default prompts. v1 code is untouched.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const {
   computeWesternBirthChartKR,
@@ -43,14 +41,12 @@ const { buildMemoryBlock } = require("./healjaiPromptBuilder");
 
 const logger = require("./logger");
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SHARED TONE MATRIX (V2) — single source of truth for the "Astria Korea"
 // voice, injected once per builder instead of hand-copied into every prompt.
 // V3 and the Talk lane re-import these constants so tone never drifts.
 // KR_V2_VOICE_RULES = tone only (reused by prose replies, e.g. Talk lane).
 // KR_V2_TONE_MATRIX = voice rules + the JSON output-format instruction,
 // for builders whose FIELDS section actually requests a JSON block.
-// ─────────────────────────────────────────────────────────────────────────────
 const KR_V2_VOICE_RULES = `
 ASTRIA KOREA VOICE (applies to every response; overrides any conflicting phrasing below)
 - Modern, clean, and short: one idea per short, complete sentence (8–15 words, never a dangling
@@ -92,7 +88,6 @@ function wrapKRV2SubcategoryContent(label, content) {
   return `━━━ SUBCATEGORY CONTENT (${label}; tone always follows ASTRIA KOREA VOICE above) ━━━\n${content}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // STRUCTURED OUTPUT EXTRACTION (V2)
 //
 // Each V2 tab prompt asks the model to return one strict JSON block wrapped
@@ -100,7 +95,6 @@ function wrapKRV2SubcategoryContent(label, content) {
 // extractAstriaKoreaV2Data() pulls that JSON out of the raw AI text so the
 // controller can attach it to the API response as a dedicated field for the
 // frontend's dataBinding, alongside the human-readable text.
-// ─────────────────────────────────────────────────────────────────────────────
 const ASTRIA_KOREA_V2_START = "<<<ASTRIA_KOREA_V2_DATA>>>";
 const ASTRIA_KOREA_V2_END = "<<<END_ASTRIA_KOREA_V2_DATA>>>";
 
@@ -168,14 +162,12 @@ function extractAstriaKoreaV2Data(text) {
   return repairAndParseJSON(src);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // DEFAULT SUBCATEGORY PROMPTS (V2)
 //
 // Copy each block into the corresponding SubCategory document's `prompt`
 // field in the database. The client can edit freely without a code deploy.
-// ─────────────────────────────────────────────────────────────────────────────
 const DEFAULT_KR_V2_SUBCATEGORY_PROMPTS = {
-  // ── TAB 1: DAILY FLOW KR v2 ────────────────────────────────────────────────
+  // TAB 1: DAILY FLOW KR v2
   daily_flow_v2: `
 DAILY FLOW FRAMEWORK:
 Morning Clarity / Morning Tension — the day's opening emotional signal.
@@ -226,7 +218,7 @@ ${ASTRIA_KOREA_V2_START}
 ${ASTRIA_KOREA_V2_END}
 `.trim(),
 
-  // ── TAB 2: LIFE MAP KR ─────────────────────────────────────────────────────
+  // TAB 2: LIFE MAP KR
   life_map: `
 LIFE MAP FRAMEWORK (Seoul-lifestyle, grounded in real chart + daily flow data):
 - Seoul Zone: a neighborhood suggestion that matches today's emotional flow and chart temperament
@@ -272,7 +264,7 @@ ${ASTRIA_KOREA_V2_START}
 ${ASTRIA_KOREA_V2_END}
 `.trim(),
 
-  // ── TAB 3: RELATIONSHIP ENGINE KR ──────────────────────────────────────────
+  // TAB 3: RELATIONSHIP ENGINE KR
   relationship_engine: `
 RELATIONSHIP ENGINE FRAMEWORK (grounded in both charts' Moon/Sun/Venus/Mars):
 - Dating Style: how each person naturally shows up in the early stages of connection —
@@ -318,7 +310,7 @@ ${ASTRIA_KOREA_V2_START}
 ${ASTRIA_KOREA_V2_END}
 `.trim(),
 
-  // ── TAB 4: DAILY COMPANION KR ──────────────────────────────────────────────
+  // TAB 4: DAILY COMPANION KR
   daily_companion: `
 ALWAYS carry emotional continuity: if recent stress or recurring topics are known, acknowledge them gently
 rather than starting fresh each time.
@@ -364,7 +356,7 @@ ${ASTRIA_KOREA_V2_START}
 ${ASTRIA_KOREA_V2_END}
 `.trim(),
 
-  // ── TAB 5: COMPATIBILITY KR v2 ─────────────────────────────────────────────
+  // TAB 5: COMPATIBILITY KR v2
   // Same 3-Box weighted system as Astria Korea v1, carried into the v2 voice.
   compatibility_v2: `
 RESPONSE LENGTH: each description should be roughly 120–220 characters (Korean),
@@ -463,14 +455,12 @@ ${ASTRIA_KOREA_V2_END}
   // deriveCompatibilityV2DisplaySections() below.
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SUB-CATEGORY PROMPT BUILDERS (V2)
 //
 // Each builder:
 //   1. Picks subcategoryContent = dbPrompt (DB field) OR the default for that tab
 //   2. Inserts the REAL computed chart/Saju/flow data (never invented)
 //   3. Wraps everything in a structural prompt with role + language rule
-// ─────────────────────────────────────────────────────────────────────────────
 
 // Shared memory-block injection: reuses HealJai Talk's userProfileMetadata
 // (interests/lifeEvents/emotionalPattern) so Astria Korea V2 responses can
@@ -726,9 +716,7 @@ ${KR_V2_CLOSING_RULE}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY-LEVEL FALLBACK (V2)
-// ─────────────────────────────────────────────────────────────────────────────
 function buildCategoryFallbackKRV2Prompt({ dbPrompt, langName, birthChart }) {
   const chartSummary = birthChart
     ? `USER'S BIRTH CHART:\nSun: ${birthChart.sun_sign} | Moon: ${birthChart.moon_sign} | Rising: ${birthChart.rising_sign}`
@@ -749,12 +737,10 @@ ${KR_V2_CLOSING_RULE}
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}.`.trim();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SUBCATEGORY NAME → BUILDER MAP (V2)
 // Expected subcategory names: "Daily Flow KR v2", "Life Map KR",
 // "Relationship Engine KR", "Daily Companion KR"
 // These keywords only activate inside the isAstriaKoreaV2 block.
-// ─────────────────────────────────────────────────────────────────────────────
 const KR_V2_SUBCATEGORY_BUILDERS = [
   { keywords: ["daily flow"], builder: buildDailyFlowV2KRPrompt },
   { keywords: ["life map"], builder: buildLifeMapKRPrompt },
@@ -796,9 +782,7 @@ function isCompatibilitySubcategoryKRV2(subCategoryName) {
   return lower.includes("compatibility") || lower.includes("compatability");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // LANGUAGE NAME MAP (shared shape with v1)
-// ─────────────────────────────────────────────────────────────────────────────
 const LANG_NAME_MAP = {
   en: "English",
   th: "Thai",
@@ -816,9 +800,7 @@ const LANG_NAME_MAP = {
   id: "Indonesian",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MAIN EXPORT
-// ─────────────────────────────────────────────────────────────────────────────
 function buildAstriaKoreaV2Context({
   subCategoryName,
   categoryPrompt,
@@ -865,7 +847,6 @@ function buildAstriaKoreaV2Context({
   return buildCategoryFallbackKRV2Prompt({ dbPrompt, langName, birthChart });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // STRUCTURED RESPONSE VALIDATION + FORMATTING (V2)
 //
 // validateAstriaKoreaV2Data: cheap shape check per tab before trusting the
@@ -874,14 +855,16 @@ function buildAstriaKoreaV2Context({
 // text that gets saved as aiResponse / streamed to the client, since the
 // ChatModel field remains a plain String. The structured object itself is
 // attached separately by the controller for frontend dataBinding.
-// ─────────────────────────────────────────────────────────────────────────────
 const KR_V2_REQUIRED_FIELDS = {
   daily_flow_v2: ["energyMessage", "moodMessage", "softCheckIn"],
   // V3 Daily Flow only — energyMessage/moodMessage are nested objects here,
   // not strings (see KrV3_Prompt.txt), so their sub-fields are enforced
   // separately in validateAstriaKoreaV2Data below via KR_V3_DAILY_FLOW_NESTED_FIELDS.
   daily_flow_v3: ["energyMessage", "moodMessage", "softCheckIn"],
-  life_map: ["places", "foods", "vibeMessage"],
+  // places/foods are intentionally NOT required here — when the model has no
+  // location context it legitimately asks a clarifying question via
+  // vibeMessage instead of inventing suggestions, leaving those arrays empty.
+  life_map: ["vibeMessage"],
   relationship_engine: ["currentVibe", "softAdvice", "tinyAction"],
   daily_companion: ["morningMessage", "dayMessage", "nightMessage"],
   compatibility_v2: [
@@ -901,7 +884,7 @@ const KR_V2_REQUIRED_FIELDS = {
   // charts on a lighter "에너지 궁합" theme/label read, distinct from the
   // full 3-Box Compatibility tab.
   energy_match: ["theme", "you", "otherPerson"],
-  // ── KR HYBRID-ONLY TAB KEYS ──────────────────────────────────────────────
+  // KR HYBRID-ONLY TAB KEYS
   // Hybrid's Daily Flow / Life Map / Daily Companion / Relationship /
   // Compatibility follow the client's KR Hybrid JSON Pack field names
   // exactly (energyFlow/moodFlow/mindCheckin, mood/place/lifestyle,
@@ -1053,7 +1036,7 @@ function validateAstriaKoreaV2Data(data, subCategoryName, versionFlag = false) {
     if (typeof data.score !== "number") return false;
   }
 
-  // ── KR HYBRID-ONLY SHAPE CHECKS ──────────────────────────────────────────
+  // KR HYBRID-ONLY SHAPE CHECKS
   if (tabKey === "hybrid_daily_flow") {
     const nested = {
       energyFlow: ["morning", "day", "night"],
@@ -1132,7 +1115,6 @@ function validateAstriaKoreaV2Data(data, subCategoryName, versionFlag = false) {
   return true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // COMPATIBILITY V2 — DISPLAY DERIVATION
 //
 // The model's raw JSON stays score/tone/summary/you/partner (unchanged, so
@@ -1147,7 +1129,6 @@ function validateAstriaKoreaV2Data(data, subCategoryName, versionFlag = false) {
 // responses. score/tone travel along as lightweight metadata (for a small
 // inline badge), not as their own SectionCards. The legacy energyMatch /
 // communicationStyle fields are kept for any other caller still reading them.
-// ─────────────────────────────────────────────────────────────────────────────
 function deriveCompatibilityV2DisplaySections(data) {
   if (!data) return null;
   return {
@@ -1173,9 +1154,25 @@ function deriveCompatibilityV2DisplaySections(data) {
   };
 }
 
-function formatAstriaKoreaV2Response(data, subCategoryName, versionFlag = false) {
+// Daily Flow section labels, following `langName`. Returns null for an
+// unsupported language so callers render content without headers.
+const KR_DAILY_FLOW_LABELS = {
+  Korean:  { energy: "에너지 흐름", mood: "기분의 흐름", checkin: "오늘의 마음 체크인", morning: "아침", midday: "낮", evening: "저녁", night: "밤", feeling: "기분", reflection: "성찰", suggestion: "제안" },
+  English: { energy: "Energy Flow", mood: "Mood Flow", checkin: "Today's Mind Check-in", morning: "Morning", midday: "Midday", evening: "Evening", night: "Night", feeling: "Feeling", reflection: "Reflection", suggestion: "Suggestion" },
+};
+function krDailyFlowLabels(langName) {
+  return KR_DAILY_FLOW_LABELS[langName] || null;
+}
+
+function formatAstriaKoreaV2Response(
+  data,
+  subCategoryName,
+  versionFlag = false,
+  langName = "Korean",
+) {
   const tabKey = resolveKRV2TabKey(subCategoryName, versionFlag);
   if (!tabKey || !data) return "";
+  const L = krDailyFlowLabels(langName);
 
   switch (tabKey) {
     case "daily_flow_v2":
@@ -1185,20 +1182,29 @@ function formatAstriaKoreaV2Response(data, subCategoryName, versionFlag = false)
     case "daily_flow_v3": {
       const energy = data.energyMessage || {};
       const mood = data.moodMessage || {};
+      if (!L) {
+        return [
+          [energy.morning, energy.midday, energy.evening].filter(Boolean).join(" "),
+          [mood.feeling, mood.reflection, mood.suggestion].filter(Boolean).join(" "),
+          data.softCheckIn || "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+      }
       return [
         [
-          "에너지 흐름",
-          `- 아침: ${energy.morning || ""}`,
-          `- 낮: ${energy.midday || ""}`,
-          `- 저녁: ${energy.evening || ""}`,
+          L.energy,
+          `- ${L.morning}: ${energy.morning || ""}`,
+          `- ${L.midday}: ${energy.midday || ""}`,
+          `- ${L.evening}: ${energy.evening || ""}`,
         ].join("\n"),
         [
-          "기분의 흐름",
-          `- 기분: ${mood.feeling || ""}`,
-          `- 성찰: ${mood.reflection || ""}`,
-          `- 제안: ${mood.suggestion || ""}`,
+          L.mood,
+          `- ${L.feeling}: ${mood.feeling || ""}`,
+          `- ${L.reflection}: ${mood.reflection || ""}`,
+          `- ${L.suggestion}: ${mood.suggestion || ""}`,
         ].join("\n"),
-        data.softCheckIn ? `오늘의 마음 체크인\n- ${data.softCheckIn}` : "",
+        data.softCheckIn ? `${L.checkin}\n- ${data.softCheckIn}` : "",
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -1253,17 +1259,43 @@ function formatAstriaKoreaV2Response(data, subCategoryName, versionFlag = false)
         .filter(Boolean)
         .join("\n\n");
     }
-    // ── KR HYBRID-ONLY FORMATTING ──────────────────────────────────────────
+    // KR HYBRID-ONLY FORMATTING
     case "hybrid_daily_flow": {
       const energy = data.energyFlow || {};
       const mood = data.moodFlow || {};
       const checkin = data.mindCheckin || {};
-      return [
-        [energy.morning, energy.day, energy.night].filter(Boolean).join(" "),
-        [mood.mood, mood.reflection, mood.suggestion]
+      if (!L) {
+        return [
+          [energy.morning, energy.day, energy.night].filter(Boolean).join(" "),
+          [mood.mood, mood.reflection, mood.suggestion].filter(Boolean).join(" "),
+          [checkin.q1, checkin.q2, checkin.q3].filter(Boolean).join("\n"),
+        ]
           .filter(Boolean)
-          .join(" "),
-        checkin.q1,
+          .join("\n\n");
+      }
+      return [
+        [
+          L.energy,
+          `- ${L.morning}: ${energy.morning || ""}`,
+          `- ${L.midday}: ${energy.day || ""}`,
+          `- ${L.night}: ${energy.night || ""}`,
+        ].join("\n"),
+        [
+          L.mood,
+          `- ${L.feeling}: ${mood.mood || ""}`,
+          `- ${L.reflection}: ${mood.reflection || ""}`,
+          `- ${L.suggestion}: ${mood.suggestion || ""}`,
+        ].join("\n"),
+        [checkin.q1, checkin.q2, checkin.q3].filter(Boolean).length
+          ? [
+              L.checkin,
+              checkin.q1 ? `- ${checkin.q1}` : "",
+              checkin.q2 ? `- ${checkin.q2}` : "",
+              checkin.q3 ? `- ${checkin.q3}` : "",
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : "",
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -1352,6 +1384,34 @@ function formatAstriaKoreaV2Response(data, subCategoryName, versionFlag = false)
   }
 }
 
+// Last-resort sanitizer: used when the output can't be parsed as the
+// sentinel-wrapped JSON. Strips markers, fences and JSON punctuation so a
+// malformed response never shows braces or quotes in the chat bubble.
+function sanitizeAstriaKoreaV2RawText(text) {
+  let s = String(text || "")
+    .split(ASTRIA_KOREA_V2_START)
+    .join("")
+    .split(ASTRIA_KOREA_V2_END)
+    .join("")
+    .replace(/```(?:json)?/gi, "")
+    .trim();
+
+  if (/[{}[\]]|"\s*:/.test(s)) {
+    s = s
+      .replace(/[{}[\]]/g, " ")
+      .replace(/"([^"]*)"\s*:/g, "$1:")
+      .replace(/"/g, "")
+      .replace(/,\s*(\n|$)/g, "\n")
+      .replace(/\n{2,}/g, "\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return s.trim() || "No response";
+}
+
 module.exports = {
   buildAstriaKoreaV2Context,
   // Reused directly from v1 — re-exported for controller convenience so the
@@ -1373,6 +1433,7 @@ module.exports = {
   formatAstriaKoreaV2Response,
   resolveKRV2TabKey,
   deriveCompatibilityV2DisplaySections,
+  sanitizeAstriaKoreaV2RawText,
   // Sentinel strings — re-exported so other KR builders (e.g. Saju V3's
   // structured-output prompt) can wrap their JSON block the same way
   // without duplicating the literal sentinel text.

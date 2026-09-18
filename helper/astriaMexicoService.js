@@ -65,6 +65,12 @@ function wrapMXSubcategoryContent(label, content) {
 const ASTRIA_MEXICO_START = "<<<ASTRIA_MEXICO_DATA>>>";
 const ASTRIA_MEXICO_END = "<<<END_ASTRIA_MEXICO_DATA>>>";
 
+// Warm, on-voice fallback for when nothing readable survives extraction
+// (e.g. the model's output was pure/truncated JSON with no prose before the
+// sentinel) — never show raw JSON or an English stock message here.
+const ASTRIA_MEXICO_FALLBACK_TEXT =
+  "Perdón, se me fue el hilo un segundo. ¿Me lo compartes otra vez?";
+
 function repairAndParseJSON(raw) {
   let s = String(raw || "").trim();
   if (!s) return null;
@@ -783,6 +789,22 @@ function salvageAstriaMexicoText(data) {
   return parts.join("\n\n");
 }
 
+// Strips the sentinel markers AND any raw/truncated JSON block between (or
+// after) them, so a parse failure never leaks "{...}" JSON to the user.
+// Used only when there's no parsed data at all to salvage from.
+function stripAstriaMexicoMarkers(text) {
+  const src = String(text || "");
+  const start = src.indexOf(ASTRIA_MEXICO_START);
+  if (start !== -1) {
+    // Whatever comes after the start sentinel is (partial or full) JSON —
+    // never plain prose — so drop everything from the sentinel onward.
+    return src.slice(0, start).trim();
+  }
+  return src
+    .replace(/<<<END_ASTRIA_MEXICO_DATA>>>/g, "")
+    .trim();
+}
+
 function deriveAstriaMexicoDisplaySections(data, subCategoryName) {
   if (!data) return null;
   const tabKey = resolveMXTabKey(subCategoryName);
@@ -813,6 +835,8 @@ module.exports = {
   deriveAstriaMexicoDisplaySections,
   formatAstriaMexicoResponse,
   salvageAstriaMexicoText,
+  stripAstriaMexicoMarkers,
+  ASTRIA_MEXICO_FALLBACK_TEXT,
   resolveMXTabKey,
   isTwoPersonMXModule,
   DEFAULT_MX_SUBCATEGORY_PROMPTS,

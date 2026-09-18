@@ -1,6 +1,5 @@
 "use strict";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // ASTRIA INDIA V3 SERVICE
 // New, isolated module for the "Astria India V3" category — built on top of
 // astriaIndiaV2Service.js exactly the way AstriaKoreaV3Service.js is built on
@@ -28,7 +27,6 @@
 // Zero impact on "Astria India", "Astria India V2", or any other category —
 // this file is only ever read by the isAstriaIndiaV3 branch in
 // chatController.js.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const {
   buildAstriaIndiaContext,
@@ -43,11 +41,9 @@ const {
   INDIA_V2_SUPPORTED_LANGUAGES,
 } = require("./astriaIndiaV2Service");
 
-// ─────────────────────────────────────────────────────────────────────────────
 // JSON MARKERS — one per subcategory, all namespaced "_V3" so a V3 response
 // can never be mistaken for (or collide with) a V2 response if both are ever
 // logged or compared side by side.
-// ─────────────────────────────────────────────────────────────────────────────
 const SAMBANDH_V3_START = "<<<INDIA_V3_SAMBANDH_DATA>>>";
 const SAMBANDH_V3_END = "<<<END_INDIA_V3_SAMBANDH_DATA>>>";
 
@@ -69,12 +65,10 @@ const SAMAY_V3_END = "<<<END_INDIA_V3_SAMAY_DATA>>>";
 const AAPKA_NOTE_V3_START = "<<<INDIA_V3_AAPKA_NOTE_DATA>>>";
 const AAPKA_NOTE_V3_END = "<<<END_INDIA_V3_AAPKA_NOTE_DATA>>>";
 
-// ─────────────────────────────────────────────────────────────────────────────
 // LANGUAGE NAME MAP — identical set to V2 (English/Hindi/Tamil/Marathi via
 // the frontend's explicit language toggle). Re-declared locally (rather than
 // imported) only because astriaIndiaV2Service.js doesn't export its map —
 // kept byte-identical to avoid drift.
-// ─────────────────────────────────────────────────────────────────────────────
 const LANG_NAME_MAP = {
   en: "English",
   hi: "Hindi",
@@ -104,12 +98,43 @@ function extractJsonBlock(text, startMarker, endMarker) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ALL V3 MARKER PAIRS — every lane's sentinel, so the visible chat text never
+// leaks a marker block regardless of which subcategory produced it (the
+// structured data is already surfaced separately via astriaIndiaV3Data).
+const ALL_V3_MARKERS = [
+  [SAMBANDH_V3_START, SAMBANDH_V3_END],
+  [VIVAH_V3_START, VIVAH_V3_END],
+  [UPAY_V3_START, UPAY_V3_END],
+  [BHAVNA_V3_START, BHAVNA_V3_END],
+  [VYAKTITVA_V3_START, VYAKTITVA_V3_END],
+  [SAMAY_V3_START, SAMAY_V3_END],
+  [AAPKA_NOTE_V3_START, AAPKA_NOTE_V3_END],
+];
+
+/**
+ * stripAstriaIndiaV3Markers — removes the "_V3" sentinel block (markers +
+ * the JSON between them) from the visible AI text. The structured payload
+ * is still available separately via extractAstriaIndiaV3Data/astriaIndiaV3Data,
+ * so the chat bubble/highlight card no longer needs the raw marker+JSON text.
+ */
+function stripAstriaIndiaV3Markers(text) {
+  let src = String(text || "");
+  for (const [start, end] of ALL_V3_MARKERS) {
+    const startIdx = src.indexOf(start);
+    const endIdx = src.indexOf(end);
+    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+      src = src.slice(0, startIdx) + src.slice(endIdx + end.length);
+    } else {
+      src = src.split(start).join("").split(end).join("");
+    }
+  }
+  return src.trim();
+}
+
 // LABELED-PERSON DETAILS PARSER — identical contract to V2's (Sambandh Taal
 // Mel / Vivah Muhurat wizards always send Partner/Bride/Groom details in
 // this exact labeled format). Duplicated rather than imported since
 // astriaIndiaV2Service.js doesn't export it.
-// ─────────────────────────────────────────────────────────────────────────────
 function parseLabeledPersonDetails(userMessage, roleLabel) {
   const src = String(userMessage || "");
   const esc = roleLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -142,12 +167,10 @@ function parsePartnerDetailsFromMessage(userMessage) {
   return parseLabeledPersonDetails(userMessage, "Partner");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SIGNATURE LAYERS — per Update.txt's "ADD-ON MODULE (India v2 Signature
 // Upgrade)". These are global modifiers V3 adds on top of every lane's own
 // content. Scoping (which lanes get astro_soft_influence / clarity_point)
 // matches the spec's usage_rules exactly.
-// ─────────────────────────────────────────────────────────────────────────────
 const ASTRO_SOFT_INFLUENCE_LANES = new Set([
   "samay_pravah",
   "vyaktitva_darshan",
@@ -212,13 +235,11 @@ function signatureLayerJsonFields(laneKey) {
   return fields;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SUBCATEGORY PROMPT BUILDERS (V3)
 // Each mirrors its V2 counterpart 1:1 for the birth-chart context, DB-prompt
 // resolution, and base JSON contract — then layers the signature fields on
 // top via buildSignatureLayerInstructions/signatureLayerJsonFields above.
 // Nothing about V2's own fields, tone, or business logic changes here.
-// ─────────────────────────────────────────────────────────────────────────────
 
 async function buildSambandhV3Prompt({
   userMessage,
@@ -500,7 +521,7 @@ ${subCategoryPrompt ? subCategoryPrompt.trim() : formatSubcategoryPromptFallback
 ${buildSignatureLayerInstructions("upay_marg", highlightLine)}
 
 OUTPUT FORMAT (STRICT JSON — required, do not omit or rename fields):
-Respond with ONLY this JSON block — no narrative outside it:
+Respond with a short warm narrative first, then append exactly this JSON block:
 
 ${UPAY_V3_START}
 {
@@ -568,7 +589,7 @@ ${subCategoryPrompt ? subCategoryPrompt.trim() : formatSubcategoryPromptFallback
 ${buildSignatureLayerInstructions("bhavna_drishti", highlightLine)}
 
 OUTPUT FORMAT (STRICT JSON — required, do not omit or rename fields):
-Respond with ONLY this JSON block — no narrative outside it:
+Respond with a short warm narrative first, then append exactly this JSON block:
 
 ${BHAVNA_V3_START}
 {
@@ -775,7 +796,7 @@ ${subCategoryPrompt ? subCategoryPrompt.trim() : formatSubcategoryPromptFallback
 ${buildSignatureLayerInstructions("aapka_note", highlightLine)}
 
 OUTPUT FORMAT (STRICT JSON — required, do not omit or rename fields):
-Respond with ONLY this JSON block — no narrative outside it:
+Respond with a short warm narrative first, then append exactly this JSON block:
 
 ${AAPKA_NOTE_V3_START}
 {
@@ -794,11 +815,9 @@ FIELD RULES:
 LANGUAGE RULE: Reply in ${langName} only. Every word in ${langName}, including the signature layer fields.`.trim();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // SUBCATEGORY NAME → BUILDER MAP (same names/keywords as astriaIndiaV2Service.js
 // so the same subcategory names created in the DB for V2 also resolve
 // correctly under the "Astria India V3" category)
-// ─────────────────────────────────────────────────────────────────────────────
 const V3_SUBCATEGORY_BUILDERS = [
   {
     keywords: ["sambandh", "taal"],
@@ -853,9 +872,7 @@ function resolveV3SubcategoryEntry(subCategoryName) {
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // MAIN EXPORTED FUNCTIONS
-// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * buildAstriaIndiaV3Context — resolves the subcategory builder by name and
@@ -937,4 +954,5 @@ module.exports = {
   buildAstriaIndiaV3Context,
   extractAstriaIndiaV3Data,
   resolveIndiaV3Target,
+  stripAstriaIndiaV3Markers,
 };
