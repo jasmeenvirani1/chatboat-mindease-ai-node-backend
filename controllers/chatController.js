@@ -5,9 +5,9 @@ const SubCategory = require("../models/SubCategoryModel.js");
 const logger = require("../helper/logger.js");
 const { hasPaidAccess } = require("../helper/subscriptionAccess.js");
 const {
-  generateGeminiResponse,
-  generateGeminiResponseStream,
-} = require("../helper/geminiService.js");
+  generateDeepseekResponse,
+  generateDeepseekResponseStream,
+} = require("../helper/deepseekService.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const TrendingTopicModel = require("../models/TrendingTopicModel.js");
 const User = require("../models/UserModel.js");
@@ -56,6 +56,7 @@ const {
   buildAstriaIndiaV3Context,
   extractAstriaIndiaV3Data,
   resolveIndiaV3Target,
+  stripAstriaIndiaV3Markers,
 } = require("../helper/astriaIndiaV3Service");
 const {
   SAMAY_GRAPH_START,
@@ -124,6 +125,7 @@ const {
   formatAstriaKoreaV2Response,
   resolveKRV2TabKey,
   deriveCompatibilityV2DisplaySections,
+  sanitizeAstriaKoreaV2RawText,
 } = require("../helper/AstriaKoreaV2Service");
 const {
   buildAstriaKoreaTalkContext,
@@ -325,6 +327,8 @@ const {
   deriveAstriaMexicoDisplaySections,
   formatAstriaMexicoResponse,
   salvageAstriaMexicoText,
+  stripAstriaMexicoMarkers,
+  ASTRIA_MEXICO_FALLBACK_TEXT,
 } = require("../helper/astriaMexicoService");
 const {
   buildAntiRepeatWindow: buildPhIdV2AntiRepeatWindow,
@@ -344,10 +348,15 @@ const {
 // confident detection still lets the user switch languages mid-chat.
 // regionDefaultLang() replaces the local getDefaultLanguageByOrigin() so the
 // region fallback emits real codes ("ko"/"ja"/"id", not "kr"/"jp"/"in").
+// detectLangFromMessage() is the same self-contained detector (script checks +
+// weighted word-frequency scoring + keyword disambiguation, no external
+// library) used for the provisional early-turn guess below, before the chat
+// doc loads and resolveReplyLanguage() can apply stickiness.
 const {
   resolveReplyLanguage,
   regionDefaultLang,
   langName: resolveLangName,
+  detectLangFromMessage,
 } = require("../helper/languageDetect.js");
 
 // Append the user's date of birth and latest message to the system prompt
@@ -422,270 +431,6 @@ function getKolkataMidnightDate() {
 
   // Midnight UTC — matches how DB saves dates
   return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
-}
-
-const HINGLISH_MARKERS = new Set([
-  "mujhe",
-  "tumhe",
-  "aapko",
-  "hume",
-  "unhe",
-  "kya",
-  "kyun",
-  "kyunki",
-  "kuch",
-  "koi",
-  "kaun",
-  "kahan",
-  "kab",
-  "nahi",
-  "nahin",
-  "nai",
-  "hain",
-  "tha",
-  "thi",
-  "hoga",
-  "hogi",
-  "hoge",
-  "karna",
-  "karta",
-  "karti",
-  "karte",
-  "raha",
-  "rahi",
-  "rahe",
-  "aaj",
-  "parso",
-  "abhi",
-  "yaar",
-  "bhai",
-  "bahut",
-  "zyada",
-  "thoda",
-  "bilkul",
-  "accha",
-  "achha",
-  "bura",
-  "theek",
-  "mera",
-  "meri",
-  "mere",
-  "tera",
-  "teri",
-  "tumhara",
-  "tumhari",
-  "uska",
-  "uski",
-  "unka",
-  "unki",
-  "hamara",
-  "hamari",
-  "phir",
-  "lekin",
-  "lagta",
-  "lagti",
-  "lagte",
-  "samajh",
-  "malum",
-  "pata",
-  "zindagi",
-  "pyaar",
-  "dil",
-  "mann",
-  "soch",
-  "kar",
-  "karo",
-  "karke",
-  "hogaya",
-  "hogayi",
-  "sab",
-  "sabko",
-  "sabse",
-]);
-
-const SPANISH_MARKERS = new Set([
-  "hola",
-  "como",
-  "estas",
-  "estoy",
-  "bien",
-  "gracias",
-  "por",
-  "favor",
-  "que",
-  "quiero",
-  "necesito",
-  "tengo",
-  "tienes",
-  "tiene",
-  "somos",
-  "están",
-  "soy",
-  "eres",
-  "para",
-  "pero",
-  "porque",
-  "cuando",
-  "donde",
-  "quien",
-  "cual",
-  "muy",
-  "más",
-  "también",
-  "todo",
-  "nada",
-  "algo",
-  "hacer",
-  "quiero",
-  "puedo",
-  "puede",
-  "podemos",
-  "decir",
-  "saber",
-  "hay",
-  "aquí",
-  "allí",
-  "ahora",
-  "antes",
-  "después",
-  "siempre",
-  "nunca",
-  "mucho",
-  "poco",
-  "grande",
-  "pequeño",
-  "bueno",
-  "malo",
-  "amor",
-  "vida",
-  "tiempo",
-  "día",
-  "noche",
-  "casa",
-  "trabajo",
-  "dinero",
-  "me",
-  "te",
-  "se",
-  "nos",
-  "les",
-  "del",
-  "una",
-  "los",
-  "las",
-  "sus",
-  "con",
-  "sin",
-  "sobre",
-  "bajo",
-  "entre",
-  "desde",
-  "hasta",
-  "según",
-  "mi",
-  "tu",
-  "su",
-  "mis",
-  "tus",
-]);
-
-const SPANISH_STRONG_MARKERS = new Set([
-  "hola",
-  "gracias",
-  "estoy",
-  "estas",
-  "quiero",
-  "necesito",
-  "tengo",
-  "tienes",
-  "somos",
-  "soy",
-  "eres",
-  "porque",
-  "cuando",
-  "donde",
-  "quien",
-  "también",
-  "puedo",
-  "puede",
-  "podemos",
-  "siempre",
-  "nunca",
-  "pequeño",
-  "amor",
-  "trabajo",
-  "dinero",
-  "aquí",
-  "allí",
-  "después",
-  "según",
-]);
-
-function detectSpanish(text) {
-  const words = text.toLowerCase().match(/[a-záéíóúüñ]+/g) || [];
-  let count = 0;
-  for (const w of words) {
-    if (SPANISH_STRONG_MARKERS.has(w)) return true;
-    if (SPANISH_MARKERS.has(w)) count++;
-    if (count >= 2) return true;
-  }
-  return false;
-}
-
-function detectHinglish(text) {
-  const words = text.toLowerCase().match(/[a-z]+/g) || [];
-  let count = 0;
-  for (const w of words) {
-    if (HINGLISH_MARKERS.has(w)) count++;
-    if (count >= 2) return true;
-  }
-  return false;
-}
-
-function detectLangFromMessage(text = "", strict = false) {
-  if (/[\u0E00-\u0E7F]/.test(text)) return "th";
-  if (
-    !/[ñ¿¡]/.test(text) &&
-    (/[ãõÃÕ]/i.test(text) ||
-      /(não|você|estão|são\s|também|quero|minha|nosso|nossa|olá|obrigad)/i.test(
-        text,
-      ))
-  )
-    return "pt";
-  if (/[ñáéíóúü¿¡]/i.test(text)) return "es";
-  if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/.test(text)) return "ja";
-  if (/[\uAC00-\uD7AF]/.test(text)) return "ko";
-  if (
-    /[\u4E00-\u9FFF]/.test(text) &&
-    !/[\u3040-\u309F\u30A0-\u30FF]/.test(text)
-  )
-    return "zh";
-  if (/[\u0400-\u04FF]/.test(text)) return "ru";
-  if (/[\u0600-\u06FF]/.test(text)) return "ar";
-  if (/[\u0900-\u097F]/.test(text) && /[a-zA-Z]/.test(text)) return "hinglish";
-  if (/[\u0900-\u097F]/.test(text)) return "hi";
-  if (/[ăâđêôơưĂÂĐÊÔƠƯ]/i.test(text)) return "vi";
-  if (/[àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ]/i.test(text) && !/[ñ¿¡]/i.test(text))
-    return "fr";
-  if (/[äöüßÄÖÜ]/i.test(text)) return "de";
-  if (/[àèéìíîòóùú]/i.test(text) && !/[ñ¿¡àâæçêëïœ]/i.test(text)) return "it";
-  if (
-    /\b(saya|aku|kamu|anda|dia|kami|kita|mereka|ini|itu|yang|dan|atau|tidak|bukan|iya|ya|halo|selamat|terima\s?kasih|tolong|ingin|mau|bisa|boleh|apa|siapa|mengapa|kenapa|bagaimana|dimana|lahir|hari|bulan|tahun|emosi|perasaan|tenang|hidup|cinta)\b/i.test(
-      text,
-    )
-  ) {
-    return "id";
-  }
-  if (detectHinglish(text)) return "hinglish";
-  if (detectSpanish(text)) return "es";
-  if (
-    /\b(the|is|are|was|were|you|your|i'm|im|hello|hi|hey|thanks|thank|please|what|why|how|when|where|feel|feeling|today|okay|ok|yes|no|good|bad|happy|sad|love|life|help|want|need|can|could|would|should)\b/i.test(
-      text,
-    )
-  ) {
-    return "en";
-  }
-  return strict ? null : "en";
 }
 
 //region based fallback language detection
@@ -1346,18 +1091,26 @@ async function saveUserMusicGenrePreferences({
 // ============================================
 // SSE STREAMING HELPER
 // ============================================
-// Word-chunks `text` over an already-open SSE response at the same 30ms
-// per-word cadence used everywhere in createChat, so every lane (fallback
-// text, missing-fields prompts, formatted responses) streams identically
-// from the client's point of view. `isClosed` is polled each iteration so
-// an in-flight stream stops as soon as the client disconnects.
+// Word-chunks `text` over an already-open SSE response at the same per-word
+// cadence used everywhere in createChat, so every lane (fallback text,
+// missing-fields prompts, formatted responses) streams identically from the
+// client's point of view. `isClosed` is polled each iteration so an
+// in-flight stream stops as soon as the client disconnects.
+//
+// This delay only exists to give already-complete text a typing effect —
+// it is pure added latency on top of the LLM's own generation time (worst
+// case ~12s of artificial delay for a 400-word response at the old 30ms/word).
+// Kept small instead of 0 so the frontend still renders a visible streaming
+// effect rather than one giant paint.
+const WORD_STREAM_DELAY_MS = 8;
+
 async function streamWordsSSE(res, text, isClosed) {
   const words = String(text || "").split(" ");
   for (const word of words) {
     if (isClosed()) break;
     res.write(`data: ${JSON.stringify({ text: word + " " })}\n\n`);
     if (res.flush) res.flush();
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => setTimeout(r, WORD_STREAM_DELAY_MS));
   }
 }
 
@@ -1652,6 +1405,10 @@ const chatController = {
 
       // Astria India V3 Flag (outside the chain — only isAstriaUS blocks it)
       const isAstriaIndiaV3 = categoryName === "Astria India V3" && !isAstriaUS;
+
+      // Every module, India included, uses deepseekService.
+      const llmResponse = generateDeepseekResponse;
+      const llmResponseStream = generateDeepseekResponseStream;
 
       // Astria Japan Flag
       const isAstriaJapan = pickFirstMatch(categoryName === "Astria Japan");
@@ -2110,6 +1867,10 @@ const chatController = {
       // instead be attached to the final user-turn message. Left null for
       // every other lane, which keeps their existing behavior unchanged.
       let userTurnMessageContent = null;
+      // Set only by the Astria GCC compatibility 3-box path — holds the
+      // per-turn score/chart data returned alongside a cacheable systemPrompt
+      // by buildCompatibilityGCCPrompt(). See astriaGCCService.js.
+      let gccCompatibilityUserTurnContext = null;
 
       if (subCategoryPrompt && subCategoryPrompt.trim()) {
         systemPrompt = subCategoryPrompt.trim();
@@ -3133,6 +2894,7 @@ RULES:
               energyMatchMissingQuestionJP = buildEnergyMatchMissingQuestionJP(
                 emPartnersJP.missingFields,
                 !!(dob0 && String(dob0).trim()),
+                target,
               );
             } else {
               let chartAJP = null;
@@ -4479,6 +4241,7 @@ RULES:
                 buildEnergyMatchMissingQuestionJP(
                   emPartnersJPV3.missingFields,
                   !!(dob0 && String(dob0).trim()),
+                  target,
                 );
             } else {
               let chartAJPV3 = null;
@@ -4663,6 +4426,7 @@ RULES:
                 buildEnergyMatchMissingQuestionJPHybrid(
                   compatPartnersJPHybrid.missingFields,
                   !!(dob0 && String(dob0).trim()),
+                  target,
                 );
             } else {
               try {
@@ -4740,6 +4504,7 @@ RULES:
               buildEnergyMatchMissingQuestionJPHybrid(
                 compatPartnersJPHybrid.missingFields,
                 !!(dob0 && String(dob0).trim()),
+                target,
               );
           } else {
             try {
@@ -4958,6 +4723,7 @@ RULES:
                 compatPartnersPSM.missingFields,
                 !!(dob0 && String(dob0).trim()),
                 resolveCountry(categoryName),
+                target,
               );
           } else {
             let chartAPSM = null;
@@ -5065,6 +4831,7 @@ RULES:
                 compatPartnersSGV2.missingFields,
                 !!(dob0 && String(dob0).trim()),
                 "singapore",
+                target,
               );
           } else {
             let chartASGV2 = null;
@@ -5118,6 +4885,7 @@ RULES:
               birthChart: chartASGV2,
               birthChartB: chartBSGV2,
               selfName: userName || null,
+              target,
             });
           }
         } else {
@@ -5141,6 +4909,7 @@ RULES:
             subCategoryPrompt: subCategoryPrompt || null,
             birthChart: astriaSingaporeV2BirthChart,
             birthChartB: null,
+            target,
           });
         }
         systemPrompt = appendAstriaDobAndMessageContext(
@@ -5187,6 +4956,7 @@ RULES:
                 compatPartnersSGV3.missingFields,
                 !!(dob0 && String(dob0).trim()),
                 "singapore",
+                target,
               );
           } else {
             let chartASGV3 = null;
@@ -5240,6 +5010,7 @@ RULES:
               birthChart: chartASGV3,
               birthChartB: chartBSGV3,
               selfName: userName || null,
+              target,
             });
           }
         } else {
@@ -5263,6 +5034,7 @@ RULES:
             subCategoryPrompt: subCategoryPrompt || null,
             birthChart: astriaSingaporeV3BirthChart,
             birthChartB: null,
+            target,
           });
         }
         systemPrompt = appendAstriaDobAndMessageContext(
@@ -5309,6 +5081,7 @@ RULES:
                 compatPartnersMYV2.missingFields,
                 !!(dob0 && String(dob0).trim()),
                 "malaysia",
+                target,
               );
           } else {
             let chartAMYV2 = null;
@@ -5431,6 +5204,7 @@ RULES:
                 compatPartnersMYV3.missingFields,
                 !!(dob0 && String(dob0).trim()),
                 "malaysia",
+                target,
               );
           } else {
             let chartAMYV3 = null;
@@ -5753,7 +5527,7 @@ RULES:
                 gcc3BoxPartner.energy_signature || null,
               );
             const scoreLabel = getCompatibilityScoreLabel(calculatedScore);
-            systemPrompt = buildAstriaGCCContext({
+            const gccCompatibilityResult = buildAstriaGCCContext({
               subCategoryName: subCategoryName || null,
               categoryPrompt: categoryPrompt || null,
               subCategoryPrompt: subCategoryPrompt || null,
@@ -5769,6 +5543,20 @@ RULES:
               scoreLabel,
               toneMode: resolvedGccToneMode,
             });
+            // Compatibility builder returns { systemPrompt, userTurnContext }
+            // so the per-turn score/chart data can stay out of the cached
+            // system prompt (see astriaGCCService.js buildCompatibilityGCCPrompt).
+            // Every other GCC builder still returns a plain string.
+            if (
+              gccCompatibilityResult &&
+              typeof gccCompatibilityResult === "object"
+            ) {
+              systemPrompt = gccCompatibilityResult.systemPrompt;
+              gccCompatibilityUserTurnContext =
+                gccCompatibilityResult.userTurnContext || null;
+            } else {
+              systemPrompt = gccCompatibilityResult;
+            }
           } else {
             // Fallback: text-based compatibility parsing (original flow)
             const compatPartnersGCC = parseCompatibilityPartnersGCC(
@@ -5847,12 +5635,28 @@ RULES:
             toneMode: resolvedGccToneMode,
           });
         }
-        systemPrompt = appendAstriaDobAndMessageContext(
-          systemPrompt,
-          selfDob0,
-          userMessage,
-          translatedMessage !== userMessage ? translatedMessage : null,
-        );
+        if (gccCompatibilityUserTurnContext) {
+          // Cacheable path: keep systemPrompt DOB-only/stable and carry the
+          // per-turn score/chart data + user message on the final user-turn
+          // message instead (mirrors Astria Spanish's userTurnMessageContent).
+          systemPrompt = appendAstriaDobContext(systemPrompt, selfDob0);
+          userTurnMessageContent = buildUserTurnMessageContent(
+            userMessage,
+            [
+              gccCompatibilityUserTurnContext,
+              translatedMessage !== userMessage ? translatedMessage : null,
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+          );
+        } else {
+          systemPrompt = appendAstriaDobAndMessageContext(
+            systemPrompt,
+            selfDob0,
+            userMessage,
+            translatedMessage !== userMessage ? translatedMessage : null,
+          );
+        }
       }
 
       // ASTRIA GCC V2 ENGINE — Astria GCC V2 category ONLY
@@ -6683,7 +6487,7 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
-      //console.log("System prompt: ", systemPrompt);
+      // console.log("System prompt: ", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -6709,9 +6513,17 @@ RULES:
           content: `${userMessage}\n\n[REMINDER: Reply using ONLY the strict JSON block format specified in the system prompt, wrapped exactly between the <<<ASTRIA_KOREA_V2_DATA>>> / <<<END_ASTRIA_KOREA_V2_DATA>>> sentinels. Do not reply in plain prose, even though earlier turns in this conversation appear as plain text above.]`,
         });
       } else if (userTurnMessageContent) {
-        // Spanish / Spanish V2 lanes: the "Latest User Message" framing
-        // that used to live in systemPrompt (see appendAstriaDobContext)
-        // travels here instead, keeping systemPrompt cache-stable.
+        // Lanes that opt into cache-stable prompts (Spanish, Spanish V2, GCC
+        // compatibility 3-box): the "Latest User Message" / per-turn context
+        // framing that would otherwise live in systemPrompt (see
+        // appendAstriaDobContext) travels here instead, keeping systemPrompt
+        // cache-stable (only DOB is appended, which stays fixed for a user's
+        // whole conversation). That stability is exactly what
+        // OpenRouter/Gemini prompt caching needs, so mark it explicitly —
+        // see geminiService.js's `cache` message flag. Needs ~1024+ tokens to
+        // actually cache; short category prompts just won't hit, which is
+        // harmless.
+        messages[0].cache = true;
         messages.push({ role: "user", content: userTurnMessageContent });
       } else {
         messages.push({ role: "user", content: userMessage });
@@ -6864,7 +6676,7 @@ RULES:
             // is expanded into a full Taglish response via the LLM, per the
             // client's emotion-picker expansion spec. Word-chunked over SSE
             // like every other lane, so the frontend streaming UI is unaffected.
-            const phCompletion = await generateGeminiResponse([
+            const phCompletion = await llmResponse([
               { role: "system", content: phVnIdV2ExpansionPrompt },
               { role: "user", content: userMessage },
             ]);
@@ -6878,13 +6690,13 @@ RULES:
             finalAiResponse = phVnIdV2FinalResponse;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (musicRecommendation?.shouldRecommend) {
-            const completion = await generateGeminiResponse(messages);
+            const completion = await llmResponse(messages);
             finalAiResponse = completion?.trim() || "No response";
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isUpayMarg) {
             // Collect the full response first
-            const completion = await generateGeminiResponse(messages);
+            const completion = await llmResponse(messages);
             finalAiResponse = completion?.trim() || "No response";
 
             // Parse and format the response
@@ -6909,7 +6721,7 @@ RULES:
               finalAiResponse = sambandhMissingFields;
               await streamWordsSSE(res, finalAiResponse, () => clientClosed);
             } else {
-              const stStream = await generateGeminiResponseStream(messages);
+              const stStream = await llmResponseStream(messages);
               let rawResponse = "";
               for await (const chunk of stStream) {
                 if (clientClosed) break;
@@ -6947,7 +6759,7 @@ RULES:
               }
             }
           } else if (foodRecommendation?.shouldRecommend) {
-            const completion = await generateGeminiResponse(messages);
+            const completion = await llmResponse(messages);
             let text = completion?.trim() || "No response";
 
             text = await processOutput(
@@ -6964,7 +6776,7 @@ RULES:
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (v4Classification.domain && v4Classification.label) {
-            const completion = await generateGeminiResponse(messages);
+            const completion = await llmResponse(messages);
             let text = completion?.trim() || "No response";
 
             text = await processOutput(
@@ -6982,7 +6794,7 @@ RULES:
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isVyaktivaDarshan) {
             // Step 1: non-streaming call — AI generates Nakshatra analysis + JSON block
-            const firstCompletion = await generateGeminiResponse(messages);
+            const firstCompletion = await llmResponse(messages);
             const vdData = extractVyaktivaDarshanData(firstCompletion || "");
 
             if (vdData) {
@@ -6992,8 +6804,7 @@ RULES:
                 target,
                 userMessage,
               );
-              const secondStream =
-                await generateGeminiResponseStream(secondMessages);
+              const secondStream = await llmResponseStream(secondMessages);
 
               for await (const chunk of secondStream) {
                 if (clientClosed) break;
@@ -7012,7 +6823,7 @@ RULES:
             }
           } else if (isBhavnaDrishti) {
             // Step 1: non-streaming call — AI returns ONLY JSON
-            const bdRawCompletion = await generateGeminiResponse(messages);
+            const bdRawCompletion = await llmResponse(messages);
             bhavnaDrishtiJsonData = extractBhavnaDrishtiData(
               bdRawCompletion || "",
             );
@@ -7024,8 +6835,7 @@ RULES:
                 target,
                 userMessage,
               );
-              const bdSecondStream =
-                await generateGeminiResponseStream(bdSecondMessages);
+              const bdSecondStream = await llmResponseStream(bdSecondMessages);
 
               for await (const chunk of bdSecondStream) {
                 if (clientClosed) break;
@@ -7047,7 +6857,7 @@ RULES:
               finalAiResponse = vivahMissingFieldsQuestion;
               await streamWordsSSE(res, finalAiResponse, () => clientClosed);
             } else {
-              const vmStream = await generateGeminiResponseStream(messages);
+              const vmStream = await llmResponseStream(messages);
               for await (const chunk of vmStream) {
                 if (clientClosed) break;
                 const text = chunk?.text || "";
@@ -7093,7 +6903,7 @@ RULES:
             finalAiResponse = compatibilityMissingQuestionKRV2;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaKoreaV2) {
-            const krv2Stream = await generateGeminiResponseStream(messages);
+            const krv2Stream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of krv2Stream) {
               if (clientClosed) break;
@@ -7120,11 +6930,7 @@ RULES:
               );
             } else {
               astriaKoreaV2Data = null;
-              finalAiResponse =
-                rawResponse
-                  .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
-                  .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
-                  .trim() || "No response";
+              finalAiResponse = sanitizeAstriaKoreaV2RawText(rawResponse);
             }
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
@@ -7145,7 +6951,7 @@ RULES:
             // resolveKRV2TabKey/validateAstriaKoreaV2Data/formatAstriaKoreaV2Response
             // call below routes it to "daily_flow_v3" instead of colliding
             // with V2's flat-string "daily_flow_v2".
-            const krv3Stream = await generateGeminiResponseStream(messages);
+            const krv3Stream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of krv3Stream) {
               if (clientClosed) break;
@@ -7205,11 +7011,7 @@ RULES:
               );
             } else {
               astriaKoreaV3Data = null;
-              finalAiResponse =
-                rawResponse
-                  .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
-                  .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
-                  .trim() || "No response";
+              finalAiResponse = sanitizeAstriaKoreaV2RawText(rawResponse);
             }
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
@@ -7234,7 +7036,7 @@ RULES:
             // formatAstriaKoreaV2Response call below routes Daily Flow to the
             // V3-style "daily_flow_v3" schema and enables the "energy match"
             // keyword match.
-            const krHybridStream = await generateGeminiResponseStream(
+            const krHybridStream = await llmResponseStream(
               messages,
               geminiCallOptions,
             );
@@ -7310,11 +7112,7 @@ RULES:
               );
             } else {
               astriaKoreaHybridData = null;
-              finalAiResponse =
-                rawResponse
-                  .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
-                  .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
-                  .trim() || "No response";
+              finalAiResponse = sanitizeAstriaKoreaV2RawText(rawResponse);
             }
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
@@ -7322,7 +7120,7 @@ RULES:
             // All 7 JP Hybrid tabs return the same sentinel-wrapped key-only
             // JSON (see AstriaJapanHybridService.js) — buffer the full stream,
             // extract + validate, then render display text in one shot.
-            const jpHybridStream = await generateGeminiResponseStream(
+            const jpHybridStream = await llmResponseStream(
               messages,
               geminiCallOptions,
             );
@@ -7374,7 +7172,7 @@ RULES:
             finalAiResponse = compatibilityMissingQuestionSGV2;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaSingaporeV2) {
-            const sgv2Stream = await generateGeminiResponseStream(messages);
+            const sgv2Stream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of sgv2Stream) {
               if (clientClosed) break;
@@ -7414,7 +7212,7 @@ RULES:
             finalAiResponse = compatibilityMissingQuestionSGV3;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaSingaporeV3) {
-            const sgv3Stream = await generateGeminiResponseStream(messages);
+            const sgv3Stream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of sgv3Stream) {
               if (clientClosed) break;
@@ -7457,7 +7255,7 @@ RULES:
             finalAiResponse = compatibilityMissingQuestionMYV2;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaMalaysiaV2) {
-            const myv2Stream = await generateGeminiResponseStream(messages);
+            const myv2Stream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of myv2Stream) {
               if (clientClosed) break;
@@ -7501,7 +7299,7 @@ RULES:
             finalAiResponse = compatibilityMissingQuestionMYV3;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaMalaysiaV3) {
-            const myv3Stream = await generateGeminiResponseStream(messages);
+            const myv3Stream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of myv3Stream) {
               if (clientClosed) break;
@@ -7545,7 +7343,7 @@ RULES:
             finalAiResponse = ukv2MissingPartnerQuestion;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaUKV2) {
-            const ukv2Stream = await generateGeminiResponseStream(messages);
+            const ukv2Stream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of ukv2Stream) {
               if (clientClosed) break;
@@ -7588,7 +7386,7 @@ RULES:
             finalAiResponse = mexicoMissingPartnerQuestion;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (isAstriaMexico) {
-            const mexicoStream = await generateGeminiResponseStream(messages);
+            const mexicoStream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of mexicoStream) {
               if (clientClosed) break;
@@ -7619,11 +7417,8 @@ RULES:
               astriaMexicoData = null;
               finalAiResponse =
                 salvaged ||
-                rawResponse
-                  .replace(/<<<ASTRIA_MEXICO_DATA>>>/g, "")
-                  .replace(/<<<END_ASTRIA_MEXICO_DATA>>>/g, "")
-                  .trim() ||
-                "No response";
+                stripAstriaMexicoMarkers(rawResponse) ||
+                ASTRIA_MEXICO_FALLBACK_TEXT;
             }
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
@@ -7644,7 +7439,7 @@ RULES:
             );
             if (res.flush) res.flush();
           } else if (isAstriaCanadaV2) {
-            const canadaStream = await generateGeminiResponseStream(messages);
+            const canadaStream = await llmResponseStream(messages);
             let rawResponse = "";
             for await (const chunk of canadaStream) {
               if (clientClosed) break;
@@ -7746,6 +7541,34 @@ RULES:
           } else if (isAstriaIndiaCategory && sambandhMissingQuestionIN) {
             finalAiResponse = sambandhMissingQuestionIN;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
+          } else if (isAstriaIndiaV3) {
+            // Buffer the full response first (rather than streaming raw
+            // chunks live) so the "_V3" marker + JSON block never reaches
+            // the chat bubble — astriaIndiaV3Data (parsed below) already
+            // carries that structured data for the highlight card.
+            const indiaV3Stream = await llmResponseStream(
+              messages,
+              geminiCallOptions,
+            );
+            let rawIndiaV3Response = "";
+            for await (const chunk of indiaV3Stream) {
+              if (clientClosed) break;
+              const text = chunk?.text || "";
+              if (!text) continue;
+              rawIndiaV3Response += text;
+            }
+
+            try {
+              astriaIndiaV3Data = extractAstriaIndiaV3Data(
+                subCategoryName,
+                rawIndiaV3Response,
+              );
+            } catch (err) {
+              logger.error("Astria India V3 - Response parsing error:", err);
+            }
+            finalAiResponse = stripAstriaIndiaV3Markers(rawIndiaV3Response);
+
+            await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else {
             let stream;
             // console.log(
@@ -7760,15 +7583,9 @@ RULES:
               categoryName === "Companion Talk"
             ) {
               // stream = await generateClaudeResponseStream(messages);
-              stream = await generateGeminiResponseStream(
-                messages,
-                geminiCallOptions,
-              );
+              stream = await llmResponseStream(messages, geminiCallOptions);
             } else {
-              stream = await generateGeminiResponseStream(
-                messages,
-                geminiCallOptions,
-              );
+              stream = await llmResponseStream(messages, geminiCallOptions);
             }
 
             if (isSamayPravah) {
@@ -7901,24 +7718,9 @@ RULES:
           }
           // ====== END ASTRIA INDIA V2 RESPONSE PROCESSING ======
 
-          // ============================================
-          // ====== ASTRIA INDIA V3 RESPONSE PROCESSING (STREAMING) ======
-          // Extracts the subcategory-specific "_V3" JSON block (see
-          // astriaIndiaV3Service.js). Same tradeoff as V2 above — raw
-          // markers stay in the streamed text; the frontend reads the
-          // structured astriaIndiaV3Data field instead.
-          // ============================================
-          if (isAstriaIndiaV3 && finalAiResponse) {
-            try {
-              astriaIndiaV3Data = extractAstriaIndiaV3Data(
-                subCategoryName,
-                finalAiResponse,
-              );
-            } catch (err) {
-              logger.error("Astria India V3 - Response parsing error:", err);
-            }
-          }
-          // ====== END ASTRIA INDIA V3 RESPONSE PROCESSING ======
+          // Astria India V3 (streaming) is extracted and marker-stripped
+          // inline in its own branch above (isAstriaIndiaV3), before
+          // finalAiResponse is set — nothing left to do here.
 
           // ============================================
           // ====== ASTRIA VIETNAM RESPONSE PROCESSING (STREAMING) ======
@@ -8269,13 +8071,13 @@ RULES:
             }
           : undefined;
       const completion = phVnIdV2ExpansionPrompt
-        ? await generateGeminiResponse([
+        ? await llmResponse([
             { role: "system", content: phVnIdV2ExpansionPrompt },
             { role: "user", content: userMessage },
           ])
         : isPhIdV2CopyPackLane
           ? phVnIdV2FinalResponse
-          : await generateGeminiResponse(messages, nonStreamGeminiCallOptions);
+          : await llmResponse(messages, nonStreamGeminiCallOptions);
       finalAiResponse =
         completion?.trim() || phVnIdV2FinalResponse || "No response";
 
@@ -8304,7 +8106,7 @@ RULES:
             target,
             userMessage,
           );
-          const secondCompletion = await generateGeminiResponse(secondMessages);
+          const secondCompletion = await llmResponse(secondMessages);
           finalAiResponse =
             secondCompletion?.trim() ||
             applyVyaktivaDarshanFormat(finalAiResponse);
@@ -8322,8 +8124,7 @@ RULES:
             target,
             userMessage,
           );
-          const bdSecondCompletion =
-            await generateGeminiResponse(bdSecondMessages);
+          const bdSecondCompletion = await llmResponse(bdSecondMessages);
           finalAiResponse = bdSecondCompletion?.trim() || finalAiResponse;
         }
       }
@@ -8448,6 +8249,7 @@ RULES:
         } catch (err) {
           logger.error("Astria India V3 - Response parsing error:", err);
         }
+        finalAiResponse = stripAstriaIndiaV3Markers(finalAiResponse);
       }
 
       // ASTRIA VIETNAM RESPONSE PROCESSING (NON-STREAMING)
@@ -8516,11 +8318,7 @@ RULES:
           );
         } else {
           astriaKoreaV2Data = null;
-          finalAiResponse =
-            rawResponse
-              .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
-              .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
-              .trim() || "No response";
+          finalAiResponse = sanitizeAstriaKoreaV2RawText(rawResponse);
         }
       }
 
@@ -8708,11 +8506,8 @@ RULES:
           astriaMexicoData = null;
           finalAiResponse =
             salvaged ||
-            rawResponse
-              .replace(/<<<ASTRIA_MEXICO_DATA>>>/g, "")
-              .replace(/<<<END_ASTRIA_MEXICO_DATA>>>/g, "")
-              .trim() ||
-            "No response";
+            stripAstriaMexicoMarkers(rawResponse) ||
+            ASTRIA_MEXICO_FALLBACK_TEXT;
         }
       }
 
@@ -8804,11 +8599,7 @@ RULES:
           );
         } else {
           astriaKoreaV3Data = null;
-          finalAiResponse =
-            rawResponse
-              .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
-              .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
-              .trim() || "No response";
+          finalAiResponse = sanitizeAstriaKoreaV2RawText(rawResponse);
         }
       }
 
@@ -8880,11 +8671,7 @@ RULES:
           );
         } else {
           astriaKoreaHybridData = null;
-          finalAiResponse =
-            rawResponse
-              .replace(/<<<ASTRIA_KOREA_V2_DATA>>>/g, "")
-              .replace(/<<<END_ASTRIA_KOREA_V2_DATA>>>/g, "")
-              .trim() || "No response";
+          finalAiResponse = sanitizeAstriaKoreaV2RawText(rawResponse);
         }
       }
 
