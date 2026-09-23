@@ -1,4 +1,6 @@
+// Load .env from the app root, not the cwd, so secrets load regardless of start dir.
 require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -14,6 +16,7 @@ const matescanRoutes = require("./Routes/matescanRoutes.js");
 const energyMatchV2Routes = require("./Routes/energyMatchV2Routes.js");
 const sajuRoutes = require("./Routes/sajuRoutes.js");
 const astriaJapanKyuseiRoutes = require("./Routes/astriaJapanKyuseiRoutes.js");
+const jpTarotRoutes = require("./Routes/jpTarotRoutes.js");
 const indonesiaModulesRoutes = require("./Routes/indonesiaModulesRoutes.js");
 const socialCompatabilityRoutes = require("./Routes/socialCompatabilityRoutes.js");
 const { loadIndex, search, buildPrompt } = require("./helper/search.js");
@@ -44,7 +47,8 @@ const corsOptions = {
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  // "Accept" is required for the SSE chat stream (frontend sends text/event-stream).
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"],
 };
 
 app.use(cors(corsOptions));
@@ -76,6 +80,7 @@ app.use("/api/backend/matescan", matescanRoutes);
 app.use("/api/backend/energy-match-v2", energyMatchV2Routes);
 app.use("/api/backend/astria-korea-saju", sajuRoutes);
 app.use("/api/backend/astria-japan-kyusei", astriaJapanKyuseiRoutes);
+app.use("/api/backend/jp-tarot", jpTarotRoutes);
 app.use("/api/backend/compatibility", socialCompatabilityRoutes);
 app.use("/api/generate-reading", indonesiaModulesRoutes);
 app.use("/api/backend", adminRoutes);
