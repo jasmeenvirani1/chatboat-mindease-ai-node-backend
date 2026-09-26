@@ -52,6 +52,8 @@ const SUPPORTED_LANGS = new Set([
   "de",
   "it",
   "id",
+  "fil",
+  "ms",
 ]);
 
 // Roman-script Hindi markers — a trigram model classifies this as English, so
@@ -596,6 +598,8 @@ const LANG_NAMES = {
   de: "German",
   it: "Italian",
   id: "Indonesian",
+  fil: "Filipino",
+  ms: "Malay",
 };
 
 // region / origin  ->  default reply-language code. Returns null (not "en") for

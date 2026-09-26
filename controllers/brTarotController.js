@@ -28,7 +28,8 @@ const questionTypes = async (_req, res) => {
 };
 
 // POST /api/backend/br-tarot/reading
-// Body: { userId?, sessionId?, questionType, userMessage?, selectedCards?, lengthPreference?, tone? }
+// Body: { userId?, sessionId?, questionType, userMessage?, selectedCards?, lengthPreference?, tone?, tier? }
+// tier: "standard" (default) | "premium" (PT_BR_Tarot_Pack_Premium v1.1).
 // Returns a full Brazil Tarot reading (estado_atual / sentimentos_internos /
 // tendencia_proxima / conselho) plus per-card interpretation, and persists it.
 const reading = async (req, res) => {
@@ -53,6 +54,7 @@ const reading = async (req, res) => {
       questionType: result.questionType,
       category: result.category,
       tone: result.tone,
+      tier: result.tier,
       locale: result.locale,
       userMessage: sanitized.userMessage,
       reading: result,
@@ -73,7 +75,8 @@ const reading = async (req, res) => {
 };
 
 // POST /api/backend/br-tarot/card-reading
-// Body: { userId?, sessionId?, questionType, selectedCards, userMessage?, memory?, lengthPreference?, tone? }
+// Body: { userId?, sessionId?, questionType, selectedCards, userMessage?, memory?, lengthPreference?, tone?, tier? }
+// tier: "standard" (default) | "premium" (PT_BR_Tarot_Pack_Premium v1.1).
 // Builds a Brazil-tone system prompt from the drawn cards and calls the LLM
 // for a natural-language reading, then persists it. This is the card-spread
 // counterpart to /reading — pair with the Tarot fan-spread UI on the frontend.
@@ -84,7 +87,7 @@ const cardReading = async (req, res) => {
       return res.status(400).json({ success: false, message: "Validation failed", errors });
     }
 
-    const { prompt, error, tone, toneReason, category, locale } = buildBRTarotSystemPrompt(sanitized);
+    const { prompt, error, tone, toneReason, category, locale, tier } = buildBRTarotSystemPrompt(sanitized);
     if (error) {
       return res.status(422).json({ success: false, message: error });
     }
@@ -113,6 +116,7 @@ const cardReading = async (req, res) => {
       questionType: sanitized.questionType,
       category,
       tone,
+      tier,
       locale,
       userMessage: sanitized.userMessage,
       reading: { selectedCards: sanitized.selectedCards, aiResponse: cleanedResponse },
@@ -125,6 +129,7 @@ const cardReading = async (req, res) => {
       category,
       tone,
       toneReason,
+      tier,
       locale,
       selectedCards: sanitized.selectedCards,
       aiResponse: cleanedResponse,

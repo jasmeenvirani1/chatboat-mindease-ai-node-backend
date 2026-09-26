@@ -8,7 +8,7 @@
 // Returns { valid: bool, errors: string[], sanitized: object }
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { isValidQuestionType } = require("../helper/brTarot/brTarotService.js");
+const { isValidQuestionType, resolvePackTier } = require("../helper/brTarot/brTarotService.js");
 const { FORBIDDEN_TERMS } = require("../helper/brTarot/brTarotPacks.js");
 
 function sanitizeString(val, maxLen = 500) {
@@ -56,6 +56,9 @@ function validateBRTarotInput(body) {
   sanitized.lengthPreference = sanitizeLengthPreference(body?.lengthPreference);
   sanitized.toneOverride = sanitizeTone(body?.tone);
   sanitized.memory = sanitizeString(body?.memory, 1000) || "";
+  // "standard" | "premium" (PT_BR_Tarot_Pack_Premium v1.1) — unknown/missing
+  // values silently fall back to "standard", never a validation error.
+  sanitized.tier = resolvePackTier(body?.tier);
 
   return {
     valid: errors.length === 0,

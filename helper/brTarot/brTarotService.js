@@ -19,7 +19,43 @@ const {
   MAJOR_ARCANA_INTERPRETATION,
   ROMANCE_CARD_GLOSS,
   AUTO_TONE_SWITCHER,
+  PREMIUM_PACK_NAME,
+  PREMIUM_TONE,
+  PREMIUM_TONE_RULES,
+  PREMIUM_MAJOR_ARCANA_INTERPRETATION,
+  PREMIUM_CATEGORY_TEMPLATES,
 } = require("./brTarotPacks.js");
+
+const PACK_TIERS = ["standard", "premium"];
+
+// Normalizes any tier input to a supported value, defaulting to "standard"
+// so every existing caller keeps today's behavior unless it opts in.
+function resolvePackTier(tier) {
+  const t = typeof tier === "string" ? tier.trim().toLowerCase() : "";
+  return PACK_TIERS.includes(t) ? t : "standard";
+}
+
+// tier -> the pack data buildBRTarotReading/buildLayoutReading/interpretCard
+// draw from. Premium overrides tone/microcopy/card-lines/romance templates;
+// everything else (structure, forbidden terms, question types) is shared.
+function packDataForTier(tier) {
+  if (tier === "premium") {
+    return {
+      packName: PREMIUM_PACK_NAME,
+      tone: PREMIUM_TONE,
+      toneRules: PREMIUM_TONE_RULES,
+      categoryTemplates: PREMIUM_CATEGORY_TEMPLATES,
+      cardInterpretation: PREMIUM_MAJOR_ARCANA_INTERPRETATION,
+    };
+  }
+  return {
+    packName: PACK_NAME,
+    tone: null, // standard tier keeps the auto-tone-switcher's own resolution
+    toneRules: TONE_RULES,
+    categoryTemplates: CATEGORY_TEMPLATES,
+    cardInterpretation: MAJOR_ARCANA_INTERPRETATION,
+  };
+}
 
 // Simple deterministic hash -> stable index into a bank, so the same
 // (userId/sessionId, questionType, position) always resolves to the same
@@ -75,13 +111,13 @@ function resolveTone({ userMessage, questionType, lengthPreference }) {
 }
 
 // Builds the four-position reading (estado_atual, sentimentos_internos,
-// tendencia_proxima, conselho) from CATEGORY_TEMPLATES for the given category.
-// Brazil's tone rules keep both tones in the same warm register (see
-// brTarotPacks.js AUTO_TONE_SWITCHER comment), so the sentence bank is
-// category-keyed rather than tone-keyed; `tone` is still carried on each
-// position for prompt/UI consumers.
-function buildLayoutReading({ tone, category, seed }) {
-  const bankByPosition = CATEGORY_TEMPLATES[category] || {};
+// tendencia_proxima, conselho) from the tier's category templates. Brazil's
+// tone rules keep both tones in the same warm register (see brTarotPacks.js
+// AUTO_TONE_SWITCHER comment), so the sentence bank is category-keyed rather
+// than tone-keyed; `tone` is still carried on each position for prompt/UI
+// consumers.
+function buildLayoutReading({ tone, category, seed, categoryTemplates }) {
+  const bankByPosition = categoryTemplates[category] || {};
 
   return DEFAULT_LAYOUT.positions.reduce((output, position) => {
     const bank = bankByPosition[position];
@@ -97,8 +133,10 @@ function buildLayoutReading({ tone, category, seed }) {
 // Resolves a single card's Brazil-specific interpretation, layering the
 // romance-specific gloss on top of the base Major Arcana line when the
 // reading category is romance (client spec §"5) Romance Card Interpretation").
-function interpretCard(cardName, category) {
-  const base = MAJOR_ARCANA_INTERPRETATION[cardName] || null;
+// `cardInterpretation` is tier-selected (standard or premium card lines);
+// ROMANCE_CARD_GLOSS is shared across both tiers.
+function interpretCard(cardName, category, cardInterpretation = MAJOR_ARCANA_INTERPRETATION) {
+  const base = cardInterpretation[cardName] || null;
   const romanceGloss = category === "romance" ? ROMANCE_CARD_GLOSS[cardName] || null : null;
   return { card: cardName, interpretation: base, romanceGloss };
 }
@@ -111,6 +149,8 @@ function interpretCard(cardName, category) {
 //   selectedCards      - optional [{ card_name, isReversed? }] for per-card gloss
 //   lengthPreference   - optional "short" | "medium" hint
 //   toneOverride       - optional explicit tone, skips auto-tone-switcher
+//                        (ignored when tier="premium" — premium has one tone)
+//   tier               - optional "standard" | "premium" (default "standard")
 function buildBRTarotReading(opts = {}) {
   const {
     userId = "",
@@ -120,34 +160,43 @@ function buildBRTarotReading(opts = {}) {
     selectedCards = [],
     lengthPreference = null,
     toneOverride = null,
+    tier: tierInput = "standard",
   } = opts;
 
   if (!isValidQuestionType(questionType)) {
     return { error: `Unsupported questionType: ${questionType}` };
   }
 
+  const tier = resolvePackTier(tierInput);
+  const pack = packDataForTier(tier);
   const category = resolveCategory(questionType);
-  const { tone, reason } = toneOverride
-    ? { tone: toneOverride, reason: "explicit:toneOverride" }
-    : resolveTone({ userMessage, questionType, lengthPreference });
+
+  // Premium is a single fixed tone (no hard/soft split), so the auto-tone
+  // switcher only applies to the standard tier.
+  const { tone, reason } = pack.tone
+    ? { tone: pack.tone, reason: "premiumTier:fixedTone" }
+    : toneOverride
+      ? { tone: toneOverride, reason: "explicit:toneOverride" }
+      : resolveTone({ userMessage, questionType, lengthPreference });
 
   const seed = `${userId}:${sessionId}:${questionType}`;
-  const layout = buildLayoutReading({ tone, category, seed });
+  const layout = buildLayoutReading({ tone, category, seed, categoryTemplates: pack.categoryTemplates });
 
   const cardInterpretations = Array.isArray(selectedCards)
     ? selectedCards
-        .map((c) => (c && c.card_name ? interpretCard(c.card_name, category) : null))
+        .map((c) => (c && c.card_name ? interpretCard(c.card_name, category, pack.cardInterpretation) : null))
         .filter(Boolean)
     : [];
 
   return {
-    packName: PACK_NAME,
+    packName: pack.packName,
+    tier,
     locale: LOCALE,
     questionType,
     category,
     tone,
     toneReason: reason,
-    toneRules: TONE_RULES[tone],
+    toneRules: pack.toneRules[tone],
     cardLayout: DEFAULT_LAYOUT,
     readingOutput: layout,
     cardInterpretations,
@@ -158,6 +207,7 @@ module.exports = {
   isValidQuestionType,
   resolveCategory,
   resolveTone,
+  resolvePackTier,
   interpretCard,
   buildBRTarotReading,
   QUESTION_TYPES,

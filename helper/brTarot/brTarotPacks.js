@@ -315,6 +315,112 @@ const AUTO_TONE_SWITCHER = {
   },
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PT_BR_Tarot_Pack_Premium (v1.1) — opt-in premium tier, layered alongside the
+// standard pack above rather than replacing it. Same structure/cards/forbidden
+// terms as the standard pack; shorter ("medium-short") sentences, its own
+// tone id, its own microcopy set, and richer per-card interpretation lines.
+// Selected via tier="premium" on /reading and /card-reading (see
+// brTarotService.js resolvePackTier / brTarotController.js) — defaults to
+// "standard" everywhere, so existing behavior is unchanged unless requested.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PREMIUM_PACK_NAME = "PT_BR_Tarot_Pack_Premium";
+const PREMIUM_PACK_VERSION = "1.1";
+
+const PREMIUM_TONE = "ptbr_warm_intuitive_premium";
+
+const PREMIUM_TONE_RULES = {
+  [PREMIUM_TONE]: {
+    predictionMode: "tendency",
+    sentenceLength: "medium-short",
+    styleFlags: [
+      "warm",
+      "expressive",
+      "intuitive",
+      "human",
+      "grounded",
+      "non_mystical",
+      "non_cosmic",
+      "non_destiny",
+    ],
+  },
+};
+
+// Premium microcopy set — smaller, tighter bank than the standard MICRO_COPY.
+const PREMIUM_MICRO_COPY = [
+  "energia suave",
+  "movimento gentil",
+  "abertura emocional",
+  "conexão crescente",
+  "presença afetiva",
+  "carinho leve",
+  "atenção sincera",
+  "vínculo suave",
+  "clareza emocional",
+  "movimento tranquilo",
+  "passo leve",
+  "luz interna",
+  "equilíbrio emocional",
+  "sensibilidade emocional",
+  "gesto gentil",
+];
+
+// Premium per-card interpretation — falls back to MAJOR_ARCANA_INTERPRETATION
+// for any card not overridden here (none are missing today; all 22 are set).
+const PREMIUM_MAJOR_ARCANA_INTERPRETATION = {
+  "The Tower": "Um reset emocional traz clareza e reorganiza seu ritmo interno.",
+  Death: "Renovação tranquila — um ciclo se transforma com leveza.",
+  "The Moon": "Sensibilidade elevada pede calma e clareza suave.",
+  "The Devil": "Um padrão emocional pode ser liberado aos poucos.",
+  Judgement: "Despertar interno que ilumina seu caminho.",
+  "The Sun": "Leveza e abertura emocional se aproximam.",
+  "The Star": "Uma luz suave guia seus próximos passos.",
+  "The Empress": "Cuidado e presença afetiva fortalecem sua estabilidade.",
+  Temperance: "Equilíbrio emocional ajusta seu ritmo.",
+  Strength: "Calma firme traz força verdadeira.",
+  "The World": "Fechamento tranquilo abre nova fase.",
+  "The Lovers": "Abertura para proximidade emocional.",
+  "The Chariot": "Avanço tranquilo com clareza.",
+  "The High Priestess": "Intuição fala de forma suave.",
+  "The Magician": "Intenção clara cria movimento gentil.",
+  "The Hermit": "Luz interna traz entendimento.",
+  "Wheel of Fortune": "Mudança leve ajusta o fluxo.",
+  Justice: "Equilíbrio emocional se estabelece.",
+  "The Hanged Man": "Novo ângulo traz leveza.",
+  "The Emperor": "Organização traz calma.",
+  "The Hierophant": "Estabilidade vem de práticas simples.",
+  "The Fool": "Um passo leve abre caminho.",
+};
+
+// Premium romance templates — 2 sentences per position (vs. 3 in the
+// standard ROMANCE_TEMPLATES); general/healing reuse the standard banks
+// since the premium spec only redefines romance + card interpretation.
+const PREMIUM_ROMANCE_TEMPLATES = {
+  estado_atual: [
+    "Há uma energia suave entre vocês, criando abertura emocional.",
+    "A conexão cresce de forma tranquila e natural.",
+  ],
+  sentimentos_internos: [
+    "Existe vontade de proximidade e sinceridade emocional.",
+    "O coração busca leveza e um gesto gentil.",
+  ],
+  tendencia_proxima: [
+    "Um movimento gentil tende a aproximar vocês.",
+    "A comunicação fica mais leve e aberta.",
+  ],
+  conselho: [
+    "Vá com calma. Pequenos gestos abrem caminhos.",
+    "Mostre presença afetiva — isso ajuda muito.",
+  ],
+};
+
+const PREMIUM_CATEGORY_TEMPLATES = {
+  general: GENERAL_TEMPLATES,
+  romance: PREMIUM_ROMANCE_TEMPLATES,
+  healing: HEALING_TEMPLATES,
+};
+
 module.exports = {
   PACK_NAME,
   LOCALE,
@@ -332,4 +438,13 @@ module.exports = {
   ROMANCE_CARD_GLOSS,
   CATEGORY_TEMPLATES,
   AUTO_TONE_SWITCHER,
+
+  // Premium tier (PT_BR_Tarot_Pack_Premium v1.1)
+  PREMIUM_PACK_NAME,
+  PREMIUM_PACK_VERSION,
+  PREMIUM_TONE,
+  PREMIUM_TONE_RULES,
+  PREMIUM_MICRO_COPY,
+  PREMIUM_MAJOR_ARCANA_INTERPRETATION,
+  PREMIUM_CATEGORY_TEMPLATES,
 };

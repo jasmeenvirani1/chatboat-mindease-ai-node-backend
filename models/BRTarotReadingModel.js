@@ -18,8 +18,14 @@ const BRTarotReadingSchema = new Schema(
     category: { type: String, required: true, trim: true },
     tone: {
       type: String,
-      enum: ["ptbr_warm_intuitive", "ptbr_clear_expressive"],
+      enum: ["ptbr_warm_intuitive", "ptbr_clear_expressive", "ptbr_warm_intuitive_premium"],
       required: true,
+    },
+    // "standard" (PT_BR_Tarot_Pack) | "premium" (PT_BR_Tarot_Pack_Premium v1.1)
+    tier: {
+      type: String,
+      enum: ["standard", "premium"],
+      default: "standard",
     },
     locale: { type: String, trim: true, default: "pt-BR" },
     userMessage: { type: String, trim: true, default: "" },

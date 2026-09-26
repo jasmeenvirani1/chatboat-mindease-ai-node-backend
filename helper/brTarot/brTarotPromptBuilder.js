@@ -22,8 +22,13 @@ const {
   LANG_CODE,
   PACK_NAME,
   LOCALE,
+  PREMIUM_PACK_NAME,
+  PREMIUM_TONE,
+  PREMIUM_TONE_RULES,
+  PREMIUM_MICRO_COPY,
+  PREMIUM_MAJOR_ARCANA_INTERPRETATION,
 } = require("./brTarotPacks.js");
-const { resolveTone } = require("./brTarotService.js");
+const { resolveTone, resolvePackTier } = require("./brTarotService.js");
 const { langInstruction } = require("../languageDetect.js");
 
 const CATEGORY_FOCUS = {
@@ -43,15 +48,15 @@ function formatCardList(selectedCards) {
 // Deterministic pick of a few microcopy phrases as style seasoning for the
 // prompt, keyed off the reading seed so the same draw always suggests the
 // same phrases (consistent with the rest of the module's determinism).
-function pickMicroCopySample(seed, count = 8) {
+function pickMicroCopySample(seed, bank, count = 8) {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
-  const start = hash % MICRO_COPY.length;
+  const start = hash % bank.length;
   const sample = [];
-  for (let i = 0; i < Math.min(count, MICRO_COPY.length); i++) {
-    sample.push(MICRO_COPY[(start + i) % MICRO_COPY.length]);
+  for (let i = 0; i < Math.min(count, bank.length); i++) {
+    sample.push(bank[(start + i) % bank.length]);
   }
   return sample;
 }
@@ -59,11 +64,12 @@ function pickMicroCopySample(seed, count = 8) {
 // Formats each drawn card's Brazil-specific base interpretation (and romance
 // gloss, when relevant) as grounding context for the LLM, so the model's
 // output stays anchored to the client spec's card-by-card meanings instead of
-// drifting to generic/mystical tarot lore.
-function formatCardGuidance(selectedCards, category) {
+// drifting to generic/mystical tarot lore. `cardInterpretation` is
+// tier-selected (standard or premium card lines).
+function formatCardGuidance(selectedCards, category, cardInterpretation) {
   return selectedCards
     .map((card, index) => {
-      const base = MAJOR_ARCANA_INTERPRETATION[card.card_name];
+      const base = cardInterpretation[card.card_name];
       const gloss = category === "romance" ? ROMANCE_CARD_GLOSS[card.card_name] : null;
       if (!base) return `${index + 1}. ${card.card_name}: (use o significado tradicional com tom acolhedor)`;
       return `${index + 1}. ${card.card_name}: ${base}${gloss ? ` (${gloss})` : ""}`;
@@ -77,6 +83,8 @@ function formatCardGuidance(selectedCards, category) {
 //   userMessage    - user's question text (used for tone keywords)
 //   memory         - optional birth-detail context string
 //   lengthPreference, toneOverride - optional auto-tone-switcher inputs
+//                    (toneOverride is ignored when tier="premium")
+//   tier           - optional "standard" | "premium" (default "standard")
 function buildBRTarotSystemPrompt({
   questionType,
   selectedCards,
@@ -84,6 +92,7 @@ function buildBRTarotSystemPrompt({
   memory = "",
   lengthPreference = null,
   toneOverride = null,
+  tier: tierInput = "standard",
 }) {
   const category = QUESTION_TYPE_TO_CATEGORY[questionType];
   if (!category) return { error: `Unsupported questionType: ${questionType}` };
@@ -91,16 +100,27 @@ function buildBRTarotSystemPrompt({
     return { error: "selectedCards is required" };
   }
 
-  const { tone, reason } = toneOverride
-    ? { tone: toneOverride, reason: "explicit:toneOverride" }
-    : resolveTone({ userMessage, questionType, lengthPreference });
+  const tier = resolvePackTier(tierInput);
+  const isPremium = tier === "premium";
+  const packName = isPremium ? PREMIUM_PACK_NAME : PACK_NAME;
+  const microCopyBank = isPremium ? PREMIUM_MICRO_COPY : MICRO_COPY;
+  const cardInterpretation = isPremium ? PREMIUM_MAJOR_ARCANA_INTERPRETATION : MAJOR_ARCANA_INTERPRETATION;
+  const toneRulesBank = isPremium ? PREMIUM_TONE_RULES : TONE_RULES;
 
-  const rules = TONE_RULES[tone];
+  // Premium is a single fixed tone (no hard/soft split), so the auto-tone
+  // switcher only applies to the standard tier.
+  const { tone, reason } = isPremium
+    ? { tone: PREMIUM_TONE, reason: "premiumTier:fixedTone" }
+    : toneOverride
+      ? { tone: toneOverride, reason: "explicit:toneOverride" }
+      : resolveTone({ userMessage, questionType, lengthPreference });
+
+  const rules = toneRulesBank[tone];
   const seed = `${questionType}:${selectedCards.map((c) => c.card_name).join(",")}`;
-  const microCopySample = pickMicroCopySample(seed);
+  const microCopySample = pickMicroCopySample(seed, microCopyBank);
 
   const prompt = `
-You are HealJai's Tarot reading assistant (pack: ${PACK_NAME}, locale: ${LOCALE}).
+You are HealJai's Tarot reading assistant (pack: ${packName}, locale: ${LOCALE}).
 
 CORE IDENTITY: warm + expressive + intuitive + human + grounded.
 Never mystical, cosmic, fate-driven, or poetic.
@@ -120,7 +140,7 @@ VOCABULARY RULES:
 - Do not overuse any single phrase; keep the language varied and natural.
 
 CARD GUIDANCE (Brazil-specific meanings — use these as the grounding for each card, not generic/mystical tarot lore):
-${formatCardGuidance(selectedCards, category)}
+${formatCardGuidance(selectedCards, category, cardInterpretation)}
 
 GENERAL RULES:
 - No hard predictions. Use "tendência", "possibilidade", "movimento suave".
@@ -139,7 +159,7 @@ Return the reading as four short labeled sections, in this exact order:
 ${OUTPUT_LABEL_LINE}
 `.trim();
 
-  return { prompt, tone, toneReason: reason, category, locale: LOCALE };
+  return { prompt, tone, toneReason: reason, category, locale: LOCALE, tier, packName };
 }
 
 module.exports = { buildBRTarotSystemPrompt };
