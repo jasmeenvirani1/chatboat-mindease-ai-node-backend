@@ -13,6 +13,8 @@ const UserSubscriptionSchema = new Schema(
       default: "active",
     },
     stripeSessionId: { type: String },
+    // Region this purchase unlocked (region-scoped plans only).
+    region: { type: String, default: null },
   },
   { _id: false },
 );
@@ -72,6 +74,12 @@ const userSchema = new Schema(
     // Set once a user consumes their free trial so it cannot be claimed twice.
     hasUsedFreeTrial: { type: Boolean, default: false },
     region: { type: String, default: "healjai" },
+    // Regions this user has purchased via Journey (POST /payment/checkout with
+    // a region-scoped plan). Separate from `region`, which is the ONE region
+    // whose content is currently active — a purchase adds here AND switches
+    // `region` to match, but this list is what stops Journey from re-billing
+    // a region the user already owns.
+    unlockedRegions: { type: [String], default: [] },
     allRegionsApproved: { type: Boolean, default: false },
     allRegionsPending: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },

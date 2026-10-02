@@ -81,6 +81,36 @@ function addDays(date, days) {
   return next;
 }
 
+/**
+ * When a newly bought plan's period should begin.
+ *
+ * A user still inside their free trial can buy a plan right away, but the paid
+ * period must not start until the trial is over — otherwise the trial days they
+ * were promised are eaten by the plan they just paid for. So the start is the
+ * end of the running trial, or `now` when there is none.
+ *
+ * `user` is a User document (or plain object). Only entries whose status is
+ * "trialing" and whose end date is still in the future count.
+ */
+function resolveSubscriptionStart(user, now = new Date()) {
+  let start = now;
+  const consider = (value) => {
+    const end = value ? new Date(value) : null;
+    if (end && !Number.isNaN(end.getTime()) && end.getTime() > start.getTime()) {
+      start = end;
+    }
+  };
+
+  for (const sub of user?.subscriptions || []) {
+    if (sub?.status === "trialing") consider(sub.endDate);
+  }
+  // Older accounts only carry the trial on the flat fields.
+  if (String(user?.subscriptionStatus || "").toLowerCase() === "trialing") {
+    consider(user.subscriptionEndDate);
+  }
+  return start;
+}
+
 /** A plan is a free trial when it costs nothing. */
 function isFreePlan(price) {
   return parsePlanPrice(price) === 0;
@@ -94,4 +124,5 @@ module.exports = {
   resolveDuration,
   addDays,
   isFreePlan,
+  resolveSubscriptionStart,
 };

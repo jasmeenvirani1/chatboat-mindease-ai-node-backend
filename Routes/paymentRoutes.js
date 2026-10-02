@@ -4,6 +4,7 @@ const authenticate = require("../middleware/authenticateuser");
 const {
   createCheckoutSession,
   verifyAndSavePlan,
+  getMyRegionSubscriptions,
 } = require("../controllers/paymentController");
 const {
   handleStripeWebhook,
@@ -27,5 +28,8 @@ router.post("/checkout", parseJson, authenticate, createCheckoutSession);
 
 // Confirm a completed session from the success page.
 router.post("/verify", parseJson, authenticate, verifyAndSavePlan);
+
+// Purchased region plans (plan name, start and renewal dates) for Journey.
+router.get("/subscriptions", authenticate, getMyRegionSubscriptions);
 
 module.exports = router;

@@ -11,6 +11,7 @@ const {
   resolveDuration,
   addDays,
   isFreePlan,
+  resolveSubscriptionStart,
 } = require("../helper/planPricing");
 
 const clientUrl = process.env.PAYMENT_URL;
@@ -25,7 +26,9 @@ const clientUrl = process.env.PAYMENT_URL;
  * so whichever arrives first wins and the rest are no-ops.
  */
 async function activateSubscription({ session, user, plan, durationDays }) {
-  const startDate = new Date();
+  // Bought during the free trial? The paid period begins when the trial ends,
+  // not today. Payment and region access still happen now (see below).
+  const startDate = resolveSubscriptionStart(user);
   const endDate = addDays(startDate, durationDays);
 
   const currency = (session.currency || DEFAULT_CURRENCY).toUpperCase();
@@ -88,6 +91,8 @@ async function activateSubscription({ session, user, plan, durationDays }) {
     return { alreadyProcessed: true, history };
   }
 
+  const regionUpdate = buildRegionUnlockUpdate(plan);
+
   await User.updateOne(
     { _id: user._id },
     {
@@ -96,6 +101,7 @@ async function activateSubscription({ session, user, plan, durationDays }) {
         subscriptionStartDate: startDate,
         subscriptionEndDate: endDate,
         subscriptionStatus: "active",
+        ...regionUpdate.$set,
       },
       $push: {
         subscriptions: {
@@ -104,8 +110,10 @@ async function activateSubscription({ session, user, plan, durationDays }) {
           endDate,
           status: "active",
           stripeSessionId: session.id,
+          region: plan.region || null,
         },
       },
+      ...(regionUpdate.$addToSet ? { $addToSet: regionUpdate.$addToSet } : {}),
     },
   );
 
@@ -114,6 +122,20 @@ async function activateSubscription({ session, user, plan, durationDays }) {
   );
 
   return { alreadyProcessed: false, history };
+}
+
+/**
+ * A region-scoped plan (Journey's "Unlock <region>") both adds to the user's
+ * purchased-regions list and switches their active region to match, so the
+ * purchase immediately opens that region's content — not just a payment record.
+ * Global plans (plan.region unset) return no region changes at all.
+ */
+function buildRegionUnlockUpdate(plan) {
+  if (!plan.region) return {};
+  return {
+    $set: { region: plan.region },
+    $addToSet: { unlockedRegions: plan.region },
+  };
 }
 
 /**
@@ -301,6 +323,11 @@ const verifyAndSavePlan = async (req, res) => {
       ? await activateTrial({ session, user, plan, durationDays })
       : await activateSubscription({ session, user, plan, durationDays });
 
+    // Re-read rather than patch the in-memory `user` by hand — activate*()
+    // may have changed `region`/`unlockedRegions` (region-scoped plans only),
+    // and the response needs to reflect what was actually written.
+    const updatedUser = await User.findById(userId);
+
     return res.status(200).json({
       success: true,
       message: result.alreadyProcessed
@@ -310,6 +337,8 @@ const verifyAndSavePlan = async (req, res) => {
       subscriptionStartDate: result.history?.startDate,
       subscriptionEndDate: result.history?.endDate,
       subscriptionStatus: result.history?.status,
+      region: updatedUser?.region,
+      unlockedRegions: updatedUser?.unlockedRegions || [],
     });
   } catch (err) {
     logger.error("Verify plan failed", err);
@@ -382,6 +411,8 @@ async function activateTrial({ session, user, plan, durationDays }) {
     return { alreadyProcessed: true, history };
   }
 
+  const regionUpdate = buildRegionUnlockUpdate(plan);
+
   await User.updateOne(
     { _id: user._id },
     {
@@ -390,6 +421,7 @@ async function activateTrial({ session, user, plan, durationDays }) {
         subscriptionStartDate: startDate,
         subscriptionEndDate: endDate,
         subscriptionStatus: "trialing",
+        ...regionUpdate.$set,
       },
       $push: {
         subscriptions: {
@@ -400,6 +432,7 @@ async function activateTrial({ session, user, plan, durationDays }) {
           stripeSessionId: session.id,
         },
       },
+      ...(regionUpdate.$addToSet ? { $addToSet: regionUpdate.$addToSet } : {}),
     },
   );
 
@@ -407,9 +440,56 @@ async function activateTrial({ session, user, plan, durationDays }) {
   return { alreadyProcessed: false, history };
 }
 
+/**
+ * GET /api/payment/subscriptions
+ *
+ * The caller's purchased region plans, one entry per region (the one that ends
+ * last), so Journey can show "Monthly plan · Started · Renews" on each
+ * unlocked region. Regions the user never paid for (e.g. the free Thailand
+ * tier) are simply absent.
+ */
+const getMyRegionSubscriptions = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select("subscriptions");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const subs = (user.subscriptions || []).filter((s) => s.subscriptionId);
+    const plans = await SubscriptionPlans.find({
+      _id: { $in: subs.map((s) => s.subscriptionId) },
+    }).lean();
+    const planById = new Map(plans.map((p) => [String(p._id), p]));
+
+    const byRegion = new Map();
+    for (const sub of subs) {
+      const plan = planById.get(String(sub.subscriptionId));
+      const region = plan?.region || sub.region;
+      if (!region || sub.status === "trialing") continue;
+
+      const current = byRegion.get(region);
+      if (current && new Date(current.endDate) >= new Date(sub.endDate)) continue;
+
+      const cadenceText = String(plan?.billingCadence || "").toLowerCase();
+      byRegion.set(region, {
+        region,
+        planName: plan?.planName || null,
+        cadence: /year|annual/.test(cadenceText) ? "annual" : "monthly",
+        startDate: sub.startDate,
+        endDate: sub.endDate,
+        status: sub.status,
+      });
+    }
+
+    return res.status(200).json({ regions: Array.from(byRegion.values()) });
+  } catch (err) {
+    logger.error("Get region subscriptions failed", err);
+    return res.status(500).json({ message: "Failed to load subscriptions" });
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   verifyAndSavePlan,
+  getMyRegionSubscriptions,
   activateSubscription,
   activateTrial,
 };
