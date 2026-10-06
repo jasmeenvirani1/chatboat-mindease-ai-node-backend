@@ -26,6 +26,10 @@ const {
   createLifeGraphHistory,
 } = require("../controllers/lifeGraphCategoryController.js");
 const {
+  createLifeGpsMap,
+  getLatestLifeGpsMap,
+} = require("../controllers/lifeGpsController.js");
+const {
   createEnergyMatchHistory,
 } = require("../controllers/EnergyMatchController.js");
 const IndexBuildController = require("../controllers/indexBuildController.js");
@@ -38,6 +42,8 @@ router.get("/headline/:date", HeadlineController.getHeadlineByDate);
 router.post("/tarotChat/create", createTarotHistory);
 router.post("/uranian/create", createUranianHistory);
 router.post("/lifeGraph/create", createLifeGraphHistory);
+router.post("/lifeGps/create", createLifeGpsMap);
+router.get("/lifeGps/latest/:userId", getLatestLifeGpsMap);
 router.post("/energyMatch/create", createEnergyMatchHistory);
 
 // Public: tester domain used by the frontend before login
