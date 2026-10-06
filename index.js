@@ -21,6 +21,7 @@ const brTarotRoutes = require("./Routes/brTarotRoutes.js");
 const tarotLanesRoutes = require("./Routes/tarotLanesRoutes.js");
 const indonesiaModulesRoutes = require("./Routes/indonesiaModulesRoutes.js");
 const socialCompatabilityRoutes = require("./Routes/socialCompatabilityRoutes.js");
+const lifeGpsRoutes = require("./Routes/lifeGpsRoutes.js");
 const { loadIndex, search, buildPrompt } = require("./helper/search.js");
 const { startTrendingTopicsCron } = require("./cron/TrendingTopicsCron.js");
 
@@ -86,6 +87,7 @@ app.use("/api/backend/jp-tarot", jpTarotRoutes);
 app.use("/api/backend/br-tarot", brTarotRoutes);
 app.use("/api/backend/tarot-lanes", tarotLanesRoutes);
 app.use("/api/backend/compatibility", socialCompatabilityRoutes);
+app.use("/api/backend/life-gps", lifeGpsRoutes);
 app.use("/api/generate-reading", indonesiaModulesRoutes);
 app.use("/api/backend", adminRoutes);
 app.use("/api", authRoutes);
