@@ -37,7 +37,7 @@ const {
   formatSajuDailyLuckBlockKR,
 } = require("./astriaKoreaSajuService");
 
-const { buildMemoryBlock } = require("./healjaiPromptBuilder");
+const { buildMemoryBlock } = require("./astriaTalk");
 
 const logger = require("./logger");
 
