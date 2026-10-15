@@ -205,7 +205,7 @@ const DEPTH_ESCALATION_BY_INTENSITY = {
 // MICROCOPY RANDOMIZER (spec: microcopy_engine) — several openings/
 // reflections per response persona so the same tab doesn't repeat verbatim
 // turn after turn. Selection is deterministic (seeded by message text) so
-// there's no external RNG dependency, matching AstriaTalkEngine.js's
+// there's no external RNG dependency, matching astriaTalk.js's
 // deterministicIndex() pattern.
 const RESPONSE_PERSONA_MICROCOPY = {
   Coach: {

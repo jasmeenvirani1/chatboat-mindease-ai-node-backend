@@ -333,14 +333,26 @@ const {
 const {
   buildAntiRepeatWindow: buildPhIdV2AntiRepeatWindow,
 } = require("../helper/philippinesIndonesiaV2Shared");
-const { appendUserProfile } = require("../helper/healjaiProfileExtractor");
+
 const {
-  buildHealjaiTalkPrompt,
+  buildPrompt: buildHealjaiTalkPrompt,
+  appendUserProfile,
   detectAstrologyIntent,
-} = require("../helper/healjaiPromptBuilder");
+} = require("../helper/healjaiTalk");
 const {
   buildPrompt: buildAstriaTalkPrompt,
-} = require("../helper/AstriaTalkEngine");
+  loadTalkContext,
+  loadUserProfile,
+  findViolations: findTalkViolations,
+  detectCrisis: detectTalkCrisis,
+  resolveLocale: resolveTalkLocale,
+  buildMemoryBlock,
+} = require("../helper/astriaTalk");
+const {
+  collapseBlankLines,
+  guardSseBlankLines,
+  softenEllipses,
+} = require("../utils/responseCleanup");
 // Sticky per-turn reply-language resolution. resolveReplyLanguage() keeps a
 // chat on its established language when the current message is too short /
 // form-like to detect confidently (a Thai chat sending "ok" or an Energy
@@ -358,6 +370,7 @@ const {
   langName: resolveLangName,
   detectLangFromMessage,
 } = require("../helper/languageDetect.js");
+
 
 // Append the user's date of birth and latest message to the system prompt
 // Only the first Astria lane whose category matches should fire, so each
@@ -1281,13 +1294,17 @@ const chatController = {
       let categoryPrompt = null;
       let subCategoryName = null;
       let subCategoryPrompt = null;
+      let hasActiveSubscription = hasPaidAccess(
+        subscriptionId,
+        subscriptionStatus,
+      );
 
       if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
         const category = await Category.findById(categoryId).select(
           "name prompt freeUserPrompt",
         );
         if (category) {
-          if (hasPaidAccess(subscriptionId, subscriptionStatus)) {
+          if (hasActiveSubscription) {
             categoryPrompt = category.prompt?.trim() || null;
           } else {
             categoryPrompt = category.freeUserPrompt?.trim() || null;
@@ -1301,7 +1318,7 @@ const chatController = {
           "name prompt categoryId freeUserPrompt",
         );
         if (subCategory) {
-          if (hasPaidAccess(subscriptionId, subscriptionStatus)) {
+          if (hasActiveSubscription) {
             subCategoryPrompt = subCategory.prompt?.trim() || null;
           } else {
             subCategoryPrompt = subCategory.freeUserPrompt?.trim() || null;
@@ -1323,24 +1340,35 @@ const chatController = {
         HEALJAI_ACTIVE_CATEGORIES.has(categoryName) ||
         HEALJAI_ACTIVE_CATEGORIES.has(subCategoryName);
 
-      // Load Healjai user profile
-      let healjaiUserProfile = null;
-      if (
-        (categoryName === "HealJai Talk" ||
-          categoryName === "Astria Korea V2") &&
-        chatId &&
-        mongoose.Types.ObjectId.isValid(chatId)
-      ) {
-        try {
-          const profileDoc = await ChatHistory.findById(chatId)
-            .select("userProfileMetadata")
-            .lean();
+      // Talk categories (HealJai Talk / Astria Talk / Companion Talk)
+      const isTalkCategory = [
+        "HealJai Talk",
+        "Astria Talk",
+        "Companion Talk",
+      ].includes(categoryName);
 
-          healjaiUserProfile = profileDoc?.userProfileMetadata || null;
-        } catch (e) {
-          logger.error("[HealJai] Profile fetch error:", e);
-          healjaiUserProfile = null;
-        }
+      // Memory is a Pro-only feature, for every region/category.
+      // Talk categories load it together with the rest of their per-turn
+      // context (turn count, silence gap, Life GPS); other categories load
+      // the profile alone.
+      let healjaiUserProfile = null;
+      let talkCtx = null;
+      if (isTalkCategory) {
+        talkCtx = await loadTalkContext({
+          userId,
+          chatId,
+          categoryId,
+          isPro: hasActiveSubscription,
+          logger,
+        });
+        if (hasActiveSubscription) healjaiUserProfile = talkCtx.profile;
+      } else if (hasActiveSubscription && userId) {
+        healjaiUserProfile = await loadUserProfile({
+          userId,
+          chatId,
+          categoryId,
+          logger,
+        });
       }
 
       // Astria India Engine — isolated flag for "รหัส Healjai V3"
@@ -1757,72 +1785,6 @@ const chatController = {
       const currentTone =
         toneDetailsMap[tone_mode] || toneDetailsMap.healjai_style;
 
-      /** HEALJAI ENGINE PROMPT */
-      const healjaiEnginePrompt = `
-      You are Healjai.
-
-      Your voice is warm, soft, gentle, steady, and deeply human.
-      You speak like someone sitting beside the user, not above them.
-      You never sound like an AI, a therapist, a coach, or customer service.
-      You never summarize the user.
-      You never give commands.
-      You never use ควร / ต้อง / อย่า.
-      You never distance yourself emotionally.
-
-      -----------------------------------------
-      STABILITY LAYER (MUST)
-      -----------------------------------------
-      Persona Lock:
-      Healjai must always be warm, calm, steady, non-judgmental, and non-directive.
-      Not a therapist, not a fortune teller, not a motivational speaker.
-
-      Hard Constraints:
-      - No teaching tone
-      - No factual explanation of user's situation
-      - No astrology, no "stars/planets" (unless requested)
-      - Must reflect user emotion at least once
-
-      -----------------------------------------
-      TONE MODES (tone_mode)
-      -----------------------------------------
-      Selected Mode: ${tone_mode}
-      - Pronoun: ${currentTone.pronoun}
-      - Particles: ${currentTone.particles}
-      (Note: Do NOT use "ค่ะ/คะ" unless ka_mode is explicitly active)
-
-      -----------------------------------------
-      PARTICLE LOGIC
-      -----------------------------------------
-      If healjai_style -> remove all particles
-      If ka_mode -> use ค่ะ/คะ
-      If krub_mode -> use ครับ
-      If casual_mode -> remove all particles
-
-      -----------------------------------------
-      REWRITE ENGINE (ACTIVE)
-      -----------------------------------------
-      Rewrite the output if it contains:
-      - wrong particle
-      - hard words (ควร/ต้อง/อย่า)
-      - therapist tone
-      - service tone
-      - chatbot tone
-      - wrong pronoun
-      - astrology drift
-
-      -----------------------------------------
-      AGE-ADAPTIVE RESPONSE ENGINE
-      -----------------------------------------
-      User Age Group: ${ageInfo.group}
-
-      If Teen (15–22): gentle, relatable, simple vocabulary, avoid heavy weight.
-      If Early Adult (23–30): supportive, grounded, balanced depth.
-      If Age 30–40: steady, mature, warm, acknowledge responsibilities.
-      If Age 50+: soft, slow rhythm, more presence, less explanation.
-      If Senior: very gentle, slow, comforting, avoid slang.
-
-      `.trim();
-
       // DEFAULT PROMPT — ENGINE STATE BASED (UPDATED V5.6)
       let defaultPrompt = "";
 
@@ -1965,7 +1927,7 @@ const chatController = {
 
       TONE AND EMOTION RULES:
       ${
-        engineState === "DEEP_HEALING"
+        engineState === "DEEP_HEALING" && hasActiveSubscription
           ? `- Emotional Guidance: ${sentences.slice(0, 5).join(" | ")}
       - IMPORTANT: Use the above sentences ONLY as inspiration for the tone and vibe.
       - DO NOT copy them literally. ALWAYS prioritize and align your response with the user's specific message: "${userMessage}".`
@@ -2002,21 +1964,27 @@ const chatController = {
         }
       }
 
-      // HealJai Talk — unified prompt builder (replaces scattered inline assembly)
-      // All layers: persona, memory, empathy RAG, calculation, trending, tone, language
-      if (
-        categoryName === "HealJai Talk" &&
-        !musicRecommendation?.shouldRecommend
-      ) {
-        const empathySentences = (matches2 || []).map((m) => m.sentence);
-        systemPrompt = buildHealjaiTalkPrompt({
+      // HealJai Talk owns its prompt (persona, memory, empathy RAG, birth
+      // chart, trending, tone, language — see helper/healjaiTalk.js). The
+      // music-recommendation turn keeps the generic prompt. The V4 engine
+      // blocks below must not run when HealJai Talk owns the prompt, or their
+      // fixed "3-4 sentences" / "ask questions" rules override its length/mode.
+      const healjaiTalkOwnsPrompt =
+        categoryName === "HealJai Talk" && !musicRecommendation?.shouldRecommend;
+
+      if (healjaiTalkOwnsPrompt) {
+        if (detectTalkCrisis(userMessage, translatedMessage)) {
+          logger.log(`[Talk] crisis signal detected (HealJai Talk) chat=${chatId || "new"}`);
+        }
+        const healjai = buildHealjaiTalkPrompt({
           tone_mode,
           currentTone,
           ageInfo,
           target,
           engineState,
           userProfile: healjaiUserProfile,
-          empathySentences,
+          isPro: hasActiveSubscription,
+          empathySentences: (matches2 || []).map((m) => m.sentence),
           planetData: userProvidedPlanets,
           userMessage,
           translatedMessage,
@@ -2025,14 +1993,13 @@ const chatController = {
             categoryName,
           ),
           basePrompt: healjaiBasePrompt,
+          region: userRegion,
+          gpsMovement: talkCtx?.gpsMovement ?? null,
+          gapHours: talkCtx?.gapHours ?? null,
+          priorTurns: talkCtx?.priorTurns ?? 0,
         });
-      } else if (
-        categoryName === "HealJai Talk" &&
-        !musicRecommendation?.shouldRecommend &&
-        engineState === "DEEP_HEALING"
-      ) {
-        // Fallback: keep legacy deep healing prefix when music recommendation is active
-        systemPrompt = `${healjaiEnginePrompt}\n\n${systemPrompt}`;
+        systemPrompt = healjai.prompt;
+        logger.log(`[HealjaiTalk] ${JSON.stringify(healjai.debug)}`);
       }
 
       // LOAD CHAT IF EXISTING
@@ -2043,6 +2010,19 @@ const chatController = {
           return res
             .status(404)
             .json({ success: false, message: "Chat session not found" });
+        }
+        if (!subscriptionId && chat.userId) {
+          const chatUser = await User.findById(chat.userId).select(
+            "subscriptionId subscriptionStatus",
+          );
+          if (chatUser) {
+            subscriptionId = chatUser.subscriptionId;
+            subscriptionStatus = chatUser.subscriptionStatus;
+            hasActiveSubscription = hasPaidAccess(
+              subscriptionId,
+              subscriptionStatus,
+            );
+          }
         }
       }
 
@@ -2114,14 +2094,22 @@ const chatController = {
         chat.categoryId?.toString() === categoryId?.toString() &&
         chat.subCategoryId?.toString() === subCategoryId?.toString();
 
+      hasActiveSubscription = hasPaidAccess(subscriptionId, subscriptionStatus);
+      const shouldIncludeHistoryInPrompt =
+        shouldIncludeHistory && hasActiveSubscription;
+
       let contextContaminationWarning = "";
-      if (shouldIncludeHistory && chat.chats && chat.chats.length > 0) {
+      if (shouldIncludeHistoryInPrompt && chat.chats && chat.chats.length > 0) {
         contextContaminationWarning = `\nTOPIC ISOLATION: The user might be switching topics. If the new message is about a different subject, prioritize the new topic and do not carry over specific details from the previous one.`;
       }
 
-      const recentConversationContext = shouldIncludeHistory
-        ? formatRecentConversationContext(chat.chats, 4)
-        : "";
+      // Talk chats already receive their last turns as chat messages below, so
+      // repeating them in the system prompt only doubles the tokens and makes
+      // the model copy its own earlier phrasing.
+      const recentConversationContext =
+        shouldIncludeHistoryInPrompt && !isTalkCategory
+          ? formatRecentConversationContext(chat.chats, 4)
+          : "";
 
       if (recentConversationContext) {
         systemPrompt = `
@@ -2164,7 +2152,9 @@ const chatController = {
       const activeTopicName =
         domainNameMap[v4Classification.domain] || "the current topic";
 
-      if (engineState === "CASUAL_FRIEND") {
+      if (healjaiTalkOwnsPrompt) {
+        // feeling-driven builder already shaped length/mode — keep as is
+      } else if (engineState === "CASUAL_FRIEND") {
         systemPrompt = `
           ${systemPrompt}
 
@@ -2257,20 +2247,30 @@ const chatController = {
           `.trim();
       }
 
-      // ASTRIA TALK ENGINE Prompt — overrides systemPrompt with Astria Talk prompt builder
+      // ASTRIA TALK — overrides systemPrompt with the Astria Talk prompt.
+      // See helper/astriaTalk.js. Free answers you · Pro remembers you.
       if (isAstriaTalk) {
-        systemPrompt = buildAstriaTalkPrompt({
+        if (detectTalkCrisis(userMessage, translatedMessage)) {
+          logger.log(`[Talk] crisis signal detected (Astria Talk) chat=${chatId || "new"}`);
+        }
+        const astria = buildAstriaTalkPrompt({
           country: categoryName,
-          language: target,
           category: categoryName,
           subCategory: subCategoryName,
-          userMessage,
-          history: shouldIncludeHistory ? chat?.chats : null,
-          memory: healjaiUserProfile,
-          userProfile: healjaiUserProfile,
+          basePrompt: subCategoryPrompt || categoryPrompt || null,
           target,
-          engineState,
+          region: userRegion,
+          userMessage,
+          translatedMessage:
+            translatedMessage !== userMessage ? translatedMessage : null,
+          userProfile: healjaiUserProfile,
+          isPro: hasActiveSubscription,
+          gpsMovement: talkCtx?.gpsMovement ?? null,
+          gapHours: talkCtx?.gapHours ?? null,
+          priorTurns: talkCtx?.priorTurns ?? 0,
         });
+        systemPrompt = astria.prompt;
+        logger.log(`[AstriaTalk] ${JSON.stringify(astria.debug)}`);
         systemPrompt = appendAstriaDobAndMessageContext(
           systemPrompt,
           selfDob0,
@@ -6478,6 +6478,35 @@ RULES:
           `.trim();
       }
 
+      // Attach reference sentences for paid users. HealJai Talk's own builder
+      // already includes them as tone inspiration, and this block's "use or
+      // incorporate" wording would contradict that.
+      if (
+        hasActiveSubscription &&
+        !healjaiTalkOwnsPrompt &&
+        Array.isArray(sentences) &&
+        sentences.length > 0
+      ) {
+        const formattedSentences = sentences
+          .filter(Boolean)
+          .map((s) => `- ${String(s).trim()}`)
+          .join("\n");
+
+        if (formattedSentences) {
+          systemPrompt = `
+            ${systemPrompt}
+
+            REFERENCE SENTENCES:
+            ${formattedSentences}
+
+            REFERENCE SENTENCES USAGE RULES:
+            - Use the reference sentences above only as a reference.
+            - If any of these sentences are related to the user's message, try to use or incorporate that sentence naturally in your response (adapting to the target language and tone).
+            - If a sentence is not related to the user's message, ignore it.
+            `.trim();
+        }
+      }
+
       // FINAL REPLY
       const messages = [
         {
@@ -6487,12 +6516,27 @@ RULES:
           content: systemPrompt.trim(),
         },
       ];
-      // console.log("System prompt: ", systemPrompt);
+      // Pro memory for every region. Talk/Korea V2 builders already embed it.
+      const memoryAlreadyInPrompt =
+        isTalkCategory || categoryName === "Astria Korea V2";
+      if (hasActiveSubscription && healjaiUserProfile && !memoryAlreadyInPrompt) {
+        const memoryBlock = buildMemoryBlock(healjaiUserProfile);
+        if (memoryBlock) {
+          messages[0].content = `${messages[0].content}\n\n${memoryBlock}`;
+        }
+      }
+      console.log("System prompt: ", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
           messages.push({ role: "user", content: c.userMessage });
-          messages.push({ role: "assistant", content: c.aiResponse });
+          messages.push({
+            role: "assistant",
+            // Stray "..." in old replies would be copied by the model.
+            content: isTalkCategory
+              ? softenEllipses(c.aiResponse)
+              : c.aiResponse,
+          });
         });
       }
 
@@ -6627,6 +6671,11 @@ RULES:
           "X-Accel-Buffering": "no",
         });
         if (res.flushHeaders) res.flushHeaders();
+        // All categories: never let stray blank lines reach the client.
+        guardSseBlankLines(res, {
+          softenEmDash: isTalkCategory,
+          softenEllipsis: isTalkCategory,
+        });
 
         let fullResponse = "";
         let clientClosed = false;
@@ -7807,10 +7856,24 @@ RULES:
 
           if (clientClosed) return;
 
+          // Astria Talk v10 output guardrails (log only — reply already sent/streamed)
+          if (isTalkCategory) {
+            const talkViolations = findTalkViolations(
+              finalAiResponse,
+              resolveTalkLocale(target, userRegion),
+            );
+            if (talkViolations.length) {
+              logger.log(`[Talk] guardrail violations: ${JSON.stringify(talkViolations)}`);
+            }
+          }
+
           const chatMessage = {
             userMessage,
             aiResponse: applyPurpleDotBranding(
-              finalAiResponse.trim() || "No response",
+              collapseBlankLines(finalAiResponse, {
+                softenEmDash: isTalkCategory,
+                softenEllipsis: isTalkCategory,
+              }) || "No response",
             ),
             astriaKoreaV2Data: isAstriaKoreaV2
               ? astriaKoreaV2Data
@@ -7878,9 +7941,7 @@ RULES:
 
           // HealJai Talk / Astria Korea V2 / Astria Korea V3 — fire profile extractor every 3 messages on streaming path (fire and forget)
           if (
-            (categoryName === "HealJai Talk" ||
-              categoryName === "Astria Korea V2" ||
-              categoryName === "Astria Korea V3") &&
+            hasActiveSubscription &&
             userId &&
             chatSaved &&
             chat?._id
@@ -8833,6 +8894,24 @@ RULES:
         }
       }
 
+      if (typeof finalAiResponse === "string") {
+        finalAiResponse = collapseBlankLines(finalAiResponse, {
+          softenEmDash: isTalkCategory,
+          softenEllipsis: isTalkCategory,
+        });
+      }
+
+      // Astria Talk v10 output guardrails (log only — reply already sent/streamed)
+      if (isTalkCategory) {
+        const talkViolations = findTalkViolations(
+          finalAiResponse,
+          resolveTalkLocale(target, userRegion),
+        );
+        if (talkViolations.length) {
+          logger.log(`[Talk] guardrail violations: ${JSON.stringify(talkViolations)}`);
+        }
+      }
+
       const chatMessage = {
         userMessage,
         aiResponse: applyPurpleDotBranding(finalAiResponse),
@@ -8902,9 +8981,7 @@ RULES:
 
       // HealJai Talk / Astria Korea V2 / Astria Korea V3 — fire background profile extractor every 3 messages (fire and forget)
       if (
-        (categoryName === "HealJai Talk" ||
-          categoryName === "Astria Korea V2" ||
-          categoryName === "Astria Korea V3") &&
+        hasActiveSubscription &&
         userId &&
         categoryId &&
         saveChat !== false
