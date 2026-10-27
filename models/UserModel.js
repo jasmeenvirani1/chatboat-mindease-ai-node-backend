@@ -80,6 +80,17 @@ const userSchema = new Schema(
     // `region` to match, but this list is what stops Journey from re-billing
     // a region the user already owns.
     unlockedRegions: { type: [String], default: [] },
+    // Monthly Global Pass (see helper/globalPass.js). Written only by the
+    // server; the client can never set it.
+    globalPass: {
+      month: { type: String, default: "" }, // "YYYY-MM" (UTC) that `used` counts for
+      used: { type: Number, default: 0 }, // passes started that month (Free 1, Pro 2)
+      region: { type: String, default: null },
+      startedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null },
+      dismissed: { type: Boolean, default: false },
+      endedSeen: { type: Boolean, default: false },
+    },
     allRegionsApproved: { type: Boolean, default: false },
     allRegionsPending: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },

@@ -23,6 +23,7 @@ const indonesiaModulesRoutes = require("./Routes/indonesiaModulesRoutes.js");
 const socialCompatabilityRoutes = require("./Routes/socialCompatabilityRoutes.js");
 const lifeGpsRoutes = require("./Routes/lifeGpsRoutes.js");
 const letterRoutes = require("./Routes/letterRoutes.js");
+const globalPassRoutes = require("./Routes/globalPassRoutes.js");
 const { loadIndex, search, buildPrompt } = require("./helper/search.js");
 const { startTrendingTopicsCron } = require("./cron/TrendingTopicsCron.js");
 
@@ -91,6 +92,7 @@ app.use("/api/backend/tarot-lanes", tarotLanesRoutes);
 app.use("/api/backend/compatibility", socialCompatabilityRoutes);
 app.use("/api/backend/life-gps", lifeGpsRoutes);
 app.use("/api/backend/letters", letterRoutes);
+app.use("/api/backend/global-pass", globalPassRoutes);
 app.use("/api/generate-reading", indonesiaModulesRoutes);
 app.use("/api/backend", adminRoutes);
 app.use("/api", authRoutes);
