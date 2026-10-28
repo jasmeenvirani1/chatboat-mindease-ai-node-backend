@@ -71,7 +71,7 @@ router.post('/googleLogin', userController.googleLogin);
 router.get("/auth/apple/start", userController.appleStart);
 router.post("/appleLogin", userController.appleLogin);
 // IMPORTANT: needs urlencoded body parser
-router.post("/api/auth/apple/callback",
+router.post("/auth/apple/callback",
   express.urlencoded({ extended: false }),
   (req, res) => {
     const { code, state } = req.body; // ✅ code comes in body now
