@@ -6480,10 +6480,13 @@ RULES:
 
       // Attach reference sentences for paid users. HealJai Talk's own builder
       // already includes them as tone inspiration, and this block's "use or
-      // incorporate" wording would contradict that.
+      // incorporate" wording would contradict that. Astria Talk skips them:
+      // the random small-talk lines ("Have you eaten yet?") work against its
+      // Pro depth and no-loop-question rules.
       if (
         hasActiveSubscription &&
         !healjaiTalkOwnsPrompt &&
+        !isAstriaTalk &&
         Array.isArray(sentences) &&
         sentences.length > 0
       ) {

@@ -1,8 +1,9 @@
 /**
  * Astria Talk — everything the Astria Talk / Companion Talk chat needs.
  *
- * The idea is simple: understand how the user feels, reply to that, and talk
- * like a friend who already knows them (memory). There is no pack routing.
+ * Astria Talk is a calm thinking partner: understand -> reframe -> guide.
+ * The reply brain (identity, Uranian Intelligence, reply rules) lives in
+ * helper/astriaSoul.js. There is no pack routing.
  *
  * Sections, top to bottom:
  *   1. Language & locale       resolveLocale()
@@ -24,6 +25,7 @@
 const mongoose = require("mongoose");
 const ChatHistory = require("../models/ChatModel.js");
 const LifeGpsModel = require("../models/LifeGpsModel.js");
+const soul = require("./astriaSoul.js");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. LANGUAGE & LOCALE
@@ -34,11 +36,13 @@ const LANG_NAMES = {
   hinglish: "Hinglish", fr: "French", de: "German", it: "Italian",
   pt: "Portuguese", ja: "Japanese", ko: "Korean", zh: "Chinese",
   ar: "Arabic", ru: "Russian", vi: "Vietnamese", id: "Indonesian",
+  ms: "Malay", fil: "Filipino",
 };
 
 const LOCALES = [
   "en", "th", "jp", "ko", "es", "pt", "hi", "fil",
   "id", "ms", "vi", "sg", "br", "mx", "uk", "gcc",
+  "fr", "de", "it", "ru", "zh",
 ];
 
 // Language / region codes the app uses  ->  the locale names above.
@@ -54,8 +58,12 @@ const LOCALE_TONE = {
   hi: "reflective_warm", fil: "soft_casual", id: "calm_clear",
   ms: "calm_clear", vi: "neutral_soft", sg: "modern_neutral",
   br: "warm_expressive", mx: "warm_direct", uk: "neutral_calm",
-  gcc: "formal_warm",
+  gcc: "formal_warm", fr: "reflective_nuanced", de: "clear_grounded",
+  it: "warm_expressive", ru: "calm_sincere", zh: "calm_composed",
 };
+
+// App region names (user.region) -> the region codes resolveLocale() checks.
+const REGION_CODES = { singapore: "sg", mexico: "mx", brazil: "br" };
 
 /**
  * Reply language + user region -> locale. Region variants of English,
@@ -63,7 +71,7 @@ const LOCALE_TONE = {
  */
 function resolveLocale(target = "en", region) {
   const lang = String(target || "en").toLowerCase();
-  const reg = String(region || "").toLowerCase();
+  const reg = REGION_CODES[String(region || "").toLowerCase()] || String(region || "").toLowerCase();
   if (lang === "en" && (reg === "sg" || reg === "uk")) return reg;
   if (lang === "es" && reg === "mx") return "mx";
   if (lang === "pt" && reg === "br") return "br";
@@ -302,6 +310,226 @@ const COUNTRY_CONFIG = {
       conversationEtiquette: "modest, private, never presumptuous",
     },
   },
+  THAILAND: {
+    label: "Thailand",
+    tone: {
+      warmth: "high",
+      directness: "low",
+      reflection: "high",
+      formality: "low-medium",
+      encouragement: "soft, quietly reassuring",
+      sentenceRhythm: "soft, flowing, short pauses",
+      emojiPreference: "minimal",
+      pacing: "gentle, unhurried",
+    },
+    culture: {
+      communicationStyle: "soft and indirect; kreng jai means people rarely say how heavy things are",
+      familyValues: "family duty and not burdening others weigh on most concerns",
+      dailyExpressions: "natural, everyday spoken Thai, never stiff or fortune-teller wording",
+      emotionalStyle: "calm, warm, keeps face for everyone involved",
+      socialNorms: "harmony and not making others uncomfortable come first",
+      encouragementStyle: "quiet perspective, never cheerleading",
+      conversationEtiquette: "read what is left unsaid; never push for details",
+    },
+  },
+  CHINA: {
+    label: "China",
+    tone: {
+      warmth: "medium-high",
+      directness: "medium",
+      reflection: "high",
+      formality: "medium",
+      encouragement: "steady, practical",
+      sentenceRhythm: "concise, composed",
+      emojiPreference: "very minimal",
+      pacing: "calm, measured",
+    },
+    culture: {
+      communicationStyle: "composed and practical; feelings are often framed as results or progress",
+      familyValues: "family expectations and providing for others carry real weight",
+      dailyExpressions: "plain, natural modern Chinese",
+      emotionalStyle: "restrained, values steadiness over drama",
+      socialNorms: "face, effort and visible progress matter",
+      encouragementStyle: "grounded perspective on what is actually moving",
+      conversationEtiquette: "respectful, never preachy; help them see progress they can't see",
+    },
+  },
+  MALAYSIA: {
+    label: "Malaysia",
+    tone: {
+      warmth: "high",
+      directness: "low",
+      reflection: "medium",
+      formality: "low-medium",
+      encouragement: "gentle, supportive",
+      sentenceRhythm: "relaxed, conversational",
+      emojiPreference: "minimal",
+      pacing: "calm, easygoing",
+    },
+    culture: {
+      communicationStyle: "polite and indirect, multicultural, harmony-minded",
+      familyValues: "family and community expectations are central",
+      dailyExpressions: "warm, simple phrasing; natural Malay when replying in Malay",
+      emotionalStyle: "gentle, modest, caring",
+      socialNorms: "respect for elders and avoiding open conflict",
+      encouragementStyle: "soft reassurance with a practical touch",
+      conversationEtiquette: "patient, never blunt",
+    },
+  },
+  SINGAPORE: {
+    label: "Singapore",
+    tone: {
+      warmth: "medium-high",
+      directness: "medium",
+      reflection: "medium",
+      formality: "medium",
+      encouragement: "practical, grounded",
+      sentenceRhythm: "clear, efficient",
+      emojiPreference: "minimal",
+      pacing: "calm but efficient",
+    },
+    culture: {
+      communicationStyle: "clear and practical; achievement and doing things right are common threads",
+      familyValues: "family expectations and stability matter",
+      dailyExpressions: "modern, plain English",
+      emotionalStyle: "composed, can hide pressure behind competence",
+      socialNorms: "performance and planning are highly valued",
+      encouragementStyle: "steady perspective, not hype",
+      conversationEtiquette: "efficient but never cold",
+    },
+  },
+  UK: {
+    label: "United Kingdom",
+    tone: {
+      warmth: "medium",
+      directness: "low-medium",
+      reflection: "high",
+      formality: "medium",
+      encouragement: "understated",
+      sentenceRhythm: "measured, dry, unhurried",
+      emojiPreference: "very minimal",
+      pacing: "calm",
+    },
+    culture: {
+      communicationStyle: "understatement; 'fine' or 'just tired' often hides more",
+      familyValues: "privacy and independence are respected",
+      dailyExpressions: "plain, understated British English, never gushing",
+      emotionalStyle: "reserved, dislikes over-emotional language",
+      socialNorms: "not making a fuss; stress is often played down",
+      encouragementStyle: "quiet acknowledgment, no cheerleading",
+      conversationEtiquette: "gently notice what is understated without forcing it open",
+    },
+  },
+  NORTH_AMERICA: {
+    label: "North America",
+    tone: {
+      warmth: "high",
+      directness: "medium-high",
+      reflection: "medium",
+      formality: "low",
+      encouragement: "warm, grounded",
+      sentenceRhythm: "natural, conversational",
+      emojiPreference: "minimal",
+      pacing: "warm, natural",
+    },
+    culture: {
+      communicationStyle: "open and direct; self-worth is often tied to effort and achievement",
+      familyValues: "independence matters, alongside close family ties",
+      dailyExpressions: "plain, warm, natural English",
+      emotionalStyle: "open, comfortable naming feelings",
+      socialNorms: "productivity culture; people jump to fixes quickly",
+      encouragementStyle: "honest perspective, not toxic positivity",
+      conversationEtiquette: "meaning before fixes; skip productivity tips",
+    },
+  },
+  FRANCE: {
+    label: "France",
+    tone: {
+      warmth: "medium",
+      directness: "medium-high",
+      reflection: "very high",
+      formality: "medium (vous unless the user uses tu)",
+      encouragement: "thoughtful, never sugary",
+      sentenceRhythm: "nuanced, articulate, elegant",
+      emojiPreference: "very minimal",
+      pacing: "reflective, unhurried",
+    },
+    culture: {
+      communicationStyle: "values nuance, intellectual honesty and real conversation",
+      familyValues: "family matters, but personal authenticity is central",
+      dailyExpressions: "natural, articulate French, never translated-sounding",
+      emotionalStyle: "reflective; identity, authenticity and meaning are common threads",
+      socialNorms: "dislikes superficial positivity and generic advice",
+      encouragementStyle: "an honest, well-thought perspective",
+      conversationEtiquette: "engage with the question of meaning; never simplify it into tips",
+    },
+  },
+  GERMANY: {
+    label: "Germany",
+    tone: {
+      warmth: "medium",
+      directness: "high",
+      reflection: "medium-high",
+      formality: "medium-high (Sie unless the user uses du)",
+      encouragement: "sober, honest",
+      sentenceRhythm: "clear, structured",
+      emojiPreference: "very minimal",
+      pacing: "calm, precise",
+    },
+    culture: {
+      communicationStyle: "clear, honest, values substance over pleasantries",
+      familyValues: "independence and reliability are respected",
+      dailyExpressions: "plain, precise German",
+      emotionalStyle: "reserved but sincere",
+      socialNorms: "structure and planning are valued; meaning can get lost inside them",
+      encouragementStyle: "honest perspective, no exaggeration",
+      conversationEtiquette: "don't jump to productivity solutions; address the why first",
+    },
+  },
+  ITALY: {
+    label: "Italy",
+    tone: {
+      warmth: "very high",
+      directness: "medium",
+      reflection: "medium-high",
+      formality: "low-medium",
+      encouragement: "heartfelt",
+      sentenceRhythm: "warm, expressive, flowing",
+      emojiPreference: "minimal",
+      pacing: "warm, present",
+    },
+    culture: {
+      communicationStyle: "warm and expressive; people and connection come first",
+      familyValues: "family and close bonds are at the heart of life",
+      dailyExpressions: "warm, natural Italian",
+      emotionalStyle: "open, comfortable with longing and nostalgia",
+      socialNorms: "belonging and togetherness are highly valued",
+      encouragementStyle: "heartfelt, human warmth",
+      conversationEtiquette: "honor the relationship and the feeling before any advice",
+    },
+  },
+  RUSSIA: {
+    label: "Russia",
+    tone: {
+      warmth: "medium",
+      directness: "high",
+      reflection: "high",
+      formality: "medium (вы unless the user uses ты)",
+      encouragement: "sincere, never cheerful",
+      sentenceRhythm: "plain, sincere, unhurried",
+      emojiPreference: "very minimal",
+      pacing: "calm, serious",
+    },
+    culture: {
+      communicationStyle: "sincere and direct; distrusts forced positivity",
+      familyValues: "close family and loyal friends are a strong anchor",
+      dailyExpressions: "plain, natural Russian",
+      emotionalStyle: "deep, endures quietly, withdraws to protect itself",
+      socialNorms: "resilience is expected; fatigue is rarely said out loud",
+      encouragementStyle: "honest acknowledgment, no smiling optimism",
+      conversationEtiquette: "be real; treat withdrawal as protection, not weakness",
+    },
+  },
   DEFAULT: {
     label: "Global",
     tone: {
@@ -327,8 +555,8 @@ const COUNTRY_CONFIG = {
 };
 
 // COUNTRY NAME → CONFIG KEY resolution. Accepts loose country/category
-// strings (e.g. "Astria Indonesia", "id-ID", "Indonesia") without requiring
-// any change to how chatController.js already detects country/category.
+// strings (e.g. "Astria Indonesia", "id-ID", "Indonesia"). Keywords match
+// whole words, so "ph" is not found inside "philosophy".
 const COUNTRY_KEY_ALIASES = [
   { key: "INDONESIA", keywords: ["indonesia", "id-id", "bahasa"] },
   { key: "INDIA", keywords: ["india", "hindi", "hi-in"] },
@@ -339,33 +567,89 @@ const COUNTRY_KEY_ALIASES = [
   { key: "PHILIPPINES", keywords: ["philippines", "filipino", "ph"] },
   { key: "MEXICO", keywords: ["mexico", "mx"] },
   { key: "SPAIN", keywords: ["spain", "es-es", "spanish"] },
-  { key: "GCC", keywords: ["gcc", "arabic", "ar-"] },
+  { key: "GCC", keywords: ["gcc", "arabic", "saudi", "uae", "qatar", "kuwait", "bahrain"] },
+  { key: "THAILAND", keywords: ["thailand", "thai"] },
+  { key: "CHINA", keywords: ["china", "chinese"] },
+  { key: "MALAYSIA", keywords: ["malaysia"] },
+  { key: "SINGAPORE", keywords: ["singapore"] },
+  { key: "UK", keywords: ["uk", "united kingdom", "britain"] },
+  { key: "NORTH_AMERICA", keywords: ["usa", "united states", "canada"] },
+  { key: "FRANCE", keywords: ["france", "french"] },
+  { key: "GERMANY", keywords: ["germany", "german"] },
+  { key: "ITALY", keywords: ["italy", "italian"] },
+  { key: "RUSSIA", keywords: ["russia", "russian"] },
 ];
+
+// App region (user.region) -> country, with the reply languages that
+// region's culture covers. "healjai" is the default region for every
+// account, so it only means Thailand when the reply is in Thai.
+const REGION_COUNTRY = {
+  healjai: ["THAILAND", ["th"]],
+  thailand: ["THAILAND", ["th", "en"]],
+  japan: ["JAPAN", ["ja", "en"]],
+  korea: ["KOREA", ["ko", "en"]],
+  china: ["CHINA", ["zh", "en"]],
+  india: ["INDIA", ["hi", "hinglish", "en"]],
+  indonesia: ["INDONESIA", ["id", "en"]],
+  malaysia: ["MALAYSIA", ["ms", "id", "en"]],
+  singapore: ["SINGAPORE", ["en", "zh", "ms"]],
+  philippines: ["PHILIPPINES", ["fil", "en"]],
+  vietnam: ["VIETNAM", ["vi", "en"]],
+  gcc: ["GCC", ["ar", "en"]],
+  uk: ["UK", ["en"]],
+  spanish: ["SPAIN", ["es", "en"]],
+  italy: ["ITALY", ["it", "en"]],
+  germany: ["GERMANY", ["de", "en"]],
+  france: ["FRANCE", ["fr", "en"]],
+  russia: ["RUSSIA", ["ru", "en"]],
+  us: ["NORTH_AMERICA", ["en", "es"]],
+  canada: ["NORTH_AMERICA", ["en", "fr"]],
+  mexico: ["MEXICO", ["es", "en"]],
+  brazil: ["BRAZIL", ["pt", "en"]],
+};
+
+// Reply language -> country, when the region says nothing that fits.
+const LANG_COUNTRY = {
+  th: "THAILAND", ja: "JAPAN", ko: "KOREA", zh: "CHINA", hi: "INDIA",
+  hinglish: "INDIA", id: "INDONESIA", ms: "MALAYSIA", fil: "PHILIPPINES",
+  vi: "VIETNAM", ar: "GCC", fr: "FRANCE", de: "GERMANY", it: "ITALY",
+  ru: "RUSSIA", pt: "BRAZIL", es: "SPAIN",
+};
+
+const countryKeywordMatchers = COUNTRY_KEY_ALIASES.map(({ key, keywords }) => {
+  const re = new RegExp(
+    `(?<![\\p{L}\\p{N}])(${keywords.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\p{N}])`,
+    "iu",
+  );
+  return { key, test: (text) => re.test(text) };
+});
 
 // PERSONA CONFIGURATION
 // Persona depends on category/subCategory per the spec. Each persona carries
 // a display name, role description and style so getPersona() has everything
 // it needs to render its section of the prompt.
+// Astria Talk only. Every persona is the same thinking partner with a
+// different focus (see helper/astriaSoul.js).
 const PERSONAS = {
   COMPANION: {
-    name: "Warm Companion",
-    role: "a warm, emotionally present friend who listens without judgment",
-    style: "soft, warm, reflective, non-judgmental, never robotic",
+    name: "Thinking Partner",
+    role: "a calm, intelligent thinking partner who helps the user see things more clearly",
+    style: "warm, observant, grounded, never robotic, never preachy",
   },
   COACH: {
-    name: "Gentle Coach",
-    role: "a soft, supportive guide who helps the user think, never instructs",
-    style: "supportive, practical, non-authoritative, never preachy",
+    name: "Life Direction",
+    role: "a thinking partner for stress, burnout and life direction who does some of the thinking for the user",
+    style: "calm, practical, reduces mental load, never instructs or lectures",
   },
   LOVE: {
-    name: "Relationship Listener",
-    role: "a caring listener for love, family and relationship matters",
-    style: "tender, patient, validating, never judgmental about relationships",
+    name: "Relationships",
+    role: "a balanced thinking partner for love, family and relationship matters",
+    style: "warm, curious, balanced, never judging anyone, never guessing what others definitely feel",
   },
   CAREER: {
-    name: "Career Coach",
-    role: "a calm, practical guide for work and career direction",
-    style: "grounded, encouraging, practical, never pressuring",
+    name: "Work & Career",
+    role: "a grounded thinking partner for work and career decisions",
+    style: "clear, practical, calm, never pressuring",
   },
   CULTURE: {
     name: "Culture Guide",
@@ -402,13 +686,21 @@ const DEFAULT_PERSONA = "COMPANION";
 
 const normalise = (value) => String(value ?? "").trim().toLowerCase();
 
-/** Country tone + culture for the category the user is chatting in. */
-function getCountryTone(country, category, subCategory) {
-  const haystack = normalise(`${country} ${category} ${subCategory}`);
-  const match = COUNTRY_KEY_ALIASES.find(({ keywords }) =>
-    keywords.some((k) => haystack.includes(k)),
-  );
-  return COUNTRY_CONFIG[match?.key] || COUNTRY_CONFIG.DEFAULT;
+/**
+ * Country tone + culture. Priority: a country named in the category /
+ * subcategory, then the user's region (when the reply language fits that
+ * region), then the reply language, then the global default.
+ */
+function getCountryTone({ country, category, subCategory, region, target } = {}) {
+  const haystack = normalise(`${country ?? ""} ${category ?? ""} ${subCategory ?? ""}`);
+  const named = countryKeywordMatchers.find(({ test }) => test(haystack));
+  if (named) return COUNTRY_CONFIG[named.key];
+
+  const lang = normalise(target) || "en";
+  const [regionKey, regionLangs] = REGION_COUNTRY[normalise(region)] || [];
+  if (regionKey && regionLangs.includes(lang)) return COUNTRY_CONFIG[regionKey];
+
+  return COUNTRY_CONFIG[LANG_COUNTRY[lang]] || COUNTRY_CONFIG.DEFAULT;
 }
 
 function getPersona(category, subCategory) {
@@ -450,6 +742,10 @@ const LISTEN_TRIGGERS = [
   "bas sun", "sirf sun", "just listen", "no advice", "don't need advice", "dont need advice", "vent", "bas bolna", "sunlo", "ฟังอย่างเดียว", "แค่อยากเล่า",
 ];
 
+// A joy word under a negation: "not happy", "don't feel happy anymore",
+// "no longer excited", "ไม่มีความสุข".
+const NEGATED_JOY = /(?<![\p{L}\p{N}])(?:not|never|no longer|hardly|barely|cannot|\p{L}+n't)\s+(?:[\p{L}']+\s+){0,3}?(?:happy|excited|proud|khush)(?![\p{L}\p{N}])|ไม่(?:ค่อย)?(?:มีความสุข|ดีใจ|สนุก)/giu;
+
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const WORD_EDGE = "[\\p{L}\\p{N}]";
 
@@ -486,10 +782,15 @@ const RECALL_QUESTION = /\b(what|which)\b.*\b(i|we)\b.*\b(said|told|say|tell|sha
  */
 function analyzeFeeling(userMessage = "", translatedMessage = "") {
   const raw = String(userMessage || "").trim();
-  const text = `${raw} ${translatedMessage || ""}`.toLowerCase().replace(/[\u2018\u2019]/g, "'");
+  const lowered = `${raw} ${translatedMessage || ""}`.toLowerCase().replace(/[\u2018\u2019]/g, "'");
+
+  // "I don't feel happy" / "no longer excited" is not joy. Blank those
+  // phrases out and count each one as sadness instead.
+  let negatedJoy = 0;
+  const text = lowered.replace(NEGATED_JOY, () => (negatedJoy++, " "));
 
   const hits = emotionMatchers
-    .map(([emotion, count]) => [emotion, count(text)])
+    .map(([emotion, count]) => [emotion, count(text) + (emotion === "sad" ? negatedJoy : 0)])
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1]);
 
@@ -901,6 +1202,9 @@ function findViolations(reply = "", locale = "en") {
   for (const pattern of PREDICTION_PATTERNS) {
     if (pattern.test(text)) found.push({ rule: "avoidPrediction", pattern: String(pattern) });
   }
+  for (const pattern of soul.SOUL_FORBIDDEN_PATTERNS) {
+    if (pattern.test(text)) found.push({ rule: "avoidSoulPattern", pattern: String(pattern) });
+  }
   return found;
 }
 
@@ -908,7 +1212,8 @@ function findViolations(reply = "", locale = "en") {
 // 7. ASTRIA TALK PROMPT
 // ═══════════════════════════════════════════════════════════════════════════
 
-const IDENTITY = `You are Astria Talk, a caring friend who already knows the user. You listen without judgment, never rush, and never lecture. You are not a therapist, an assistant, a coach, or customer support. Your role: the user feels seen, safe and not alone.`;
+// Identity, Uranian Intelligence, reply rules and per-turn blocks live in
+// helper/astriaSoul.js (Astria Talk only; HealJai Talk is unaffected).
 
 /**
  * Build the Astria Talk / Companion Talk system prompt.
@@ -935,33 +1240,42 @@ function buildPrompt({
   gpsMovement = null, gapHours = null, priorTurns = 0,
 }) {
   const feeling = analyzeFeeling(userMessage, translatedMessage);
-  const countryTone = getCountryTone(country, category, subCategory);
+  const questionType = soul.classifyQuestion(userMessage, translatedMessage, feeling);
+  const explicitListen = countListenTriggers(`${userMessage} ${translatedMessage || ""}`.toLowerCase()) > 0;
+  // Malay is often detected as Indonesian; a Malaysian user gets Malay.
+  const replyLang = target === "id" && normalise(region) === "malaysia" ? "ms" : target;
+  const countryTone = getCountryTone({ country, category, subCategory, region, target: replyLang });
   const { tone, culture, label } = countryTone;
   const persona = getPersona(category, subCategory);
   const memory = isPro ? buildMemoryBlock(userProfile) : "";
 
   const sections = [
-    IDENTITY,
+    soul.SOUL_IDENTITY,
     `COUNTRY TONE (${label}): warmth ${tone.warmth}, directness ${tone.directness}, formality ${tone.formality}, pacing ${tone.pacing}, emoji ${tone.emojiPreference}, rhythm ${tone.sentenceRhythm}.`,
-    `PERSONA: ${persona.name} — ${persona.role}. Style: ${persona.style}`,
-    `CULTURE (${label}): ${culture.communicationStyle}. ${culture.emotionalStyle}. Etiquette: ${culture.conversationEtiquette}. Everyday phrasing: ${culture.dailyExpressions}.`,
+    `FOCUS: ${persona.name} — ${persona.role}. Style: ${persona.style}`,
+    `CULTURE (${label}): ${culture.communicationStyle}. ${culture.emotionalStyle}. Family: ${culture.familyValues}. Social norms: ${culture.socialNorms}. Encouragement: ${culture.encouragementStyle}. Etiquette: ${culture.conversationEtiquette}. Everyday phrasing: ${culture.dailyExpressions}.
+Culture shapes the wording only: see the same hidden pattern and give the same depth you would in any language.`,
     memory,
     memory ? MEMORY_RULES : "",
-    buildLocaleBlock(target, region),
+    buildLocaleBlock(replyLang, region),
     // Topic goes BEFORE the rules so the rules win.
     buildScopeBlock(basePrompt),
-    buildContextBlock({ gpsMovement, gapHours, priorTurns, message: userMessage }),
-    buildFeelingBlock(feeling),
-    REPLY_RULES,
-    buildGuardrailBlock(target === "th" ? "th" : "other"),
+    soul.URANIAN_BLOCK,
+    soul.buildSoulContextBlock({ gpsMovement, gapHours, priorTurns, message: userMessage }),
+    soul.buildSoulFeelingBlock(feeling, questionType),
+    soul.buildQuestionBlock(questionType, explicitListen),
+    soul.buildLevelBlock(isPro),
+    soul.SOUL_REPLY_RULES,
+    soul.buildThaiStyleBlock(replyLang),
+    buildGuardrailBlock(replyLang === "th" ? "th" : "other"),
     detectCrisis(userMessage, translatedMessage) ? SAFETY_BLOCK : "",
-    buildLanguageRule(target),
+    buildLanguageRule(replyLang),
     `CURRENT USER MESSAGE:\n"${String(userMessage || "").trim()}"`,
   ].filter(Boolean);
 
   return {
     prompt: sections.join("\n\n").trim(),
-    debug: { engine: "astriaTalk", feeling, hasMemory: Boolean(memory), priorTurns, gpsMovement, country: label },
+    debug: { engine: "astriaTalk", feeling, questionType, hasMemory: Boolean(memory), priorTurns, gpsMovement, country: label, replyLang },
   };
 }
 
