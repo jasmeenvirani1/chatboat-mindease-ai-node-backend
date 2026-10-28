@@ -2,9 +2,10 @@ const express = require("express");
 const router = express.Router();
 const fs = require("fs");
 const authenticateToken = require("../middleware/authenticateToken.js");
+const { requireSelfOrAdmin } = require("../middleware/adminAuth.js");
+const { checkChatAccess, userUpdateGuard } = require("../helper/planAccess.js");
 const {
   threeuploads,
-  multiupload,
   singleupload,
 } = require("../utils/imageUploder.js");
 const SettingController = require("../controllers/settingController.js");
@@ -35,7 +36,7 @@ const {
 const IndexBuildController = require("../controllers/indexBuildController.js");
 
 //Public Routes
-router.post("/chat/create", multiupload("chat"), ChatHistory.createChat);
+router.post("/chat/create", checkChatAccess, ChatHistory.createChat);
 router.get("/headlines", HeadlineController.getAllHeadlines);
 router.get("/headline/:date", HeadlineController.getHeadlineByDate);
 
@@ -106,9 +107,9 @@ router.put(
 
 //User Routes
 router.get("/users", userController.getAllUsers);
-router.get("/user/:id", userController.getUserById);
-router.put("/user/:id", userController.updateUser);
-router.delete("/user/:id", userController.deleteUser);
+router.get("/user/:id", requireSelfOrAdmin(), userController.getUserById);
+router.put("/user/:id", requireSelfOrAdmin(), userUpdateGuard, userController.updateUser);
+router.delete("/user/:id", requireSelfOrAdmin(), userController.deleteUser);
 router.post("/user/create", userController.createUserFromAdmin);
 
 //Chat History Routes

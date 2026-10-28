@@ -138,7 +138,7 @@ async function onChargeRefunded(charge) {
 
   await User.updateOne(
     { _id: history.userId, subscriptionId: String(history.planId) },
-    { $set: { subscriptionStatus: "cancelled" } },
+    { $set: { subscriptionStatus: "cancelled", plan: "free" } },
   );
 
   logger.log(`Refund processed: user=${history.userId} charge=${charge.id}`);
@@ -160,7 +160,7 @@ async function onDisputeCreated(dispute) {
 
   await User.updateOne(
     { _id: history.userId, subscriptionId: String(history.planId) },
-    { $set: { subscriptionStatus: "cancelled" } },
+    { $set: { subscriptionStatus: "cancelled", plan: "free" } },
   );
 
   logger.log(`Dispute opened: user=${history.userId} dispute=${dispute.id}`);

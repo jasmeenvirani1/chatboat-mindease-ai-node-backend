@@ -101,6 +101,7 @@ async function activateSubscription({ session, user, plan, durationDays }) {
         subscriptionStartDate: startDate,
         subscriptionEndDate: endDate,
         subscriptionStatus: "active",
+        plan: plan.tier === "global" ? "global" : "pro",
         ...regionUpdate.$set,
       },
       $push: {
@@ -131,6 +132,7 @@ async function activateSubscription({ session, user, plan, durationDays }) {
  * Global plans (plan.region unset) return no region changes at all.
  */
 function buildRegionUnlockUpdate(plan) {
+  // Tier plans (Pro/Global by currency) carry no region; Global needs none.
   if (!plan.region) return {};
   return {
     $set: { region: plan.region },

@@ -11,6 +11,9 @@ const SubscriptionPlansController = {
         price,
         billingCadence,
         cadence,
+        tier,
+        currency,
+        region,
         highlight,
         features,
         isPopular,
@@ -28,6 +31,7 @@ const SubscriptionPlansController = {
         normalizedPlanName !== undefined ||
         price !== undefined ||
         normalizedCadence !== undefined ||
+        tier !== undefined ||
         highlight !== undefined ||
         features !== undefined ||
         normalizedIsPopular !== undefined ||
@@ -44,6 +48,9 @@ const SubscriptionPlansController = {
         planName: normalizedPlanName,
         price,
         billingCadence: normalizedCadence,
+        ...(tier !== undefined && { tier }),
+        ...(currency !== undefined && { currency }),
+        ...(region !== undefined && { region }),
         highlight,
         features: Array.isArray(features) ? features : features ? [features] : [],
         isPopular: normalizedIsPopular,

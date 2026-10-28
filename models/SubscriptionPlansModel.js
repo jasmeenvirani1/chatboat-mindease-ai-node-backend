@@ -5,6 +5,10 @@ const { Schema, model } = mongoose;
 const SubscriptionPlanSchema = new Schema(
   {
     planName: { type: String, required: false },
+    // Region this plan unlocks (region-scoped plans). Empty for tier plans.
+    region: { type: String, default: "" },
+    // Membership tier the plan grants: "pro" or "global".
+    tier: { type: String, enum: ["pro", "global", ""], default: "" },
     price: { type: String, required: false },
     // ISO 4217 code. Defaults to USD; set per plan to sell in another currency.
     currency: { type: String, default: "usd", lowercase: true },

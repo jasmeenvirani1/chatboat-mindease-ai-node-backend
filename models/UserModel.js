@@ -73,6 +73,9 @@ const userSchema = new Schema(
     stripeCustomerId: { type: String, default: "", index: true },
     // Set once a user consumes their free trial so it cannot be claimed twice.
     hasUsedFreeTrial: { type: Boolean, default: false },
+    // Membership tier. Everyone starts on Free; a paid checkout moves it to
+    // "pro" or "global" (see activateSubscription) and a refund/dispute resets it.
+    plan: { type: String, enum: ["free", "pro", "global"], default: "free" },
     region: { type: String, default: "healjai" },
     // Regions this user has purchased via Journey (POST /payment/checkout with
     // a region-scoped plan). Separate from `region`, which is the ONE region
@@ -80,6 +83,17 @@ const userSchema = new Schema(
     // `region` to match, but this list is what stops Journey from re-billing
     // a region the user already owns.
     unlockedRegions: { type: [String], default: [] },
+    // Monthly Global Pass (see helper/globalPass.js). Written only by the
+    // server; the client can never set it.
+    globalPass: {
+      month: { type: String, default: "" }, // "YYYY-MM" (UTC) that `used` counts for
+      used: { type: Number, default: 0 }, // passes started that month (Free 1, Pro 2)
+      region: { type: String, default: null },
+      startedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null },
+      dismissed: { type: Boolean, default: false },
+      endedSeen: { type: Boolean, default: false },
+    },
     allRegionsApproved: { type: Boolean, default: false },
     allRegionsPending: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
