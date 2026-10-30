@@ -5,10 +5,13 @@ const HeadlineModel = require("../models/HeadlineModel.js");
 const LifeGpsModel = require("../models/LifeGpsModel.js");
 const SubCategory = require("../models/SubCategoryModel.js");
 const UserModel = require("../models/UserModel.js");
+const ChatHistory = require("../models/ChatModel.js");
+const energyMatchPromo = require("../helper/promos/energyMatchPromo.js");
 const {
   resolvePreferredLanguage,
   langInstruction,
 } = require("../helper/languageDetect.js");
+const { localize } = require("../helper/lifeGpsLocalize.js");
 
 // Optional: personal memory may not exist in every deployment.
 let AstriaPersonal = null;
@@ -408,7 +411,12 @@ const getLatestLifeGpsMap = async (req, res) => {
     const updateAvailable = map
       ? await isUpdateAvailable(map, req.params.userId)
       : true;
-    return res.json({ success: true, data: map, updateAvailable });
+    const owner = map ? await UserModel.findById(req.params.userId) : null;
+    return res.json({
+      success: true,
+      data: map && owner ? await inUserLang(owner, map) : map,
+      updateAvailable,
+    });
   } catch (error) {
     console.error("❌ Error in getLatestLifeGpsMap:", error);
     return res
@@ -1067,6 +1075,14 @@ function stepReason({ label, score, previousScore, pinned, reflection }) {
   return `${why} You mentioned: "${note.length > 60 ? `${note.slice(0, 57)}...` : note}"`;
 }
 
+// Translate a response payload into the signed-in user's preferred language.
+const userLang = (user) =>
+  resolvePreferredLanguage({
+    preferredLanguage: user?.preferredLanguage,
+    region: user?.region,
+  });
+const inUserLang = (user, data) => localize(data, userLang(user));
+
 const loadProfile = (userId) => Profile.findOne({ userId }).lean();
 
 const latestSnapshots = (userId, n) =>
@@ -1556,10 +1572,14 @@ const fail = (res, error, label) => {
 
 // @route   GET /api/backend/life-gps/config
 // Everything the UI needs to render the areas, rings, bands and labels.
-const getConfig = async (_req, res) => {
+const getConfig = async (req, res) => {
   try {
     res.set("Cache-Control", "private, max-age=300");
-    return res.json({ success: true, data: lifeAreasConfig() });
+    res.set("Vary", "Authorization");
+    return res.json({
+      success: true,
+      data: await inUserLang(req.user, lifeAreasConfig()),
+    });
   } catch (error) {
     return fail(res, error, "load config");
   }
@@ -1575,7 +1595,10 @@ const getSnapshot = async (req, res) => {
     ]);
     return res.json({
       success: true,
-      data: serializeSnapshot(snap, prev, profile, new Date(), await loadCheckInCounts(req.user._id)),
+      data: await inUserLang(
+        req.user,
+        serializeSnapshot(snap, prev, profile, new Date(), await loadCheckInCounts(req.user._id)),
+      ),
     });
   } catch (error) {
     return fail(res, error, "load snapshot");
@@ -1612,8 +1635,10 @@ const postCheckIn = async (req, res) => {
     const insights = await generateInsights(req.user._id, snapshot, prev);
     return res.status(201).json({
       success: true,
-      data: serializeSnapshot(snapshot, prev, profile, new Date(), await loadCheckInCounts(req.user._id)),
-      insights: insights.map(insightOut),
+      ...(await inUserLang(req.user, {
+        data: serializeSnapshot(snapshot, prev, profile, new Date(), await loadCheckInCounts(req.user._id)),
+        insights: insights.map(insightOut),
+      })),
       skipped,
     });
   } catch (error) {
@@ -1655,7 +1680,10 @@ const postSync = async (req, res) => {
       success: true,
       applied: snapshot ? snapshot.updatedKeys : [],
       skipped,
-      data: serializeSnapshot(cur, before, profile, new Date(), await loadCheckInCounts(req.user._id)),
+      data: await inUserLang(
+        req.user,
+        serializeSnapshot(cur, before, profile, new Date(), await loadCheckInCounts(req.user._id)),
+      ),
     });
   } catch (error) {
     return fail(res, error, "sync check-ins");
@@ -1815,7 +1843,10 @@ const getNextSteps = async (req, res) => {
     const active = await ensureSteps(req.user, profile);
     return res.json({
       success: true,
-      data: displaySteps(active, profile?.pinnedDimension).map(stepOut),
+      data: await inUserLang(
+        req.user,
+        displaySteps(active, profile?.pinnedDimension).map(stepOut),
+      ),
     });
   } catch (error) {
     return fail(res, error, "load next steps");
@@ -1876,7 +1907,7 @@ const createNextStep = async (req, res) => {
       generatedBy: "user",
       reason: "Added by you.",
     });
-    return res.status(201).json({ success: true, data: stepOut(doc) });
+    return res.status(201).json({ success: true, data: await inUserLang(req.user, stepOut(doc)) });
   } catch (error) {
     return fail(res, error, "create next step");
   }
@@ -1911,7 +1942,7 @@ const updateNextStep = async (req, res) => {
         .json({ success: false, message: "Active step not found" });
     }
     // The client re-fetches /next-steps (after its 2s delay) for the refill.
-    return res.json({ success: true, data: stepOut(doc) });
+    return res.json({ success: true, data: await inUserLang(req.user, stepOut(doc)) });
   } catch (error) {
     return fail(res, error, "update next step");
   }
@@ -1941,9 +1972,45 @@ const getInsights = async (req, res) => {
       query.dimensionKey = req.query.dimensionKey;
     }
     const docs = await Insight.find(query).sort({ updatedAt: -1 }).limit(30).lean();
-    return res.json({ success: true, data: docs.map(insightOut) });
+    return res.json({ success: true, data: await inUserLang(req.user, docs.map(insightOut)) });
   } catch (error) {
     return fail(res, error, "load insights");
+  }
+};
+
+// @route   GET /api/backend/life-gps/promo/energy-match
+// Energy Match™ promo for the bottom of Life GPS. data is null for paid plans.
+const getEnergyMatchPromo = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!energyMatchPromo.buildPromo(user)) return res.json({ success: true, data: null });
+
+    const since = new Date(Date.now() - energyMatchPromo.RECENT_QUESTION_DAYS * energyMatchPromo.DAY);
+    const [[snap], recentChats] = await Promise.all([
+      latestSnapshots(user._id, 1),
+      ChatHistory.find({ userId: user._id, updatedAt: { $gte: since } })
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .select({ chats: { $slice: -10 } })
+        .lean(),
+    ]);
+    const relationshipScore =
+      snap?.dimensions?.find((d) => d.key === "relationships")?.score ?? null;
+    const recentMessages = recentChats.flatMap((c) =>
+      (c.chats || [])
+        .filter((m) => m.messageTime && new Date(m.messageTime) >= since)
+        .map((m) => m.userMessage),
+    );
+
+    return res.json({
+      success: true,
+      data: await inUserLang(
+        user,
+        energyMatchPromo.buildPromo(user, { relationshipScore, recentMessages }),
+      ),
+    });
+  } catch (error) {
+    return fail(res, error, "load promo");
   }
 };
 
@@ -1962,6 +2029,7 @@ module.exports = {
   createNextStep,
   updateNextStep,
   getInsights,
+  getEnergyMatchPromo,
   // pure helpers (unit-tested)
   _logic: {
     CATALOGUE,
