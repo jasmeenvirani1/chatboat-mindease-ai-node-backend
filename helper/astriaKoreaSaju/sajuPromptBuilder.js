@@ -73,6 +73,34 @@ const ANTI_HALLUCINATION_RULES = `ANTI-HALLUCINATION RULES (critical)
 - Every response must be freshly generated from THIS user's actual data. Do not reuse
   stock phrasing that would apply identically regardless of their specific pillars.`;
 
+const ASTRIA_VOICE = `ASTRIA VOICE (how to write the reading)
+- Think with Korean Saju logic, but speak in Astria's voice: natural everyday language
+  for this user, as if explaining them to themselves.
+- Translate the meaning, never the textbook. No literal translation, no jargon overload.
+- Do not turn this into a generic horoscope ("next year is good, money is good").
+  Every insight must come from a real Saju pattern in the data.
+- The user is buying self-understanding through Saju, not Korean vocabulary.
+Good example: "In Saju, this pattern often appears in people who learned to rely on
+themselves early. It builds a strong foundation, but much of the tiredness may come
+from feeling you must carry everything first."`;
+
+// Reading depth per plan. The JSON schema stays the same on every plan.
+const PLAN_DEPTH = {
+  free: `READING DEPTH: FREE
+- Simple and clear: name the energy of this period in plain words.
+- No technical Saju terms. The word "Saju" itself is fine.`,
+  pro: `READING DEPTH: PRO
+- Go past what the pattern is: explain what it means for this person's life and why
+  they may feel this way, connecting the pattern to how they behave under pressure.
+- No technical Saju terms. The word "Saju" itself is fine.`,
+  global: `READING DEPTH: GLOBAL
+- Give the deepest reading, connecting the pattern to why this person feels this way.
+- Let more of the Saju perspective show: Five Elements, Day Master, Luck Cycle and
+  Hidden Element Dynamics may be named, each with a plain explanation beside it.
+- Read these only from the data provided. No luck-cycle periods or hidden stems were
+  computed, so speak of them as the present season and never state specific ones.`,
+};
+
 const OUTPUT_SCHEMA = `Return ONLY valid JSON matching EXACTLY this structure — no text outside the JSON, no markdown fences, no comments:
 {
   "saju_response": {
@@ -112,7 +140,8 @@ const OUTPUT_SCHEMA = `Return ONLY valid JSON matching EXACTLY this structure �
 }
 Rules for the JSON:
 - "hour" pillar and the entire "dailyLuck" object MUST be null if that data was not provided below — do not fabricate them.
-- All string fields must be written entirely in the target language given by the LANGUAGE RULE.
+- All prose fields must be written entirely in the target language given by the LANGUAGE RULE.
+- Never translate the "dominant", "weak" and "balance" values or the pillar stems/branches — copy them exactly as specified.
 - Integers in "elements" and "yinYang" must exactly match the provided data, never estimated.`;
 
 /**
@@ -122,9 +151,10 @@ Rules for the JSON:
  * @param {string} [opts.dbPrompt]    - SubCategory.prompt override for tone/framework
  * @param {string} [opts.userContext] - optional free-text question/context from the user
  * @param {string} [opts.langRule]    - language instruction line
+ * @param {string} [opts.plan]        - free | pro | global, sets the reading depth
  * @returns {string} complete system prompt
  */
-function buildSajuPrompt({ saju, dailyLuck, dbPrompt, userContext, langRule }) {
+function buildSajuPrompt({ saju, dailyLuck, dbPrompt, userContext, langRule, plan }) {
   const framework = dbPrompt || DEFAULT_SAJU_FRAMEWORK;
 
   const pillars = saju?.pillars;
@@ -158,6 +188,8 @@ function buildSajuPrompt({ saju, dailyLuck, dbPrompt, userContext, langRule }) {
     framework,
     sajuDataBlock + dailyLuckBlock + userContextBlock,
     ANTI_HALLUCINATION_RULES,
+    ASTRIA_VOICE,
+    PLAN_DEPTH[plan] || PLAN_DEPTH.free,
     langRule || "LANGUAGE RULE: Always reply in English only.",
     OUTPUT_SCHEMA,
   ].filter(Boolean);

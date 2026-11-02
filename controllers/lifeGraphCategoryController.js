@@ -79,7 +79,7 @@ const createLifeGraphHistory = async (req, res) => {
         subCategoryName = subCategory.name;
         subCategoryPrompt = subCategory.prompt?.trim() || null;
         // console.log(
-        //   `✅ Loaded lifeGraph subcategory prompt for: ${subCategoryName}`,
+          // `✅ Loaded lifeGraph subcategory prompt for: ${subCategoryName}`,
         // );
       }
     }
@@ -183,10 +183,10 @@ ${systemPrompt}
 
     /** 🤖 GENERATE AI RESPONSE */
     // console.log("📊 LifeGraph Request Summary:", {
-    //   //   cardCount: selectedCards.length,
-    //   //   category: tarotCategoryName,
-    //   subCategory: subCategoryName || "none",
-    //   promptSource,
+      // //   cardCount: selectedCards.length,
+      // //   category: tarotCategoryName,
+      // subCategory: subCategoryName || "none",
+      // promptSource,
     // });
 
     const aiResponse = await generateGeminiResponse(messages);

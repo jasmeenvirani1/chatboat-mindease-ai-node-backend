@@ -10,16 +10,8 @@ const { generateGeminiResponse } = require("../helper/geminiService.js");
 const {
   buildEnergyMatchPrompt,
 } = require("../helper/energyMatch/energyMatchPromptBuilder.js");
+const { langInstruction, langName } = require("../helper/languageDetect.js");
 const EnergyMatchV2Model = require("../models/EnergyMatchV2Model.js");
-
-function langInstruction(lang) {
-  const map = {
-    th: "LANGUAGE RULE: You MUST respond in Thai only.",
-    en: "LANGUAGE RULE: You MUST respond in English only.",
-    in: "LANGUAGE RULE: You MUST respond in Indonesian only.",
-  };
-  return map[lang] || map.en;
-}
 
 function extractJson(raw) {
   if (!raw) return null;
@@ -71,7 +63,7 @@ async function generateEnergyMatch(input, userId = null, lang = "en") {
     { role: "system", content: systemPrompt },
     {
       role: "user",
-      content: `Analyze the energy match between the two people described above.`,
+      content: `Analyze the energy match between the two people described above. Write every text value in the JSON (validate, analysis, advice, future_mindset, ending_note) entirely in ${langName(lang)}; keep the JSON keys exactly as specified.`,
     },
   ];
 

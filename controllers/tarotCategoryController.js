@@ -77,7 +77,7 @@ const createTarotHistory = async (req, res) => {
         subCategoryName = subCategory.name;
         subCategoryPrompt = subCategory.prompt?.trim() || null;
         // console.log(
-        //   `✅ Loaded tarot subcategory prompt for: ${subCategoryName}`,
+          // `✅ Loaded tarot subcategory prompt for: ${subCategoryName}`,
         // );
       }
     }
@@ -206,11 +206,11 @@ provide a complete interpretation following the structure above.
 
     /** 🤖 GENERATE AI RESPONSE */
     // console.log("📊 Tarot Request Summary:", {
-    //   cardCount: selectedCards.length,
-    //   category: tarotCategoryName,
-    //   subCategory: subCategoryName || "none",
-    //   promptSource,
-    //   hasMemory: !!memory,
+      // cardCount: selectedCards.length,
+      // category: tarotCategoryName,
+      // subCategory: subCategoryName || "none",
+      // promptSource,
+      // hasMemory: !!memory,
     // });
 
     const aiResponse = await generateGeminiResponse(messages);

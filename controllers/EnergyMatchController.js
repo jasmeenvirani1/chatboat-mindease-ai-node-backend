@@ -6,6 +6,11 @@ const EnergyMatchModel = require("../models/EnergyMatchModel.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const UserModel = require("../models/UserModel.js");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
+const {
+  resolvePreferredLanguage,
+  langInstruction,
+  langName,
+} = require("../helper/languageDetect.js");
 
 function getKolkataMidnightDate() {
   const now = new Date();
@@ -31,17 +36,6 @@ function detectLang(text = "") {
   return "en";
 }
 
-function langInstruction(lang) {
-  const map = {
-    th: "You MUST respond in Thai language only.",
-    zh: "You MUST respond in Chinese (Simplified) only.",
-    ja: "You MUST respond in Japanese only.",
-    ko: "You MUST respond in Korean only.",
-    es: "You MUST respond in Spanish only.",
-    en: "You MUST respond in English only.",
-  };
-  return map[lang] || map.en;
-}
 //Uraniun concept
 function angularDiff(a, b) {
   let diff = Math.abs(a - b) % 360;
@@ -110,16 +104,19 @@ const createEnergyMatchHistory = async (req, res) => {
     }
 
     // ── load optional user record (guests are fine without it) ─────────────
-    let preferredLanguage = "en";
+    let userDoc = null;
     if (userId) {
-      const user = await UserModel.findById(userId)
-        .select("preferredLanguage")
+      userDoc = await UserModel.findById(userId)
+        .select("preferredLanguage region")
         .lean();
-      if (user?.preferredLanguage) preferredLanguage = user.preferredLanguage;
     }
 
-    const lang = preferredLanguage;
+    const lang = resolvePreferredLanguage({
+      preferredLanguage: userDoc?.preferredLanguage,
+      region: userDoc?.region,
+    });
     const langRule = langInstruction(lang);
+    const langName_ = langName(lang);
 
     // ── load chat session ──────────────────────────────────────────────────
     let chat = null;
@@ -211,12 +208,13 @@ const createEnergyMatchHistory = async (req, res) => {
         - Keep the tone warm, grounded, and human.
         - Give response in plain text (no JSON for follow-ups).
 
-        LANGUAGE RULE: ${langRule}
+        ${langRule}
+        FINAL REMINDER: Write the entire answer in ${langName_}, even though the data above is in English.
         `.trim();
 
       const messages = [
         { role: "system", content: systemPrompt },
-        { role: "user", content: question },
+        { role: "user", content: `${question}\n\n(Reply in ${langName_} only.)` },
       ];
       //console.log("SystemPrompt: ", systemPrompt);
 
@@ -278,13 +276,15 @@ Person 2: ${name_p} | DOB: ${dob_p} | Time: ${dob_time_p || "unknown"} | Place: 
 
 ${astroBlock}
 
-LANGUAGE RULE: ${langRule}
 ${clientInstructions}
 
 IMPORTANT RULE:
 - Give response ONLY in valid JSON format matching the exact schema below.
 - If Birth Time or Birth Place is missing, proceed with available information.
 - Do NOT include any text outside the JSON.
+- ${langRule}
+- Every human-readable string value (page titles, label, categories, summary titles/text, card titles/descriptions, chat text, quickReplies) MUST be written in ${langName_}, even if the CLIENT INSTRUCTIONS or examples below are in English. Translate the example category names and titles too.
+- Keep JSON keys, "pageId", "type", "id", "icon" and "sender" values exactly as in the schema (do NOT translate those).
 
 OUTPUT SCHEMA (return EXACTLY this structure):
 {
@@ -338,7 +338,7 @@ OUTPUT SCHEMA (return EXACTLY this structure):
       { role: "system", content: systemPrompt },
       {
         role: "user",
-        content: `Analyze energy compatibility for ${name} and ${name_p}.`,
+        content: `Analyze energy compatibility for ${name} and ${name_p}. Write all text values in ${langName_} only.`,
       },
     ];
 

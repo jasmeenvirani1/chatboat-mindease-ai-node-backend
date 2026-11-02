@@ -14,6 +14,7 @@ const {
   getEnergyMatchByUser,
 } = require("../services/energyMatchService.js");
 const UserModel = require("../models/UserModel.js");
+const { resolvePreferredLanguage } = require("../helper/languageDetect.js");
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
@@ -29,13 +30,16 @@ const scan = async (req, res) => {
 
     const userId = req.body?.userId || null;
 
-    let lang = "en";
+    let user = null;
     if (userId) {
-      const user = await UserModel.findById(userId)
+      user = await UserModel.findById(userId)
         .select("preferredLanguage region")
         .lean();
-      if (user?.region == "indonesia") lang = "in";
     }
+    const lang = resolvePreferredLanguage({
+      preferredLanguage: user?.preferredLanguage,
+      region: user?.region,
+    });
 
     const result = await generateEnergyMatch(sanitized, userId, lang);
     return res.status(200).json({ success: true, ...result });

@@ -1,0 +1,42 @@
+{
+  "energyMatchPromoCard": {
+    "placement": "life_gps_bottom",
+    "audience": "free_users",
+    "dynamicCopy": true,
+    "default": {
+      "eyebrow": "ENERGY MATCH™",
+      "headline": "Some connections change everything.",
+      "body": "Understand what's happening between you.",
+      "subtext": "The people who affect you most rarely affect you by accident.",
+      "cta": "Unlock Energy Match™"
+    },
+    "contextRules": {
+      "relationshipScoreLow": {
+        "headline": "Some connections need a closer look.",
+        "body": "Explore the patterns shaping your relationships.",
+        "subtext": "What feels difficult may be more understandable than it seems."
+      },
+      "relationshipScoreHigh": {
+        "headline": "Understand what makes this connection work.",
+        "body": "Look beneath the surface of the connection.",
+        "subtext": "Strong relationships have patterns too."
+      },
+      "recentRelationshipQuestion": {
+        "headline": "There may be more happening beneath this connection.",
+        "body": "See the pattern between you.",
+        "subtext": "The question you're asking may not be the only question here."
+      }
+    },
+    "benefitsPreview": [
+      "Communication Style",
+      "Hidden Dynamics",
+      "Energy Balance",
+      "Relationship Patterns"
+    ],
+    "pricing": {
+      "showForFreeUsers": true,
+      "displayMode": "subtle",
+      "placement": "bottom_right"
+    }
+  }
+}

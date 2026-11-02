@@ -522,7 +522,7 @@ const userController = {
 
   sendOtp: async (req, res) => {
     const { email } = req.body;
-    console.log("email", email);
+    // console.log("email", email);
 
     try {
       if (!email) {
@@ -629,7 +629,7 @@ const userController = {
   resetPasswordWithOtp: async (req, res) => {
     const { resetToken, newPassword } = req.body;
     logger.log(`Password reset attempt`);
-    console.log("Password:", newPassword);
+    // console.log("Password:", newPassword);
 
     try {
       if (!resetToken || !newPassword) {

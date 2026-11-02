@@ -153,7 +153,7 @@ Make the blended response feel current, emotionally intelligent, and grounded in
   const resp = await generateGeminiResponse(combinedPrompt);
   const content = resp?.trim() || "No response";
   const parsed = safeJsonParse(content);
-  console.log("Daily Content:", parsed);
+  // console.log("Daily Content:", parsed);
 
   // Validate all required fields for the new present-moment JSON format
   if (
@@ -221,10 +221,10 @@ function startTrendingTopicsCron() {
         // ✅ prevent duplicates
         const exists = await TrendingTopic.findOne({ date: dateKey }).lean();
         if (exists) {
-          console.log(
-            "ℹ️ Trending topic record already exists for:",
-            dateKey.toISOString(),
-          );
+          // console.log(
+            // "ℹ️ Trending topic record already exists for:",
+            // dateKey.toISOString(),
+          // );
           return;
         }
 
@@ -238,14 +238,14 @@ function startTrendingTopicsCron() {
         let aiData;
 
         if (true) {
-          console.log("📊 Generating present-moment trending context content");
+          // console.log("📊 Generating present-moment trending context content");
           aiData = await generateDailyFromAI({
             language: "English",
           });
         } else {
-          console.log(
-            "📊 No user birth details found, generating general content",
-          );
+          // console.log(
+            // "📊 No user birth details found, generating general content",
+          // );
           aiData = await generateDailyFromAI({ language: "English" });
         }
 
@@ -259,12 +259,12 @@ function startTrendingTopicsCron() {
         });
 
         console.log("✅ Trending topic payload saved:", dateKey.toISOString());
-        console.log("📝 Blended response:", aiData.blended_response);
-        console.log("📰 Headline:", aiData.context.news_highlight);
-        console.log("🌦️ Weather:", aiData.context.weather);
-        console.log("💬 Social mood:", aiData.context.social_mood);
-        console.log("🔥 Topics:", aiData.context.trend_topics.join(", "));
-        console.log("🧭 Signals used:", aiData.signals_used.join(", "));
+        // console.log("📝 Blended response:", aiData.blended_response);
+        // console.log("📰 Headline:", aiData.context.news_highlight);
+        // console.log("🌦️ Weather:", aiData.context.weather);
+        // console.log("💬 Social mood:", aiData.context.social_mood);
+        // console.log("🔥 Topics:", aiData.context.trend_topics.join(", "));
+        // console.log("🧭 Signals used:", aiData.signals_used.join(", "));
       } catch (err) {
         console.error("❌ DailyMessage cron error:", err);
       }

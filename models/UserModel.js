@@ -19,6 +19,16 @@ const UserSubscriptionSchema = new Schema(
   { _id: false },
 );
 
+// One "From Astria To You" reflection the user has seen (see helper/letItRide.js).
+const FromAstriaReflectionSchema = new Schema(
+  {
+    text: { type: String, required: true },
+    type: { type: String, required: true }, // meaning, identity, worthiness...
+    shownAt: { type: Date, required: true },
+  },
+  { _id: false },
+);
+
 const userSchema = new Schema(
   {
     roleId: {
@@ -83,6 +93,14 @@ const userSchema = new Schema(
     // `region` to match, but this list is what stops Journey from re-billing
     // a region the user already owns.
     unlockedRegions: { type: [String], default: [] },
+    // Energy Match™ add-on, bought on its own from the Life GPS promo card.
+    // Written only by the server (activateEnergyMatch); the client can never set it.
+    energyMatchAccess: {
+      active: { type: Boolean, default: false },
+      startedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null },
+      stripeSessionId: { type: String, default: "" },
+    },
     // Monthly Global Pass (see helper/globalPass.js). Written only by the
     // server; the client can never set it.
     globalPass: {
@@ -93,6 +111,29 @@ const userSchema = new Schema(
       expiresAt: { type: Date, default: null },
       dismissed: { type: Boolean, default: false },
       endedSeen: { type: Boolean, default: false },
+    },
+    // Daily Let It Ride passes for Astria Talk (see helper/letItRide.js).
+    // Written only by the server; the client can never set it.
+    letItRide: {
+      day: { type: String, default: "" }, // "YYYY-MM-DD" (user's local day) that `used` counts for
+      used: { type: Number, default: 0 }, // deep replies spent that day (2 guaranteed + 1 bonus)
+      lastAt: { type: Date, default: null }, // latest Let It Ride (6h cooldown)
+      lastPattern: { type: String, default: null }, // its pattern (same-pattern penalty)
+    },
+    // Coaching cooldown across chats: Pro Talk replies so far, and the last
+    // light/hybrid coaching (helper/letItRide.js). Server-written only.
+    talkCoaching: {
+      turns: { type: Number, default: 0 },
+      lastTier: { type: String, default: null },
+      lastTurn: { type: Number, default: 0 },
+    },
+    // Daily "From Astria To You" reflection (see helper/letItRide.js).
+    // Written only by the server; the client can never set it.
+    fromAstria: {
+      lastShownDay: { type: String, default: "" }, // "YYYY-MM-DD" in the user's local time
+      lastShownAt: { type: Date, default: null },
+      timeZone: { type: String, default: "" }, // last device time zone (IANA name)
+      recentReflections: { type: [FromAstriaReflectionSchema], default: [] }, // newest last, for the cooldowns
     },
     allRegionsApproved: { type: Boolean, default: false },
     allRegionsPending: { type: Boolean, default: false },

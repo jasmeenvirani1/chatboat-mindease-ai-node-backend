@@ -115,7 +115,7 @@ async function expireUserSubscriptionsIfNeeded() {
             _id: user._id,
             subscriptionStatus: { $in: activeStatuses },
           },
-          update: { $set: { subscriptionStatus: "expired" } },
+          update: { $set: { subscriptionStatus: "expired", plan: "free" } },
         },
       });
     }
@@ -125,7 +125,7 @@ async function expireUserSubscriptionsIfNeeded() {
 
   const result = await User.bulkWrite(ops, { ordered: false });
   console.log(
-    `✅ Subscription expiry updated: ${result.modifiedCount || 0} user(s) marked as expired`,
+    `[HeadlineCron] Expired ${result.modifiedCount} user subscriptions.`
   );
 }
 
@@ -392,7 +392,7 @@ Base ALL astrological calculations on real principles, not random generation.
   const resp = await generateGeminiResponse(combinedPrompt);
   const content = resp?.trim() || "No response";
   const parsed = safeJsonParse(content);
-  console.log("Daily Content:", parsed);
+  // console.log("Daily Content:", parsed);
 
   // Validate all required fields
   if (
@@ -483,10 +483,10 @@ function startDailyMessageCron() {
         // ✅ prevent duplicates
         const exists = await DailyMessage.findOne({ date: dateKey }).lean();
         if (exists) {
-          console.log(
-            "ℹ️ DailyMessage already exists for:",
-            dateKey.toISOString(),
-          );
+          // console.log(
+            // "ℹ️ DailyMessage already exists for:",
+            // dateKey.toISOString(),
+          // );
           return;
         }
 
@@ -500,9 +500,9 @@ function startDailyMessageCron() {
         let aiData;
 
         if (true) {
-          console.log(
-            `📊 Generating astrology-based content for zodiac: ${getZodiacSign(dateKey)}`,
-          );
+          // console.log(
+            // `📊 Generating astrology-based content for zodiac: ${getZodiacSign(dateKey)}`,
+          // );
           aiData = await generateDailyFromAI({
             language: "English",
             userBirthDetails: {
@@ -512,9 +512,9 @@ function startDailyMessageCron() {
             },
           });
         } else {
-          console.log(
-            "📊 No user birth details found, generating general content",
-          );
+          // console.log(
+            // "📊 No user birth details found, generating general content",
+          // );
           aiData = await generateDailyFromAI({ language: "English" });
         }
 
@@ -537,14 +537,14 @@ function startDailyMessageCron() {
           "✅ DailyMessage saved with all fields:",
           dateKey.toISOString(),
         );
-        console.log("📝 Message:", aiData.dailyMessage);
-        console.log("❓ Question:", aiData.dailyQuestion);
-        console.log("🎨 Lucky Color:", aiData.lucky_color);
-        console.log("🎨 Color code:", aiData.color_code);
-        console.log("⚡ Energy Level:", aiData.energy_level);
-        console.log("⏰ Golden Hour:", aiData.golden_hour);
+        // console.log("📝 Message:", aiData.dailyMessage);
+        // console.log("❓ Question:", aiData.dailyQuestion);
+        // console.log("🎨 Lucky Color:", aiData.lucky_color);
+        // console.log("🎨 Color code:", aiData.color_code);
+        // console.log("⚡ Energy Level:", aiData.energy_level);
+        // console.log("⏰ Golden Hour:", aiData.golden_hour);
         if (aiData.zodiacSign) {
-          console.log("⭐ Based on Zodiac:", aiData.zodiacSign);
+          // console.log("⭐ Based on Zodiac:", aiData.zodiacSign);
         }
       } catch (err) {
         console.error("❌ DailyMessage cron error:", err);

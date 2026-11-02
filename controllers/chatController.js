@@ -341,13 +341,22 @@ const {
 } = require("../helper/healjaiTalk");
 const {
   buildPrompt: buildAstriaTalkPrompt,
+  scoreLetItRide: scoreTalkLetItRide,
   loadTalkContext,
   loadUserProfile,
   findViolations: findTalkViolations,
   detectCrisis: detectTalkCrisis,
   resolveLocale: resolveTalkLocale,
   buildMemoryBlock,
+  finishFromAstriaReply,
 } = require("../helper/astriaTalk");
+const {
+  pacingState,
+  consumeLetItRide,
+  recordTalkTurn,
+  getFromAstriaDailyState,
+} = require("../helper/letItRide");
+const { createFromAstriaStreamFilter } = require("../helper/astriaSoul");
 const {
   collapseBlankLines,
   guardSseBlankLines,
@@ -1161,6 +1170,7 @@ const chatController = {
         brazilV2Wizard,
         mexicoV2Wizard,
         saveChat,
+        timeZone,
       } = req.body;
 
       if (!userMessage) {
@@ -1180,12 +1190,16 @@ const chatController = {
       let userGccToneMode;
       let userSpanishToneLock;
       let userMusicMemory = null;
+      let userPacing = null; // Astria Talk pacing state (Let It Ride + coaching cooldown)
+      let fromAstriaDailyState = null; // "From Astria To You" state for today
 
       if (userId) {
         const user = await User.findById(userId).select(
-          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId preferredLanguage region gccToneMode spanishToneLock",
+          "dob dob_time dob_place username subscriptionId subscriptionStatus roleId preferredLanguage region gccToneMode spanishToneLock letItRide talkCoaching fromAstria",
         );
         if (user) {
+          userPacing = pacingState(user, user.region);
+          fromAstriaDailyState = getFromAstriaDailyState(user, user.region, timeZone);
           dob0 = user.dob;
           dob_time0 = user.dob_time;
           dob_place0 = user.dob_place;
@@ -1648,6 +1662,12 @@ const chatController = {
       // Astria Talk Flag
       const isAstriaTalk =
         categoryName === "Astria Talk" || categoryName === "Companion Talk";
+      // Hard output cap for Astria Talk, Free and Pro (set by buildAstriaTalkPrompt).
+      let astriaTalkMaxOutputTokens = null;
+      // "From Astria To You": the plan is set only when this reply may carry a
+      // reflection (see helper/astriaSoul.js, section 6).
+      let fromAstriaPlan = null;
+      let fromAstriaToYou = null;
 
       // SPECIALIZED FEATURES (HealJai categories only)
 
@@ -2253,6 +2273,29 @@ const chatController = {
         if (detectTalkCrisis(userMessage, translatedMessage)) {
           logger.log(`[Talk] crisis signal detected (Astria Talk) chat=${chatId || "new"}`);
         }
+        // Let It Ride: a Pro life-defining question may spend one of the
+        // user's daily deep passes. A failed quota write only means a normal reply.
+        let letItRide = null;
+        const pacing = hasActiveSubscription && userId ? userPacing : null;
+        if (pacing) {
+          letItRide = scoreTalkLetItRide({
+            userMessage,
+            translatedMessage: translatedMessage !== userMessage ? translatedMessage : null,
+            priorTurns: talkCtx?.priorTurns ?? 0,
+            state: pacing,
+          });
+          if (letItRide.eligible) {
+            const pass = await consumeLetItRide(userId, userRegion, {
+              tier: letItRide.tier,
+              pattern: letItRide.pattern,
+            }).catch((err) => {
+              logger.error("[LetItRide] quota update failed", err?.message || err);
+              return { activated: false, failed: true };
+            });
+            letItRide = { ...letItRide, ...pass };
+          }
+          logger.log(`[LetItRide] ${JSON.stringify({ chat: chatId || "new", ...letItRide })}`);
+        }
         const astria = buildAstriaTalkPrompt({
           country: categoryName,
           category: categoryName,
@@ -2268,8 +2311,24 @@ const chatController = {
           gpsMovement: talkCtx?.gpsMovement ?? null,
           gapHours: talkCtx?.gapHours ?? null,
           priorTurns: talkCtx?.priorTurns ?? 0,
+          letItRide: Boolean(letItRide?.activated),
+          pacing: pacing || {},
+          fromAstriaDailyState,
+          recentUserMessages: talkCtx?.recentUserMessages ?? [],
+          usesSpecialReplyFlow: Boolean(
+            musicRecommendation?.shouldRecommend ||
+              foodRecommendation?.shouldRecommend,
+          ),
         });
+        // Count the reply for the coaching cooldown (not awaited: never delays the reply).
+        if (pacing) {
+          recordTalkTurn(userId, { coachingTier: astria.debug.coachingTier }).catch((err) =>
+            logger.error("[AstriaTalk] pacing write failed", err?.message || err),
+          );
+        }
         systemPrompt = astria.prompt;
+        astriaTalkMaxOutputTokens = astria.maxOutputTokens;
+        fromAstriaPlan = astria.fromAstriaPlan;
         logger.log(`[AstriaTalk] ${JSON.stringify(astria.debug)}`);
         systemPrompt = appendAstriaDobAndMessageContext(
           systemPrompt,
@@ -6510,6 +6569,11 @@ RULES:
         }
       }
 
+      // Every Astria Talk LLM call uses the same output cap.
+      const talkReplyLimit = astriaTalkMaxOutputTokens
+        ? { maxOutputTokens: astriaTalkMaxOutputTokens }
+        : {};
+
       // FINAL REPLY
       const messages = [
         {
@@ -6528,7 +6592,23 @@ RULES:
           messages[0].content = `${messages[0].content}\n\n${memoryBlock}`;
         }
       }
-      console.log("System prompt: ", systemPrompt);
+      // Free tier: a short insight, not a deep reflection. Talk already gets
+      // this from its reply plan (astriaTalkMaxOutputTokens), and Korea V2
+      // must keep its strict JSON block, so both are left alone.
+      if (
+        !hasActiveSubscription &&
+        !astriaTalkMaxOutputTokens &&
+        !isAstriaKoreaV2
+      ) {
+        messages[0].content = `${messages[0].content}
+
+FREE TIER REPLY LENGTH (overrides any length or depth instruction above):
+- Give a SHORT insight only: at most 3 short paragraphs of 1-2 sentences each, about 80 words in total.
+- Name the main pattern or answer, then stop. No deep reflection, no step-by-step plans, no long lists, no multi-part analysis.
+- Do not mention plans, upgrades or what the user is missing.
+- Keep the same language, tone and any required output format.`;
+      }
+      // console.log("System prompt: ", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -6742,7 +6822,7 @@ RULES:
             finalAiResponse = phVnIdV2FinalResponse;
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (musicRecommendation?.shouldRecommend) {
-            const completion = await llmResponse(messages);
+            const completion = await llmResponse(messages, talkReplyLimit);
             finalAiResponse = completion?.trim() || "No response";
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
@@ -6811,7 +6891,7 @@ RULES:
               }
             }
           } else if (foodRecommendation?.shouldRecommend) {
-            const completion = await llmResponse(messages);
+            const completion = await llmResponse(messages, talkReplyLimit);
             let text = completion?.trim() || "No response";
 
             text = await processOutput(
@@ -6828,8 +6908,22 @@ RULES:
 
             await streamWordsSSE(res, finalAiResponse, () => clientClosed);
           } else if (v4Classification.domain && v4Classification.label) {
-            const completion = await llmResponse(messages);
+            const completion = await llmResponse(messages, talkReplyLimit);
             let text = completion?.trim() || "No response";
+
+            // Talk replies also land here. processOutput reshapes the text,
+            // so the reflection's hidden line must come off first.
+            if (fromAstriaPlan) {
+              const finished = await finishFromAstriaReply({
+                rawReply: text,
+                plan: fromAstriaPlan,
+                userId,
+                logger,
+              });
+              text = finished.replyText || "No response";
+              fromAstriaToYou = finished.fromAstriaToYou;
+              fromAstriaPlan = null;
+            }
 
             text = await processOutput(
               text,
@@ -7624,7 +7718,7 @@ RULES:
           } else {
             let stream;
             // console.log(
-            //   `[Gemini cache debug] categoryName=${JSON.stringify(categoryName)} isAstriaSpanish=${isAstriaSpanish} isAstriaSpanishV2=${isAstriaSpanishV2}`,
+              // `[Gemini cache debug] categoryName=${JSON.stringify(categoryName)} isAstriaSpanish=${isAstriaSpanish} isAstriaSpanishV2=${isAstriaSpanishV2}`,
             // );
             if (
               subCategoryName === "ThaiAstro V3" ||
@@ -7635,7 +7729,10 @@ RULES:
               categoryName === "Companion Talk"
             ) {
               // stream = await generateClaudeResponseStream(messages);
-              stream = await llmResponseStream(messages, geminiCallOptions);
+              stream = await llmResponseStream(
+                messages,
+                { ...geminiCallOptions, ...talkReplyLimit },
+              );
             } else {
               stream = await llmResponseStream(messages, geminiCallOptions);
             }
@@ -7717,6 +7814,15 @@ RULES:
                   subCategoryName.toLowerCase().includes("compatibility") &&
                   indonesia3BoxSelf &&
                   indonesia3BoxPartner);
+              // The reflection's hidden line must never reach the screen.
+              const fromAstriaFilter = fromAstriaPlan
+                ? createFromAstriaStreamFilter()
+                : null;
+              const writeVisibleText = (text) => {
+                if (!text) return;
+                res.write(`data: ${JSON.stringify({ text })}\n\n`);
+                if (res.flush) res.flush();
+              };
 
               for await (const chunk of stream) {
                 if (clientClosed) break;
@@ -7725,9 +7831,13 @@ RULES:
 
                 finalAiResponse += text;
                 if (!suppressStream) {
-                  res.write(`data: ${JSON.stringify({ text })}\n\n`);
-                  if (res.flush) res.flush();
+                  writeVisibleText(
+                    fromAstriaFilter ? fromAstriaFilter.push(text) : text,
+                  );
                 }
+              }
+              if (fromAstriaFilter && !clientClosed) {
+                writeVisibleText(fromAstriaFilter.finish());
               }
             }
           }
@@ -7859,6 +7969,16 @@ RULES:
 
           if (clientClosed) return;
 
+          if (fromAstriaPlan) {
+            ({ replyText: finalAiResponse, fromAstriaToYou } =
+              await finishFromAstriaReply({
+                rawReply: finalAiResponse,
+                plan: fromAstriaPlan,
+                userId,
+                logger,
+              }));
+          }
+
           // Astria Talk v10 output guardrails (log only — reply already sent/streamed)
           if (isTalkCategory) {
             const talkViolations = findTalkViolations(
@@ -7901,6 +8021,7 @@ RULES:
             astriaMexicoData: isAstriaMexico ? astriaMexicoData : null,
             astriaCanadaV2Data: isAstriaCanadaV2 ? astriaCanadaV2Data : null,
             phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
+            fromAstriaToYou,
           };
 
           // Save chat to history - use try/finally to ensure it saves even on error
@@ -8103,6 +8224,7 @@ RULES:
                   ? indonesiaCompatibilityDataStream
                   : null,
                 phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
+                fromAstriaToYou,
               })}\n\n`,
             );
             res.end();
@@ -8161,9 +8283,23 @@ RULES:
           ])
         : isPhIdV2CopyPackLane
           ? phVnIdV2FinalResponse
-          : await llmResponse(messages, nonStreamGeminiCallOptions);
+          : await llmResponse(messages, {
+              ...nonStreamGeminiCallOptions,
+              ...talkReplyLimit,
+            });
       finalAiResponse =
         completion?.trim() || phVnIdV2FinalResponse || "No response";
+
+      if (fromAstriaPlan) {
+        const finished = await finishFromAstriaReply({
+          rawReply: finalAiResponse,
+          plan: fromAstriaPlan,
+          userId,
+          logger,
+        });
+        finalAiResponse = finished.replyText || "No response";
+        fromAstriaToYou = finished.fromAstriaToYou;
+      }
 
       if (
         !musicRecommendation?.shouldRecommend &&
@@ -8940,6 +9076,7 @@ RULES:
         astriaMexicoData: isAstriaMexico ? astriaMexicoData : null,
         astriaCanadaV2Data: isAstriaCanadaV2 ? astriaCanadaV2Data : null,
         phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
+        fromAstriaToYou,
       };
 
       const bhavnaDrishtiData = isBhavnaDrishti ? bhavnaDrishtiJsonData : null;
@@ -9073,6 +9210,7 @@ RULES:
           ? indonesiaCompatibilityData
           : null,
         phVnIdV2Data: isPhIdV2CopyPackLane ? phVnIdV2Data : null,
+        fromAstriaToYou,
       });
     } catch (error) {
       logger.error("Chat Error:", error);

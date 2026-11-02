@@ -52,6 +52,11 @@ const ChatMessageSchema = new Schema(
       type: Schema.Types.Mixed,
       default: null,
     },
+    // "From Astria To You" reflection shown under this reply: { text, type }
+    fromAstriaToYou: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
   },
   { _id: false },
 );

@@ -15,6 +15,12 @@ const SubscriptionHistorySchema = new Schema(
       ref: "SubscriptionPlans",
       required: true,
     },
+    // What was bought: a plan subscription, or the Energy Match add-on.
+    product: {
+      type: String,
+      enum: ["subscription", "energy_match"],
+      default: "subscription",
+    },
     // Stripe Checkout Session id. Unique so a replayed session_id can never
     // create a second subscription record — the DB rejects it outright.
     stripeSessionId: { type: String, required: true, unique: true },

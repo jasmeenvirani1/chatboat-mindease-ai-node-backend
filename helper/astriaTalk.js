@@ -26,6 +26,7 @@ const mongoose = require("mongoose");
 const ChatHistory = require("../models/ChatModel.js");
 const LifeGpsModel = require("../models/LifeGpsModel.js");
 const soul = require("./astriaSoul.js");
+const { claimFromAstriaForToday } = require("./letItRide.js");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. LANGUAGE & LOCALE
@@ -1093,6 +1094,7 @@ async function loadTalkContext({ userId, chatId, categoryId, isPro, logger }) {
           $project: {
             userProfileMetadata: 1,
             turns: { $size: { $ifNull: ["$chats", []] } },
+            recentUserMessages: { $slice: [{ $ifNull: ["$chats.userMessage", []] }, -soul.ENGINE.fromAstria.messagesToRead] },
             lastAt: { $arrayElemAt: [{ $ifNull: ["$chats.messageTime", []] }, -1] },
           },
         },
@@ -1132,6 +1134,7 @@ async function loadTalkContext({ userId, chatId, categoryId, isPro, logger }) {
         )
       : null,
     priorTurns: chat?.turns || 0,
+    recentUserMessages: chat?.recentUserMessages || [],
     gapHours: chat?.lastAt ? (Date.now() - new Date(chat.lastAt).getTime()) / 36e5 : null,
     gpsMovement: deriveGpsMovement(snaps),
   };
@@ -1216,6 +1219,83 @@ function findViolations(reply = "", locale = "en") {
 // helper/astriaSoul.js (Astria Talk only; HealJai Talk is unaffected).
 
 /**
+ * Let It Ride score for a Pro message (see soul.scoreLetItRide). Daily
+ * questions and crisis messages never qualify. Pure: the controller spends
+ * the daily pass (helper/letItRide.js) and passes `letItRide` to buildPrompt.
+ *
+ * @returns {{score:number, reasons:string[], eligible:boolean}}
+ */
+function scoreLetItRide({ userMessage, translatedMessage, priorTurns = 0, state = {}, now }) {
+  const feeling = analyzeFeeling(userMessage, translatedMessage);
+  const result = soul.scoreLetItRide({
+    signals: soul.readSignals(userMessage, translatedMessage, feeling),
+    feeling,
+    priorTurns,
+    state,
+    now,
+  });
+  const blocked = detectCrisis(userMessage, translatedMessage)
+    || soul.classifyQuestion(userMessage, translatedMessage, feeling) === "daily";
+  return blocked ? { ...result, eligible: false } : result;
+}
+
+/**
+ * "From Astria To You" gate for this reply. Reads the recent messages too: a
+ * deep conversation often ends on "thanks, that makes sense", and a crisis
+ * two messages ago still rules out a reflection now.
+ */
+function checkFromAstria({ userMessage, translatedMessage, recentUserMessages, dailyState, ...context }) {
+  const conversation = [...recentUserMessages, userMessage].join("\n");
+  const feeling = analyzeFeeling(conversation, translatedMessage);
+  return soul.checkFromAstriaEligibility({
+    ...context,
+    dailyState,
+    crisis: detectCrisis(conversation, translatedMessage),
+    questionType: soul.classifyQuestion(conversation, translatedMessage, feeling),
+    currentMessageIsDailyTopic: soul.hasDailyTopic(userMessage, translatedMessage),
+    signals: soul.readSignals(conversation, translatedMessage, feeling),
+  });
+}
+
+/**
+ * Finish a reply that may carry a reflection: remove the hidden line from the
+ * reply, validate the reflection and take today's slot. Never throws: at
+ * worst the user gets their reply with no reflection.
+ *
+ * @param {object} o
+ * @param {string} o.rawReply        full model output
+ * @param {object|null} o.plan       fromAstriaPlan from buildPrompt()
+ * @param {string} o.userId
+ * @param {object} [o.logger]
+ * @returns {Promise<{replyText:string, fromAstriaToYou:{text:string, type:string}|null}>}
+ */
+async function finishFromAstriaReply({ rawReply, plan, userId, logger }) {
+  if (!plan) return { replyText: rawReply, fromAstriaToYou: null };
+
+  const { replyText, reflection } = soul.splitFromAstriaReply(rawReply);
+  const check = soul.validateFromAstriaReflection(reflection, { plan, lang: plan.lang, replyText });
+  if (!check.valid) {
+    logger?.log?.(`[FromAstria] not shown: ${check.reason} ${JSON.stringify(reflection)}`);
+    return { replyText, fromAstriaToYou: null };
+  }
+
+  const text = reflection.text.trim();
+  const { type } = reflection;
+  try {
+    const claimed = await claimFromAstriaForToday(userId, { today: plan.today, timeZone: plan.timeZone, text, type });
+    if (!claimed) {
+      logger?.log?.("[FromAstria] not shown: already_shown_today");
+      return { replyText, fromAstriaToYou: null };
+    }
+  } catch (err) {
+    logger?.error?.("[FromAstria] daily claim failed", err?.message || err);
+    return { replyText, fromAstriaToYou: null };
+  }
+  logger?.log?.(`[FromAstria] shown ${JSON.stringify({ type, text, score: reflection.score })}`);
+  return { replyText, fromAstriaToYou: { text, type } };
+}
+
+/**
  * Build the Astria Talk / Companion Talk system prompt.
  *
  * @param {object} o
@@ -1232,12 +1312,16 @@ function findViolations(reply = "", locale = "en") {
  * @param {string|null} [o.gpsMovement]
  * @param {number|null} [o.gapHours]
  * @param {number} [o.priorTurns]
- * @returns {{prompt:string, debug:object}}
+ * @param {boolean} [o.letItRide]     a Let It Ride pass was spent on this reply (Pro)
+ * @param {object}  [o.pacing]        cross-session pacing state (pacingState in helper/letItRide.js)
+ * @returns {{prompt:string, maxOutputTokens:number, debug:object}}
+ *   maxOutputTokens: hard output cap for the LLM call
  */
 function buildPrompt({
   country, category, subCategory, basePrompt, target, region,
   userMessage, translatedMessage, userProfile, isPro = false,
-  gpsMovement = null, gapHours = null, priorTurns = 0,
+  gpsMovement = null, gapHours = null, priorTurns = 0, letItRide = false, pacing = {},
+  fromAstriaDailyState = null, recentUserMessages = [], usesSpecialReplyFlow = false, random,
 }) {
   const feeling = analyzeFeeling(userMessage, translatedMessage);
   const questionType = soul.classifyQuestion(userMessage, translatedMessage, feeling);
@@ -1248,6 +1332,25 @@ function buildPrompt({
   const { tone, culture, label } = countryTone;
   const persona = getPersona(category, subCategory);
   const memory = isPro ? buildMemoryBlock(userProfile) : "";
+  const crisis = detectCrisis(userMessage, translatedMessage);
+  const plan = soul.planReply({
+    isPro,
+    questionType,
+    lang: replyLang,
+    priorTurns,
+    letItRide,
+    crisis,
+    listen: explicitListen,
+    signals: soul.readSignals(userMessage, translatedMessage, feeling),
+    feeling,
+    state: pacing,
+  });
+  // Life GPS context is Pro only (Free: understanding + one pattern).
+  const gps = isPro ? gpsMovement : null;
+  const fromAstriaCheck = checkFromAstria({
+    userMessage, translatedMessage, recentUserMessages, isPro, priorTurns, letItRide,
+    gpsMovement: gps, dailyState: fromAstriaDailyState, usesSpecialReplyFlow, random,
+  });
 
   const sections = [
     soul.SOUL_IDENTITY,
@@ -1261,27 +1364,35 @@ Culture shapes the wording only: see the same hidden pattern and give the same d
     // Topic goes BEFORE the rules so the rules win.
     buildScopeBlock(basePrompt),
     soul.URANIAN_BLOCK,
-    soul.buildSoulContextBlock({ gpsMovement, gapHours, priorTurns, message: userMessage }),
-    soul.buildSoulFeelingBlock(feeling, questionType),
+    soul.buildSoulContextBlock({
+      gpsMovement: gps, gapHours, priorTurns, message: userMessage, gpsBrief: plan.level === "pro_1",
+    }),
+    soul.buildSoulFeelingBlock(feeling, plan.length),
+    plan.depthBlock,
+    // After the depth block so "just listen" wins over its next step.
     soul.buildQuestionBlock(questionType, explicitListen),
-    soul.buildLevelBlock(isPro),
     soul.SOUL_REPLY_RULES,
     soul.buildThaiStyleBlock(replyLang),
     buildGuardrailBlock(replyLang === "th" ? "th" : "other"),
-    detectCrisis(userMessage, translatedMessage) ? SAFETY_BLOCK : "",
+    crisis ? SAFETY_BLOCK : "",
     buildLanguageRule(replyLang),
+    fromAstriaCheck.eligible ? soul.buildFromAstriaPromptBlock({ ...fromAstriaCheck, gpsMovement: gps }) : "",
     `CURRENT USER MESSAGE:\n"${String(userMessage || "").trim()}"`,
   ].filter(Boolean);
 
   return {
     prompt: sections.join("\n\n").trim(),
-    debug: { engine: "astriaTalk", feeling, questionType, hasMemory: Boolean(memory), priorTurns, gpsMovement, country: label, replyLang },
+    maxOutputTokens: plan.maxOutputTokens + (fromAstriaCheck.eligible ? soul.ENGINE.fromAstria.extraOutputTokens : 0),
+    fromAstriaPlan: fromAstriaCheck.eligible ? { ...fromAstriaCheck, lang: replyLang } : null,
+    debug: { engine: "astriaTalk", feeling, questionType, level: plan.level, layer: plan.layer, coachingTier: plan.coaching.tier, positiveLevel: plan.positive?.level ?? null, maxOutputTokens: plan.maxOutputTokens, hasMemory: Boolean(memory), priorTurns, gpsMovement: gps, country: label, replyLang, fromAstria: { reason: fromAstriaCheck.reason, trigger: fromAstriaCheck.trigger, meaningScore: fromAstriaCheck.meaningScore, depthScore: fromAstriaCheck.depthScore } },
   };
 }
 
 module.exports = {
   // Astria Talk
   buildPrompt,
+  finishFromAstriaReply,
+  scoreLetItRide,
   loadTalkContext,
   loadUserProfile,
   findViolations,

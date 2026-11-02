@@ -16,14 +16,25 @@ const {
 } = require("../helper/astriaKoreaSajuService.js");
 const SajuReadingModel = require("../models/SajuReadingModel.js");
 const SubCategoryModel = require("../models/SubCategoryModel.js");
+const { langInstruction, langName } = require("../helper/languageDetect.js");
 
-function langInstruction(lang) {
-  const map = {
-    th: "LANGUAGE RULE: You MUST respond in Thai only.",
-    en: "LANGUAGE RULE: You MUST respond in English only.",
-    ko: "LANGUAGE RULE: You MUST respond in Korean only.",
-  };
-  return map[lang] || map.en;
+// Stems and branches are computed in hangul. Hanja is how the chart is written
+// across every tradition, so non-Korean readers see these glyphs instead.
+const STEM_HANJA = {
+  갑: "甲", 을: "乙", 병: "丙", 정: "丁", 무: "戊",
+  기: "己", 경: "庚", 신: "辛", 임: "壬", 계: "癸",
+};
+const BRANCH_HANJA = {
+  자: "子", 축: "丑", 인: "寅", 묘: "卯", 진: "辰", 사: "巳",
+  오: "午", 미: "未", 신: "申", 유: "酉", 술: "戌", 해: "亥",
+};
+
+function sajuLangRule(lang) {
+  const rule = langInstruction(lang);
+  if (lang === "ko") return rule;
+  const name = langName(lang);
+  return `${rule}
+The persona, tone guidance and example phrases above are instructions, not wording to copy: carry their meaning into natural, native ${name}, never word-for-word. Do not leave Korean words or hangul in the reading; use the established ${name} term for Saju concepts (Four Pillars, Day Pillar, Five Elements, Yin-Yang), or describe them in plain ${name} if there is none.`;
 }
 
 function extractJson(raw) {
@@ -37,42 +48,37 @@ function extractJson(raw) {
   }
 }
 
-function normalizePillar(p) {
-  if (!p || typeof p.stem !== "string" || typeof p.branch !== "string") return null;
-  return { stem: p.stem, branch: p.branch };
+function displayPillar(p, lang) {
+  if (lang === "ko") return { stem: p.stem, branch: p.branch };
+  return { stem: STEM_HANJA[p.stem], branch: BRANCH_HANJA[p.branch] };
 }
 
-function normalizeResponse(parsed) {
+// The chart itself comes from the computed facts, never the model: its enum
+// values drive the UI, and a translated "dominant" would break the diagram.
+function normalizeResponse(parsed, saju, hasBirthTime, lang) {
   const payload = parsed?.saju_response || parsed;
   if (!payload) return null;
 
   const elements = payload.elements || {};
   const yinYang = payload.yinYang || {};
+  const { pillars } = saju;
   const personality = payload.personality || {};
   const destinyFlow = payload.destinyFlow || {};
   const dailyLuck = payload.dailyLuck;
 
   return {
     pillars: {
-      year: normalizePillar(payload.pillars?.year),
-      month: normalizePillar(payload.pillars?.month),
-      day: normalizePillar(payload.pillars?.day),
-      hour: normalizePillar(payload.pillars?.hour),
+      year: displayPillar(pillars.yearPillar, lang),
+      month: displayPillar(pillars.monthPillar, lang),
+      day: displayPillar(pillars.dayPillar, lang),
+      hour: hasBirthTime ? displayPillar(pillars.hourPillar, lang) : null,
     },
     elements: {
-      fire: Number.isFinite(elements.fire) ? elements.fire : 0,
-      water: Number.isFinite(elements.water) ? elements.water : 0,
-      wood: Number.isFinite(elements.wood) ? elements.wood : 0,
-      metal: Number.isFinite(elements.metal) ? elements.metal : 0,
-      earth: Number.isFinite(elements.earth) ? elements.earth : 0,
-      dominant: typeof elements.dominant === "string" ? elements.dominant : "earth",
-      weak: typeof elements.weak === "string" ? elements.weak : "earth",
+      ...saju.elements,
       summary: typeof elements.summary === "string" ? elements.summary : "",
     },
     yinYang: {
-      yin: Number.isFinite(yinYang.yin) ? yinYang.yin : 0,
-      yang: Number.isFinite(yinYang.yang) ? yinYang.yang : 0,
-      balance: typeof yinYang.balance === "string" ? yinYang.balance : "balanced",
+      ...saju.yinYang,
       summary: typeof yinYang.summary === "string" ? yinYang.summary : "",
     },
     personality: {
@@ -96,7 +102,7 @@ function normalizeResponse(parsed) {
   };
 }
 
-async function generateSajuReading(input, userId = null, lang = "en") {
+async function generateSajuReading(input, userId = null, lang = "en", plan = "free") {
   const { dob, dob_time, userContext, subCategoryId } = input;
 
   const saju = computeSajuV4KR({ dob, dob_time });
@@ -116,7 +122,8 @@ async function generateSajuReading(input, userId = null, lang = "en") {
     dailyLuck,
     dbPrompt,
     userContext,
-    langRule: langInstruction(lang),
+    langRule: sajuLangRule(lang),
+    plan,
   });
 
   const messages = [
@@ -126,7 +133,7 @@ async function generateSajuReading(input, userId = null, lang = "en") {
 
   const raw = await generateGeminiResponse(messages);
   const parsed = extractJson(raw);
-  const response = normalizeResponse(parsed);
+  const response = normalizeResponse(parsed, saju, Boolean(dob_time), lang);
 
   if (!response) {
     throw new Error("Saju: AI response was not valid JSON");
@@ -137,12 +144,14 @@ async function generateSajuReading(input, userId = null, lang = "en") {
     dob,
     dob_time: dob_time || null,
     userContext: userContext || "",
+    lang,
     response,
     status: "completed",
   });
 
   return {
     readingId: record._id.toString(),
+    lang,
     saju_response: response,
   };
 }
@@ -152,4 +161,9 @@ async function getSajuReadingById(id) {
   return record || null;
 }
 
-module.exports = { generateSajuReading, getSajuReadingById };
+module.exports = {
+  generateSajuReading,
+  getSajuReadingById,
+  sajuLangRule,
+  normalizeResponse,
+};

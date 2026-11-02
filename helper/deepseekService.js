@@ -227,6 +227,27 @@ function resolveCacheMessages({ messages, options }) {
   return { messages: dsMessages };
 }
 
+// A reply that hits max_tokens stops mid-sentence. For capped calls the
+// stream is released one finished sentence at a time, and a cut-off final
+// sentence is dropped, so the user always sees a complete reply.
+// Sentence ends: . ! ? (then a space), CJK 。！？, a line break, or, for
+// Thai (no full stops), the space between Thai phrases.
+const SENTENCE_END = /[.!?…]["'”’)\]]*\s|[。！？]["'”’」』)]*|\n|(?<=[\u0E00-\u0E7F])\s/g;
+
+function completeSentencesLength(text) {
+  let end = 0;
+  for (const match of text.matchAll(SENTENCE_END)) end = match.index + match[0].length;
+  return end;
+}
+
+/** Text with a cut-off last sentence removed (unchanged if it ends cleanly). */
+function trimToLastSentence(text) {
+  const trimmed = text.trimEnd();
+  if (/[.!?…。！？]["'”’」』)\]]*$/.test(trimmed)) return trimmed;
+  const end = completeSentencesLength(text);
+  return end > 0 ? text.slice(0, end).trimEnd() : trimmed;
+}
+
 const generateDeepseekResponse = async (messages, options = {}) => {
   try {
     const { client, deepseek_model } = getDeepseekClient();
@@ -248,18 +269,24 @@ const generateDeepseekResponse = async (messages, options = {}) => {
         thinking: {
           type: "disabled",
         },
+        ...(options.maxOutputTokens ? { max_tokens: options.maxOutputTokens } : {}),
       }),
     );
 
     const usage = response.usage;
     // console.log(
-    //   `[DeepSeek model] requested=${modelToUse} actual=${response.model || "n/a"}`,
+      // `[DeepSeek model] requested=${modelToUse} actual=${response.model || "n/a"}`,
     // );
     // console.log(
-    //   `[DeepSeek tokens] input=${usage?.prompt_tokens ?? 0} output=${usage?.completion_tokens ?? 0} cacheHit=${usage?.prompt_cache_hit_tokens ?? 0} cacheMiss=${usage?.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(usage)} total=${usage?.total_tokens ?? 0} thinking=${usage?.completion_tokens_details?.reasoning_tokens ?? 0}`,
+      // `[DeepSeek tokens] input=${usage?.prompt_tokens ?? 0} output=${usage?.completion_tokens ?? 0} cacheHit=${usage?.prompt_cache_hit_tokens ?? 0} cacheMiss=${usage?.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(usage)} total=${usage?.total_tokens ?? 0} thinking=${usage?.completion_tokens_details?.reasoning_tokens ?? 0}`,
     // );
 
-    return response.choices?.[0]?.message?.content ?? "";
+    const content = response.choices?.[0]?.message?.content ?? "";
+    if (options.maxOutputTokens && response.choices?.[0]?.finish_reason === "length") {
+      console.warn(`[DeepSeek] reply hit max_tokens=${options.maxOutputTokens}; trimmed to the last full sentence`);
+      return trimToLastSentence(content);
+    }
+    return content;
   } catch (error) {
     console.error("DeepSeek error:", error);
     if (error?.message && !error.message.startsWith("DeepSeek error:")) {
@@ -291,6 +318,7 @@ const generateDeepseekResponseStream = async (messages, options = {}) => {
         thinking: {
           type: "disabled",
         },
+        ...(options.maxOutputTokens ? { max_tokens: options.maxOutputTokens } : {}),
       });
 
     const initialStream = await withRetry(
@@ -308,24 +336,44 @@ const generateDeepseekResponseStream = async (messages, options = {}) => {
         try {
           let lastUsage;
           let actualModel;
+          let finishReason;
+          // Capped calls hold back the unfinished sentence (see trimToLastSentence).
+          let pending = "";
           for await (const chunk of stream) {
             const text = chunk?.choices?.[0]?.delta?.content;
             if (chunk.usage) lastUsage = chunk.usage;
             if (chunk.model && !actualModel) actualModel = chunk.model;
+            if (chunk?.choices?.[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
             if (!text) continue;
             yieldedAny = true;
-            yield { text };
+            if (!options.maxOutputTokens) {
+              yield { text };
+              continue;
+            }
+            pending += text;
+            const end = completeSentencesLength(pending);
+            if (end > 0) {
+              yield { text: pending.slice(0, end) };
+              pending = pending.slice(end);
+            }
           }
-          // if (actualModel) {
-          //   console.log(
-          //     `[DeepSeek model] requested=${modelToUse} actual=${actualModel}`,
-          //   );
-          // }
-          // if (lastUsage) {
-          //   console.log(
-          //     `[DeepSeek tokens] input=${lastUsage.prompt_tokens ?? 0} output=${lastUsage.completion_tokens ?? 0} cacheHit=${lastUsage.prompt_cache_hit_tokens ?? 0} cacheMiss=${lastUsage.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(lastUsage)} total=${lastUsage.total_tokens ?? 0} thinking=${lastUsage.completion_tokens_details?.reasoning_tokens ?? 0}`,
-          //   );
-          // }
+          if (pending) {
+            if (finishReason === "length") {
+              console.warn(`[DeepSeek] reply hit max_tokens=${options.maxOutputTokens}; dropped the unfinished last sentence`);
+            } else {
+              yield { text: pending };
+            }
+          }
+          if (actualModel) {
+            // console.log(
+              // `[DeepSeek model] requested=${modelToUse} actual=${actualModel}`,
+            // );
+          }
+          if (lastUsage) {
+            // console.log(
+              // `[DeepSeek tokens] input=${lastUsage.prompt_tokens ?? 0} output=${lastUsage.completion_tokens ?? 0} cacheHit=${lastUsage.prompt_cache_hit_tokens ?? 0} cacheMiss=${lastUsage.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(lastUsage)} total=${lastUsage.total_tokens ?? 0} thinking=${lastUsage.completion_tokens_details?.reasoning_tokens ?? 0}`,
+            // );
+          }
           return;
         } catch (err) {
           if (yieldedAny) throw err;
@@ -362,4 +410,6 @@ const generateDeepseekResponseStream = async (messages, options = {}) => {
 module.exports = {
   generateDeepseekResponse,
   generateDeepseekResponseStream,
+  // Exported for tests.
+  trimToLastSentence,
 };

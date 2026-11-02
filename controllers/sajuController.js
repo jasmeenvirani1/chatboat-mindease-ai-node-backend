@@ -11,6 +11,8 @@ const {
   generateSajuReading,
   getSajuReadingById,
 } = require("../services/sajuService.js");
+const { resolvePreferredLanguage } = require("../helper/languageDetect.js");
+const { getPlan, userFromToken } = require("../helper/planAccess.js");
 const UserModel = require("../models/UserModel.js");
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
@@ -29,16 +31,25 @@ const scan = async (req, res) => {
     const subCategoryId =
       req.body?.subCategoryId || req.body?.categoryId || null;
 
-    let lang = "en";
+    let user = null;
     if (userId) {
-      const user = await UserModel.findById(userId).select("region").lean();
-      if (user?.region == "korea") lang = "ko";
+      user = await UserModel.findById(userId)
+        .select("preferredLanguage region")
+        .lean();
     }
+    const lang = resolvePreferredLanguage({
+      preferredLanguage: user?.preferredLanguage,
+      region: user?.region,
+    });
+
+    // Depth comes from the token, never the body. Guests get the Free reading.
+    const plan = getPlan(await userFromToken(req));
 
     const result = await generateSajuReading(
       { ...sanitized, subCategoryId },
       userId,
       lang,
+      plan,
     );
     return res.status(200).json({ success: true, ...result });
   } catch (err) {

@@ -23,7 +23,7 @@ const CategoryController = {
         freeUserPrompt,
         icon,
       } = req.body;
-      console.log("prompt loggg ->>", prompt);
+      // console.log("prompt loggg ->>", prompt);
       if (!name && !name_th && !name_es && !name_ja && !name_ko && !name_id) {
         logger.log("⚠️ Category name missing");
         return res.status(400).json({

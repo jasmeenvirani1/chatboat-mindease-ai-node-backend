@@ -3,6 +3,7 @@ const router = express.Router();
 const authenticate = require("../middleware/authenticateuser");
 const {
   createCheckoutSession,
+  createEnergyMatchCheckout,
   verifyAndSavePlan,
   getMyRegionSubscriptions,
 } = require("../controllers/paymentController");
@@ -25,6 +26,9 @@ const parseJson = express.json();
 
 // Create a Stripe Checkout session for the authenticated user.
 router.post("/checkout", parseJson, authenticate, createCheckoutSession);
+
+// Stripe Checkout for the Energy Match™ add-on (Life GPS promo card).
+router.post("/energy-match/checkout", parseJson, authenticate, createEnergyMatchCheckout);
 
 // Confirm a completed session from the success page.
 router.post("/verify", parseJson, authenticate, verifyAndSavePlan);

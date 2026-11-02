@@ -54,6 +54,8 @@ const SUPPORTED_LANGS = new Set([
   "id",
   "fil",
   "ms",
+  "ta",
+  "mr",
 ]);
 
 // Roman-script Hindi markers — a trigram model classifies this as English, so
@@ -173,6 +175,87 @@ const HINGLISH_MARKERS = new Set([
   "hue",
 ]);
 
+// Filipino / Tagalog (incl. Taglish) markers. Without these, Tagalog had no
+// detector at all and its pronoun "ko" (also a Hinglish marker) let plain
+// Tagalog text be classified as Hinglish. Words that collide with Hinglish
+// ("ko", "ka"), Spanish/Portuguese ("pero", "para") or Indonesian/Malay
+// ("lagi", "kami", "anak", "sana", "kaya", "mahal", "alam", "sila") are
+// deliberately excluded to keep this list high-precision.
+const FILIPINO_MARKERS = new Set([
+  "ako",
+  "ikaw",
+  "siya",
+  "tayo",
+  "kayo",
+  "niya",
+  "natin",
+  "namin",
+  "ninyo",
+  "akin",
+  "kong",
+  "mong",
+  "ang",
+  "ng",
+  "mga",
+  "nang",
+  "naman",
+  "lang",
+  "talaga",
+  "po",
+  "opo",
+  "kasi",
+  "hindi",
+  "wala",
+  "walang",
+  "meron",
+  "mayroon",
+  "gusto",
+  "ayaw",
+  "sobra",
+  "sobrang",
+  "pagod",
+  "malungkot",
+  "masaya",
+  "salamat",
+  "kumusta",
+  "kamusta",
+  "pakiramdam",
+  "nararamdaman",
+  "palagi",
+  "ngayon",
+  "bakit",
+  "paano",
+  "ano",
+  "sino",
+  "saan",
+  "kailan",
+  "yung",
+  "iyong",
+  "dahil",
+  "rin",
+  "nga",
+  "ay",
+  "pamilya",
+  "trabaho",
+  "buhay",
+  "puso",
+  "ubos",
+  "hirap",
+  "mahirap",
+  "baka",
+  "siguro",
+  "parang",
+  "medyo",
+  "lahat",
+  "kung",
+  "kahit",
+  "gagawin",
+  "nanay",
+  "tatay",
+  "asawa",
+  "kaibigan",
+]);
+
 // Common English function words — used to confirm/break ties on short text
 // and as one of the Latin-script scoring dictionaries below. Includes casual
 // greetings ("hi") and everyday content words ("need", "advice", "relationship",
@@ -269,13 +352,15 @@ function looksLikeFormOrData(text) {
   return false;
 }
 
-function countHinglishHits(lettersLower) {
+// Distinct marker words, not raw occurrences — "kong ... ko ... ko" must not
+// count as three Hinglish hits.
+function countDistinctHits(lettersLower, markers) {
   const words = lettersLower.match(/[a-z]+/g) || [];
-  let hits = 0;
-  for (const w of words) {
-    if (HINGLISH_MARKERS.has(w)) hits++;
-  }
-  return hits;
+  return new Set(words.filter((w) => markers.has(w))).size;
+}
+
+function countHinglishHits(lettersLower) {
+  return countDistinctHits(lettersLower, HINGLISH_MARKERS);
 }
 
 /**
@@ -325,8 +410,8 @@ function scoreLatinLanguages(text) {
 function detectLanguageDetailed(rawText) {
   const result = detectLanguageRaw(rawText);
   // console.log(
-  //   `[langDetect] detect  in="${logSnippet(rawText)}" -> ${result.code}  ` +
-  //     `(${result.confident ? "confident" : "unsure"}, ${result.source})`,
+    // `[langDetect] detect  in="${logSnippet(rawText)}" -> ${result.code}  ` +
+    // `(${result.confident ? "confident" : "unsure"}, ${result.source})`,
   // );
   return result;
 }
@@ -379,8 +464,15 @@ function detectLanguageRaw(rawText) {
   const countMatches = (re) =>
     (text.match(new RegExp(re.source, "giu")) || []).length;
 
-  // ── 2. Roman-script Hindi ────────────────────────────────────────────────
+  // ── 2a. Filipino / Tagalog ───────────────────────────────────────────────
+  // Checked before Hinglish, which shares short words with Tagalog; it only
+  // wins when it out-scores Hinglish on distinct marker words.
   const hinglishHits = countHinglishHits(lettersLower);
+  const filHits = countDistinctHits(lettersLower, FILIPINO_MARKERS);
+  if (filHits >= 2 && filHits > hinglishHits)
+    return { code: "fil", confident: true, source: "markers:fil" };
+
+  // ── 2b. Roman-script Hindi ───────────────────────────────────────────────
   if (hinglishHits >= 2)
     return { code: "hinglish", confident: true, source: "markers:hinglish" };
   // A single hit still wins when it's a long, distinctive Hinglish-only word
@@ -524,10 +616,10 @@ function resolveReplyLanguage(opts = {}) {
 
   const done = (code, why) => {
     // console.log(
-    //   `[langDetect] resolve  detected=${detection.code}/` +
-    //     `${detection.confident ? "confident" : "unsure"}  ` +
-    //     `chatLang=${chatLang || "-"} pref=${preferredLanguage || "-"} ` +
-    //     `region=${regionDefault || "-"} newChat=${isNewChat} => ${code}  [${why}]`,
+      // `[langDetect] resolve  detected=${detection.code}/` +
+      // `${detection.confident ? "confident" : "unsure"}  ` +
+      // `chatLang=${chatLang || "-"} pref=${preferredLanguage || "-"} ` +
+      // `region=${regionDefault || "-"} newChat=${isNewChat} => ${code}  [${why}]`,
     // );
     return { code, detection };
   };
@@ -600,6 +692,8 @@ const LANG_NAMES = {
   id: "Indonesian",
   fil: "Filipino",
   ms: "Malay",
+  ta: "Tamil",
+  mr: "Marathi",
 };
 
 // region / origin  ->  default reply-language code. Returns null (not "en") for
@@ -648,8 +742,8 @@ function resolvePreferredLanguage(opts = {}) {
 
   const done = (code, why) => {
     // console.log(
-    //   `[langDetect] resolvePref  text="${logSnippet(text)}" ` +
-    //     `pref=${preferredLanguage || "-"} region=${region || "-"} => ${code}  [${why}]`,
+      // `[langDetect] resolvePref  text="${logSnippet(text)}" ` +
+      // `pref=${preferredLanguage || "-"} region=${region || "-"} => ${code}  [${why}]`,
     // );
     return code;
   };

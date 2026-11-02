@@ -18,5 +18,6 @@ router.get("/next-steps", c.getNextSteps);
 router.post("/next-steps", c.createNextStep);
 router.patch("/next-steps/:id", c.updateNextStep);
 router.get("/insights", c.getInsights);
+router.get("/promo/energy-match", c.getEnergyMatchPromo);
 
 module.exports = router;

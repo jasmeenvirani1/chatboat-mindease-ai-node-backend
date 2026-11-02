@@ -73,16 +73,16 @@ const createUranianHistory = async (req, res) => {
       if (subCategory) {
         subCategoryName = subCategory.name;
         subCategoryPrompt = subCategory.prompt?.trim() || null;
-        console.log(
-          `✅ Loaded lifeGraph subcategory prompt for: ${subCategoryName}`,
-        );
+        // console.log(
+          // `✅ Loaded lifeGraph subcategory prompt for: ${subCategoryName}`,
+        // );
       }
     }
 
     const userName = await UserModel.findById(userId);
 
-    console.log("User:", userName);
-    console.log("Memory:", memory);
+    // console.log("User:", userName);
+    // console.log("Memory:", memory);
 
     let memoryData = {};
 
@@ -96,9 +96,9 @@ const createUranianHistory = async (req, res) => {
     const birthTime = memoryData?.birthTime; // 11:00
     const birthPlace = memoryData?.birthPlace;
 
-    console.log("DOB:", dob);
-    console.log("BirthTime:", birthTime);
-    console.log("BirthPlace:", birthPlace);
+    // console.log("DOB:", dob);
+    // console.log("BirthTime:", birthTime);
+    // console.log("BirthPlace:", birthPlace);
 
     // Calculate real planet positions
     const realPlanets = await calculateUranianPlanets({
@@ -108,7 +108,7 @@ const createUranianHistory = async (req, res) => {
       dateFormat: "DMY", // IMPORTANT because date is 19/12/2003
     });
 
-    console.log("Planets:", realPlanets);
+    // console.log("Planets:", realPlanets);
 
     // const questionText = String(question || "").trim();
     // console.log("Question:", questionText);
@@ -191,18 +191,18 @@ If Birth Time or Birth Place is missing, proceed with available information.
     messages.push({ role: "user", content: userMessage });
 
     /** 🤖 GENERATE AI RESPONSE */
-    console.log("📊 LifeGraph Request Summary:", {
-      //   cardCount: selectedCards.length,
-      //   category: tarotCategoryName,
-      subCategory: subCategoryName || "none",
-      promptSource,
-      hasMemory: !!memory,
-    });
+    // console.log("📊 LifeGraph Request Summary:", {
+      // //   cardCount: selectedCards.length,
+      // //   category: tarotCategoryName,
+      // subCategory: subCategoryName || "none",
+      // promptSource,
+      // hasMemory: !!memory,
+    // });
 
     const aiResponse = await generateGeminiResponse(messages);
     const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
 
-    console.log("✅ LifeGraph AI Response received");
+    // console.log("✅ LifeGraph AI Response received");
 
     const newMessage = {
       userMessage,

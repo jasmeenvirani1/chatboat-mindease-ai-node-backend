@@ -4,10 +4,7 @@ const fs = require("fs");
 const authenticateToken = require("../middleware/authenticateToken.js");
 const { requireSelfOrAdmin } = require("../middleware/adminAuth.js");
 const { checkChatAccess, userUpdateGuard } = require("../helper/planAccess.js");
-const {
-  threeuploads,
-  singleupload,
-} = require("../utils/imageUploder.js");
+const { threeuploads, singleupload } = require("../utils/imageUploder.js");
 const SettingController = require("../controllers/settingController.js");
 const userController = require("../controllers/userController.js");
 const ChatHistory = require("../controllers/chatController.js");
@@ -48,7 +45,10 @@ router.get("/lifeGps/latest/:userId", getLatestLifeGpsMap);
 router.post("/energyMatch/create", createEnergyMatchHistory);
 
 // Public: tester domain used by the frontend before login
-router.get("/settings/public-test-domain", SettingController.getPublicTestDomain);
+router.get(
+  "/settings/public-test-domain",
+  SettingController.getPublicTestDomain,
+);
 
 // NEW: Public route for sharing images (no authentication required)
 router.post(
@@ -71,7 +71,7 @@ router.post(
         process.env.BASE_URL || `${req.protocol}://${req.get("host")}`;
       const imageUrl = `${baseUrl}/api/public/uploads/share-images/${file.filename}`;
 
-      console.log("✅ Image uploaded successfully:", imageUrl);
+      // console.log("✅ Image uploaded successfully:", imageUrl);
 
       res.json({
         success: true,
@@ -108,7 +108,12 @@ router.put(
 //User Routes
 router.get("/users", userController.getAllUsers);
 router.get("/user/:id", requireSelfOrAdmin(), userController.getUserById);
-router.put("/user/:id", requireSelfOrAdmin(), userUpdateGuard, userController.updateUser);
+router.put(
+  "/user/:id",
+  requireSelfOrAdmin(),
+  userUpdateGuard,
+  userController.updateUser,
+);
 router.delete("/user/:id", requireSelfOrAdmin(), userController.deleteUser);
 router.post("/user/create", userController.createUserFromAdmin);
 

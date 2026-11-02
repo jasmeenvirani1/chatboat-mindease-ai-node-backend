@@ -6,6 +6,7 @@ const SubscriptionPlans = require("../models/SubscriptionPlansModel");
 const {
   activateSubscription,
   activateTrial,
+  activateEnergyMatch,
 } = require("./paymentController");
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -107,7 +108,9 @@ async function onCheckoutCompleted(session) {
     return;
   }
 
-  if (trial) {
+  if (session.metadata?.product === "energy_match") {
+    await activateEnergyMatch({ session, user, plan, durationDays: days });
+  } else if (trial) {
     await activateTrial({ session, user, plan, durationDays: days });
   } else {
     await activateSubscription({ session, user, plan, durationDays: days });
@@ -136,6 +139,16 @@ async function onChargeRefunded(charge) {
   history.status = "refunded";
   await history.save();
 
+  if (history.product === "energy_match") {
+    await User.updateOne(
+      { _id: history.userId, "energyMatchAccess.stripeSessionId": history.stripeSessionId },
+      { $set: { "energyMatchAccess.active": false } },
+    );
+    logger.log(`Energy Match revoked: user=${history.userId}`);
+    return;
+  }
+
+
   await User.updateOne(
     { _id: history.userId, subscriptionId: String(history.planId) },
     { $set: { subscriptionStatus: "cancelled", plan: "free" } },
@@ -157,6 +170,16 @@ async function onDisputeCreated(dispute) {
 
   history.status = "cancelled";
   await history.save();
+
+  if (history.product === "energy_match") {
+    await User.updateOne(
+      { _id: history.userId, "energyMatchAccess.stripeSessionId": history.stripeSessionId },
+      { $set: { "energyMatchAccess.active": false } },
+    );
+    logger.log(`Energy Match revoked: user=${history.userId}`);
+    return;
+  }
+
 
   await User.updateOne(
     { _id: history.userId, subscriptionId: String(history.planId) },

@@ -14,6 +14,8 @@ const {
   resolveSubscriptionStart,
 } = require("../helper/planPricing");
 
+const { hasEnergyMatch } = require("../helper/planAccess");
+
 const clientUrl = process.env.PAYMENT_URL;
 
 /**
@@ -139,6 +141,159 @@ function buildRegionUnlockUpdate(plan) {
     $addToSet: { unlockedRegions: plan.region },
   };
 }
+
+/**
+ * Grant the Energy Match™ add-on after its one-off payment. Same atomic claim
+ * on stripeSessionId as activateSubscription, so /verify and the webhook can
+ * race freely and only the first applies it. Touches neither the user's plan
+ * nor their region — Energy Match is sold on its own.
+ */
+async function activateEnergyMatch({ session, user, plan, durationDays }) {
+  const now = new Date();
+  // Buying again while still active extends from the current expiry.
+  const current = user.energyMatchAccess?.expiresAt;
+  const startDate =
+    user.energyMatchAccess?.active && current && new Date(current) > now
+      ? new Date(current)
+      : now;
+  const endDate = addDays(startDate, durationDays);
+
+  const currency = (session.currency || DEFAULT_CURRENCY).toUpperCase();
+  const claim = await SubscriptionHistory.findOneAndUpdate(
+    { stripeSessionId: session.id },
+    {
+      $setOnInsert: {
+        userId: user._id,
+        planId: plan._id,
+        product: "energy_match",
+        stripeSessionId: session.id,
+        stripePaymentIntentId:
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id || null,
+        stripeCustomerId:
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id || null,
+        amount: fromStripeAmount(session.amount_total || 0, currency),
+        currency,
+        status: "active",
+        startDate,
+        endDate,
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true, includeResultMetadata: true },
+  ).catch((err) => {
+    if (err.code === 11000) return null;
+    throw err;
+  });
+
+  const isFirstClaim = !!claim && !!claim.lastErrorObject?.upserted;
+  const history = claim
+    ? claim.value
+    : await SubscriptionHistory.findOne({ stripeSessionId: session.id });
+
+  if (!isFirstClaim) {
+    logger.log(`Energy Match session ${session.id} already processed; skipping`);
+    return { alreadyProcessed: true, history };
+  }
+
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        energyMatchAccess: {
+          active: true,
+          startedAt: startDate,
+          expiresAt: endDate,
+          stripeSessionId: session.id,
+        },
+      },
+    },
+  );
+
+  logger.log(`Energy Match activated: user=${user._id} session=${session.id}`);
+  return { alreadyProcessed: false, history };
+}
+
+/**
+ * POST /api/payment/energy-match/checkout
+ *
+ * Stripe Checkout for the Energy Match™ promo card. The amount is the price
+ * the card shows: the monthly plan of the user's own region, read from the
+ * database. The client sends nothing.
+ */
+const createEnergyMatchCheckout = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (hasEnergyMatch(user)) {
+      return res.status(409).json({ message: "Energy Match is already unlocked" });
+    }
+
+    const plan = await SubscriptionPlans.findOne({
+      region: String(user.region || "healjai").toLowerCase(),
+      billingCadence: /^per month$/i,
+      isActive: { $ne: false },
+    });
+    const price = plan ? parsePlanPrice(plan.price) : null;
+    const duration = plan ? resolveDuration(plan.billingCadence) : null;
+    if (!plan || !price || !duration) {
+      logger.error(`No usable monthly plan for Energy Match, region=${user.region}`);
+      return res.status(404).json({ message: "Energy Match is not available in your region" });
+    }
+
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: user.username,
+        metadata: { userId: String(user._id) },
+      });
+      customerId = customer.id;
+      await User.updateOne({ _id: user._id }, { $set: { stripeCustomerId: customerId } });
+    }
+
+    const currency = (plan.currency || DEFAULT_CURRENCY).toLowerCase();
+    const metadata = {
+      product: "energy_match",
+      userId: String(user._id),
+      planId: String(plan._id),
+      durationDays: String(duration.days),
+      isTrial: "false",
+    };
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      client_reference_id: String(user._id),
+      metadata,
+      success_url: `${clientUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${clientUrl}/payment-cancel`,
+      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency,
+            product_data: { name: "Energy Match™" },
+            unit_amount: toStripeAmount(price, currency),
+          },
+          quantity: 1,
+        },
+      ],
+      payment_intent_data: { metadata },
+      invoice_creation: { enabled: true },
+    });
+
+    logger.log(`Energy Match checkout ${session.id} created for user=${user._id}`);
+    return res.status(200).json({ url: session.url, sessionId: session.id });
+  } catch (err) {
+    logger.error("Energy Match checkout failed", err);
+    return res.status(500).json({ message: "Stripe checkout failed" });
+  }
+};
 
 /**
  * POST /api/payment/checkout
@@ -321,14 +476,28 @@ const verifyAndSavePlan = async (req, res) => {
     const plan = await SubscriptionPlans.findById(session.metadata?.planId);
     if (!plan) return res.status(404).json({ message: "Plan not found" });
 
-    const result = isTrial
-      ? await activateTrial({ session, user, plan, durationDays })
-      : await activateSubscription({ session, user, plan, durationDays });
+    const isEnergyMatch = session.metadata?.product === "energy_match";
+    const result = isEnergyMatch
+      ? await activateEnergyMatch({ session, user, plan, durationDays })
+      : isTrial
+        ? await activateTrial({ session, user, plan, durationDays })
+        : await activateSubscription({ session, user, plan, durationDays });
 
     // Re-read rather than patch the in-memory `user` by hand — activate*()
     // may have changed `region`/`unlockedRegions` (region-scoped plans only),
     // and the response needs to reflect what was actually written.
     const updatedUser = await User.findById(userId);
+
+    if (isEnergyMatch) {
+      return res.status(200).json({
+        success: true,
+        message: result.alreadyProcessed
+          ? "Energy Match already unlocked"
+          : "Energy Match unlocked",
+        product: "energy_match",
+        energyMatchAccess: updatedUser?.energyMatchAccess,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -339,6 +508,7 @@ const verifyAndSavePlan = async (req, res) => {
       subscriptionStartDate: result.history?.startDate,
       subscriptionEndDate: result.history?.endDate,
       subscriptionStatus: result.history?.status,
+      plan: updatedUser?.plan || "free",
       region: updatedUser?.region,
       unlockedRegions: updatedUser?.unlockedRegions || [],
     });
@@ -490,6 +660,8 @@ const getMyRegionSubscriptions = async (req, res) => {
 
 module.exports = {
   createCheckoutSession,
+  createEnergyMatchCheckout,
+  activateEnergyMatch,
   verifyAndSavePlan,
   getMyRegionSubscriptions,
   activateSubscription,

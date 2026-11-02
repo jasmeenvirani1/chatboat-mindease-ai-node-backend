@@ -69,7 +69,7 @@ const SIGNUP_GRACE_MS = 24 * 60 * 60 * 1000;
 const LOCKED_FIELDS = new Set([
   "_id", "plan", "roleId", "unlockedRegions", "globalPass", "subscriptions",
   "allRegionsApproved", "allRegionsPending", "approveAllRegions",
-  "hasUsedFreeTrial", "isActive", "isDeleted", "createdAt", "updatedAt",
+  "hasUsedFreeTrial", "energyMatchAccess", "isActive", "isDeleted", "createdAt", "updatedAt",
 ]);
 
 // ─── Rules (no database, easy to test) ──────────────────────────────────────
@@ -78,6 +78,14 @@ const LOCKED_FIELDS = new Set([
 function isPaid(user, now = Date.now()) {
   if (!user || !hasPaidAccess(user.subscriptionId, user.subscriptionStatus)) return false;
   const end = user.subscriptionEndDate ? new Date(user.subscriptionEndDate).getTime() : NaN;
+  return Number.isNaN(end) || end >= now;
+}
+
+/** True while the user holds a paid, unexpired Energy Match™ add-on. */
+function hasEnergyMatch(user, now = Date.now()) {
+  const access = user?.energyMatchAccess;
+  if (!access?.active) return false;
+  const end = access.expiresAt ? new Date(access.expiresAt).getTime() : NaN;
   return Number.isNaN(end) || end >= now;
 }
 
@@ -211,10 +219,12 @@ module.exports = {
   REGIONS,
   getPlan,
   isPaid,
+  hasEnergyMatch,
   regionOf,
   canUse,
   canSwitch,
   isLocked,
+  userFromToken,
   checkChatAccess,
   userUpdateGuard,
 };
