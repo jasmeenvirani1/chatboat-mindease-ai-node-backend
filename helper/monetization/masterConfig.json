@@ -1,0 +1,1071 @@
+{
+  "version": "1.0.0",
+  "status": "candidate",
+  "notes": "Single source of truth for Free/Pro. Loaded by helper/monetization/index.js. A bad file never crashes the server: monetization just stays off.",
+  "corePrinciple": {
+    "free": "See",
+    "pro": "Understand",
+    "freeGoal": "Build trust through real value",
+    "proGoal": "Deliver meaning, patterns and self-discovery"
+  },
+  "globalRules": {
+    "neverBlockTabs": true,
+    "neverBlockCategories": true,
+    "freePreviewDepthPercent": 40,
+    "freeCanAccess": [
+      "overview",
+      "snapshot",
+      "opening_insight",
+      "daily_flow",
+      "current_energy",
+      "charts",
+      "scores",
+      "basic_observations"
+    ],
+    "alwaysLockedForPro": [
+      "interpretation",
+      "synthesis",
+      "meaning_layer",
+      "hidden_patterns",
+      "identity_patterns",
+      "relationship_dynamics",
+      "current_season",
+      "growth_edge",
+      "timing_analysis",
+      "life_direction",
+      "destiny_flow",
+      "life_purpose",
+      "core_nature"
+    ],
+    "unlistedFeatureIs": "pro"
+  },
+  "companionTalk": {
+    "countedCategories": [
+      "Astria Talk",
+      "Companion Talk",
+      "HealJai Talk"
+    ],
+    "free": {
+      "dailyQuestionLimit": 12,
+      "softWarningAt": 10,
+      "included": [
+        "emotional_reflection",
+        "pattern_observation",
+        "perspective_shift",
+        "light_life_gps",
+        "guided_followup"
+      ]
+    },
+    "pro": {
+      "unlimitedQuestions": true,
+      "included": [
+        "identity_analysis",
+        "worthiness_layer",
+        "life_script",
+        "origin_pattern",
+        "uranian_layers",
+        "let_it_ride"
+      ]
+    },
+    "upsellTriggers": {
+      "softMessage": "You're approaching today's companion limit.",
+      "hardMessage": "There may be a deeper pattern underneath this conversation. Continue with Astria Pro.",
+      "showProOfferWhenUserAsks": [
+        "why_am_i_like_this",
+        "why_does_this_keep_happening",
+        "where_does_this_come_from",
+        "repeating_pattern",
+        "identity_pattern",
+        "life_script",
+        "worthiness"
+      ]
+    }
+  },
+  "lifeGPS": {
+    "free": {
+      "show": [
+        "current_phase",
+        "phase_description",
+        "journey_progress",
+        "one_reflection"
+      ]
+    },
+    "pro": {
+      "unlock": [
+        "current_season",
+        "growth_edge",
+        "hidden_strength",
+        "blind_spot",
+        "next_growth_opportunity"
+      ]
+    },
+    "enforced": false
+  },
+  "upsellRules": {
+    "showWhen": [
+      "user_opens_locked_content",
+      "user_clicks_growth_edge",
+      "user_clicks_current_season",
+      "user_clicks_full_chart",
+      "user_clicks_full_personality",
+      "user_clicks_life_blueprint",
+      "companion_limit_reached"
+    ],
+    "neverShowWhen": [
+      "app_open",
+      "home_page_load",
+      "first_session",
+      "random_timer",
+      "after_every_chat",
+      "after_every_reading"
+    ],
+    "firstSessionWindowMinutes": 60,
+    "firstSessionExemptTriggers": [
+      "companion_limit_reached"
+    ],
+    "cooldown": {
+      "maxPerSession": 1,
+      "maxPerDay": 3,
+      "cooldownMinutes": 30,
+      "suppressAfterDismissals": 3
+    }
+  },
+  "countryByRegion": {
+    "healjai": "TH",
+    "india": "IN",
+    "japan": "JP",
+    "china": "CN",
+    "korea": "KR",
+    "malaysia": "MY",
+    "singapore": "SG",
+    "indonesia": "ID",
+    "philippines": "PH",
+    "vietnam": "VN",
+    "mexico": "MX",
+    "brazil": "BR",
+    "spanish": "ES",
+    "france": "FR",
+    "germany": "DE",
+    "italy": "IT",
+    "uk": "GB",
+    "us": "US",
+    "canada": "CA",
+    "gcc": "GCC"
+  },
+  "countries": {
+    "IN": {
+      "label": "India",
+      "free": [
+        {
+          "id": "daily_guidance",
+          "label": "Daily Guidance"
+        },
+        {
+          "id": "karma",
+          "label": "Karma"
+        }
+      ],
+      "pro": [
+        {
+          "id": "dharma_path",
+          "label": "Dharma Path"
+        },
+        {
+          "id": "soul_lesson",
+          "label": "Soul Lesson"
+        },
+        {
+          "id": "life_purpose",
+          "label": "Life Purpose"
+        },
+        {
+          "id": "relationship_karma",
+          "label": "Relationship Karma"
+        }
+      ],
+      "upsell": "Discover the deeper lessons and purpose behind your path.",
+      "upgradeStrength": "high"
+    },
+    "JP": {
+      "label": "Japan",
+      "free": [
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        },
+        {
+          "id": "emotional_weather",
+          "label": "Emotional Weather"
+        },
+        {
+          "id": "signs",
+          "label": "Signs"
+        }
+      ],
+      "pro": [
+        {
+          "id": "inner_season",
+          "label": "Inner Season"
+        },
+        {
+          "id": "hidden_growth_theme",
+          "label": "Hidden Growth Theme"
+        },
+        {
+          "id": "personal_transition",
+          "label": "Personal Transition"
+        }
+      ],
+      "upsell": "See the deeper season of growth unfolding beneath the surface.",
+      "upgradeStrength": "medium"
+    },
+    "CN": {
+      "label": "China",
+      "free": [
+        {
+          "id": "chinese_zodiac",
+          "label": "Chinese Zodiac"
+        },
+        {
+          "id": "daily_fortune",
+          "label": "Daily Fortune"
+        },
+        {
+          "id": "daily_guidance",
+          "label": "Daily Guidance"
+        }
+      ],
+      "pro": [
+        {
+          "id": "luck_cycle",
+          "label": "Luck Cycle"
+        },
+        {
+          "id": "career_timing",
+          "label": "Career Timing"
+        },
+        {
+          "id": "wealth_pattern",
+          "label": "Wealth Pattern"
+        },
+        {
+          "id": "full_bazi_interpretation",
+          "label": "Full BaZi Interpretation"
+        }
+      ],
+      "upsell": "See your full BaZi cycle, timing and destiny flow.",
+      "upgradeStrength": "high"
+    },
+    "KR": {
+      "label": "South Korea",
+      "free": [
+        {
+          "id": "current_energy",
+          "label": "Current Energy"
+        },
+        {
+          "id": "saju_snapshot",
+          "label": "Saju Snapshot"
+        }
+      ],
+      "pro": [
+        {
+          "id": "core_nature",
+          "label": "Core Nature"
+        },
+        {
+          "id": "current_season",
+          "label": "Current Season"
+        },
+        {
+          "id": "growth_edge",
+          "label": "Growth Edge"
+        },
+        {
+          "id": "full_saju_interpretation",
+          "label": "Full Saju Interpretation"
+        }
+      ],
+      "upsell": "Unlock your full Saju reading and deeper life timing.",
+      "upgradeStrength": "high"
+    },
+    "TH": {
+      "label": "Thailand",
+      "free": [
+        {
+          "id": "love_energy",
+          "label": "Love Energy"
+        },
+        {
+          "id": "compatibility",
+          "label": "Compatibility"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "relationship_pattern",
+          "label": "Relationship Pattern"
+        },
+        {
+          "id": "compatibility_dynamics",
+          "label": "Compatibility Dynamics"
+        },
+        {
+          "id": "hidden_strength",
+          "label": "Hidden Strength"
+        },
+        {
+          "id": "current_season",
+          "label": "Current Season"
+        }
+      ],
+      "upsell": "See the deeper relationship patterns and hidden strengths shaping your life.",
+      "upgradeStrength": "medium"
+    },
+    "MY": {
+      "label": "Malaysia",
+      "free": [
+        {
+          "id": "reflection",
+          "label": "Reflection"
+        },
+        {
+          "id": "compatibility",
+          "label": "Compatibility"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "connection_pattern",
+          "label": "Connection Pattern"
+        },
+        {
+          "id": "life_direction",
+          "label": "Life Direction"
+        },
+        {
+          "id": "compatibility_dynamics",
+          "label": "Compatibility Dynamics"
+        }
+      ],
+      "upsell": "Unlock the deeper meaning behind this connection.",
+      "upgradeStrength": "low"
+    },
+    "SG": {
+      "label": "Singapore",
+      "free": [
+        {
+          "id": "relationship",
+          "label": "Relationship"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        },
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        }
+      ],
+      "pro": [
+        {
+          "id": "relationship_timing",
+          "label": "Relationship Timing"
+        },
+        {
+          "id": "companion_pattern",
+          "label": "Companion Pattern"
+        },
+        {
+          "id": "growth_edge",
+          "label": "Growth Edge"
+        },
+        {
+          "id": "big_3_synthesis",
+          "label": "Big 3 Synthesis"
+        }
+      ],
+      "upsell": "See how this relationship may evolve over time.",
+      "upgradeStrength": "medium"
+    },
+    "ID": {
+      "label": "Indonesia",
+      "free": [
+        {
+          "id": "reflection",
+          "label": "Reflection"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "guidance_path",
+          "label": "Guidance Path"
+        },
+        {
+          "id": "connection_atmosphere",
+          "label": "Connection Atmosphere"
+        },
+        {
+          "id": "emotional_balance",
+          "label": "Emotional Balance"
+        }
+      ],
+      "upsell": "Unlock your deeper emotional balance and guidance path.",
+      "upgradeStrength": "low"
+    },
+    "PH": {
+      "label": "Philippines",
+      "free": [
+        {
+          "id": "compatibility",
+          "label": "Compatibility"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "communication_dynamics",
+          "label": "Communication Dynamics"
+        },
+        {
+          "id": "connection_style",
+          "label": "Connection Style"
+        },
+        {
+          "id": "relationship_growth",
+          "label": "Relationship Growth"
+        }
+      ],
+      "upsell": "Understand how this connection grows and communicates.",
+      "upgradeStrength": "low"
+    },
+    "VN": {
+      "label": "Vietnam",
+      "free": [
+        {
+          "id": "relationship",
+          "label": "Relationship"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        },
+        {
+          "id": "lucky_day",
+          "label": "Lucky Day"
+        }
+      ],
+      "pro": [
+        {
+          "id": "relationship_growth",
+          "label": "Relationship Growth"
+        },
+        {
+          "id": "guidance_path",
+          "label": "Guidance Path"
+        },
+        {
+          "id": "emotional_balance",
+          "label": "Emotional Balance"
+        }
+      ],
+      "upsell": "Unlock the growth path hidden inside this relationship.",
+      "upgradeStrength": "low"
+    },
+    "MX": {
+      "label": "Mexico",
+      "free": [
+        {
+          "id": "cosmic_message",
+          "label": "Cosmic Message"
+        },
+        {
+          "id": "daily_path",
+          "label": "Daily Path"
+        },
+        {
+          "id": "relationship",
+          "label": "Relationship"
+        }
+      ],
+      "pro": [
+        {
+          "id": "relationship_dynamics",
+          "label": "Relationship Dynamics"
+        },
+        {
+          "id": "compatibility_meaning",
+          "label": "Compatibility Meaning"
+        },
+        {
+          "id": "life_direction",
+          "label": "Life Direction"
+        }
+      ],
+      "upsell": "Unlock the deeper relationship dynamics and life direction behind this message.",
+      "upgradeStrength": "medium"
+    },
+    "AR": {
+      "label": "Argentina",
+      "free": [
+        {
+          "id": "relationship",
+          "label": "Relationship"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "hidden_relationship_pattern",
+          "label": "Hidden Relationship Pattern"
+        },
+        {
+          "id": "emotional_needs",
+          "label": "Emotional Needs"
+        },
+        {
+          "id": "long_term_dynamic",
+          "label": "Long Term Dynamic"
+        }
+      ],
+      "upsell": "Discover what this connection is really asking of you.",
+      "upgradeStrength": "medium"
+    },
+    "BR": {
+      "label": "Brazil",
+      "free": [
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        },
+        {
+          "id": "signs",
+          "label": "Signs"
+        },
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        }
+      ],
+      "pro": [
+        {
+          "id": "emotional_flow",
+          "label": "Emotional Flow"
+        },
+        {
+          "id": "self_worth_theme",
+          "label": "Self Worth Theme"
+        },
+        {
+          "id": "relationship_pattern",
+          "label": "Relationship Pattern"
+        },
+        {
+          "id": "personality_analysis",
+          "label": "Personality Analysis"
+        }
+      ],
+      "upsell": "Unlock the emotional pattern shaping your love life and relationships.",
+      "upgradeStrength": "medium"
+    },
+    "ES": {
+      "label": "Spain",
+      "free": [
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "big_3_synthesis",
+          "label": "Big 3 Synthesis"
+        },
+        {
+          "id": "relationship_style",
+          "label": "Relationship Style"
+        },
+        {
+          "id": "core_personality_layer",
+          "label": "Core Personality Layer"
+        }
+      ],
+      "upsell": "See how your Sun, Moon and Rising work together in your life.",
+      "upgradeStrength": "medium"
+    },
+    "FR": {
+      "label": "France",
+      "free": [
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "big_3_synthesis",
+          "label": "Big 3 Synthesis"
+        },
+        {
+          "id": "relationship_style",
+          "label": "Relationship Style"
+        },
+        {
+          "id": "core_personality_layer",
+          "label": "Core Personality Layer"
+        }
+      ],
+      "upsell": "See how your Sun, Moon and Rising shape your life together.",
+      "upgradeStrength": "high"
+    },
+    "DE": {
+      "label": "Germany",
+      "free": [
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        },
+        {
+          "id": "current_focus",
+          "label": "Current Focus"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "personality_blueprint",
+          "label": "Personality Blueprint"
+        },
+        {
+          "id": "full_chart",
+          "label": "Full Chart"
+        },
+        {
+          "id": "life_direction",
+          "label": "Life Direction"
+        },
+        {
+          "id": "growth_edge",
+          "label": "Growth Edge"
+        }
+      ],
+      "upsell": "Unlock your personality blueprint and deeper life direction.",
+      "upgradeStrength": "high"
+    },
+    "IT": {
+      "label": "Italy",
+      "free": [
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        },
+        {
+          "id": "heart_reflection",
+          "label": "Heart Reflection"
+        }
+      ],
+      "pro": [
+        {
+          "id": "full_personality",
+          "label": "Full Personality"
+        },
+        {
+          "id": "full_chart",
+          "label": "Full Chart"
+        },
+        {
+          "id": "relationship_pattern",
+          "label": "Relationship Pattern"
+        },
+        {
+          "id": "emotional_pattern",
+          "label": "Emotional Pattern"
+        }
+      ],
+      "upsell": "Discover the emotional patterns beneath your relationships and heart.",
+      "upgradeStrength": "high"
+    },
+    "GB": {
+      "label": "United Kingdom",
+      "free": [
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        },
+        {
+          "id": "signs",
+          "label": "Signs"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "growth_edge",
+          "label": "Growth Edge"
+        },
+        {
+          "id": "life_theme",
+          "label": "Life Theme"
+        },
+        {
+          "id": "big_3_synthesis",
+          "label": "Big 3 Synthesis"
+        }
+      ],
+      "upsell": "See the deeper themes shaping this chapter of your life.",
+      "upgradeStrength": "medium"
+    },
+    "US": {
+      "label": "United States",
+      "free": [
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        },
+        {
+          "id": "signs",
+          "label": "Signs"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        }
+      ],
+      "pro": [
+        {
+          "id": "life_blueprint",
+          "label": "Life Blueprint"
+        },
+        {
+          "id": "current_season",
+          "label": "Current Season"
+        },
+        {
+          "id": "growth_edge",
+          "label": "Growth Edge"
+        },
+        {
+          "id": "relationship_pattern",
+          "label": "Relationship Pattern"
+        }
+      ],
+      "upsell": "Unlock your life blueprint, current season and deeper relationship patterns.",
+      "upgradeStrength": "high"
+    },
+    "CA": {
+      "label": "Canada",
+      "free": [
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        },
+        {
+          "id": "signs",
+          "label": "Signs"
+        }
+      ],
+      "pro": [
+        {
+          "id": "personality",
+          "label": "Personality"
+        },
+        {
+          "id": "identity_pattern",
+          "label": "Identity Pattern"
+        },
+        {
+          "id": "healing_needs",
+          "label": "Healing Needs"
+        },
+        {
+          "id": "growth_edge",
+          "label": "Growth Edge"
+        }
+      ],
+      "upsell": "Understand the deeper pattern behind your personality and growth.",
+      "upgradeStrength": "medium"
+    },
+    "GCC": {
+      "label": "GCC (UAE, Saudi Arabia)",
+      "free": [
+        {
+          "id": "relationship",
+          "label": "Relationship"
+        },
+        {
+          "id": "daily_flow",
+          "label": "Daily Flow"
+        },
+        {
+          "id": "big_3",
+          "label": "Big 3"
+        }
+      ],
+      "pro": [
+        {
+          "id": "family_pattern",
+          "label": "Family Pattern"
+        },
+        {
+          "id": "legacy_theme",
+          "label": "Legacy Theme"
+        },
+        {
+          "id": "leadership_style",
+          "label": "Leadership Style"
+        },
+        {
+          "id": "responsibility_pattern",
+          "label": "Responsibility Pattern"
+        },
+        {
+          "id": "big_3_synthesis",
+          "label": "Big 3 Synthesis"
+        }
+      ],
+      "upsell": "Unlock deeper insights into legacy, family and life direction.",
+      "upgradeStrength": "high",
+      "members": [
+        "AE",
+        "SA"
+      ]
+    }
+  },
+  "acceptanceCriteria": {
+    "freeUserShouldFeel": "This feels surprisingly accurate.",
+    "proUserShouldFeel": "Now I understand what this means."
+  },
+  "birthDataValidation": {
+    "enforced": false,
+    "western": {
+      "dateOnly": {
+        "allow": [
+          "sun_sign"
+        ],
+        "block": [
+          "moon_sign",
+          "rising_sign",
+          "houses"
+        ]
+      },
+      "dateAndTime": {
+        "allow": [
+          "sun_sign",
+          "moon_sign"
+        ],
+        "block": [
+          "rising_sign",
+          "houses"
+        ]
+      },
+      "dateTimeAndLocation": {
+        "allow": [
+          "sun_sign",
+          "moon_sign",
+          "rising_sign",
+          "houses",
+          "full_chart"
+        ]
+      }
+    }
+  },
+  "analytics": {
+    "enabled": true,
+    "events": {
+      "upsell_shown": [
+        "country",
+        "feature",
+        "trigger",
+        "placement",
+        "user_tier",
+        "language"
+      ],
+      "upsell_dismissed": [
+        "country",
+        "feature",
+        "trigger",
+        "placement",
+        "user_tier",
+        "language"
+      ],
+      "upsell_clicked": [
+        "country",
+        "feature",
+        "trigger",
+        "placement",
+        "user_tier",
+        "language"
+      ],
+      "pro_subscribed": [
+        "country",
+        "entry_point",
+        "language"
+      ],
+      "locked_content_opened": [
+        "country",
+        "content_type",
+        "feature",
+        "user_tier",
+        "language"
+      ],
+      "question_limit_reached": [
+        "questions_used",
+        "country",
+        "user_tier",
+        "language"
+      ],
+      "soft_warning_shown": [
+        "questions_used",
+        "country",
+        "language"
+      ]
+    }
+  },
+  "localizedUpsellCopy": {
+    "en-US": {
+      "title": "Unlock Astria Pro",
+      "subtitle": "See the deeper patterns, timing and meanings behind your reading."
+    },
+    "th-TH": {
+      "title": "ปลดล็อก Astria Pro",
+      "subtitle": "ค้นพบรูปแบบที่ซ่อนอยู่ จังหวะชีวิต และความหมายที่ลึกกว่าของคุณ"
+    },
+    "ja-JP": {
+      "title": "Astria Proをアンロック",
+      "subtitle": "今の流れの奥にある成長のテーマを見つけましょう"
+    },
+    "ko-KR": {
+      "title": "Astria Pro 잠금 해제",
+      "subtitle": "당신의 인생 흐름과 숨겨진 성장 패턴을 확인해 보세요"
+    },
+    "zh-CN": {
+      "title": "解锁 Astria Pro",
+      "subtitle": "探索命运节奏、成长主题与更深层的人生模式"
+    },
+    "zh-TW": {
+      "title": "解鎖 Astria Pro",
+      "subtitle": "探索更深層的人生模式與成長方向"
+    },
+    "hi-IN": {
+      "title": "Astria Pro अनलॉक करें",
+      "subtitle": "अपने जीवन के गहरे पैटर्न, समय और अर्थ को जानें"
+    },
+    "pt-BR": {
+      "title": "Desbloqueie o Astria Pro",
+      "subtitle": "Descubra os padrões emocionais e o significado por trás da sua jornada"
+    },
+    "es-ES": {
+      "title": "Desbloquea Astria Pro",
+      "subtitle": "Descubre los patrones y significados ocultos detrás de tu lectura"
+    },
+    "fr-FR": {
+      "title": "Débloquez Astria Pro",
+      "subtitle": "Explorez les thèmes profonds qui façonnent votre parcours"
+    },
+    "de-DE": {
+      "title": "Astria Pro freischalten",
+      "subtitle": "Entdecken Sie die tieferen Muster hinter Ihrer aktuellen Lebensphase"
+    },
+    "ar-AE": {
+      "title": "افتح Astria Pro",
+      "subtitle": "اكتشف الأنماط الأعمق والاتجاهات التي تشكل مسارك"
+    },
+    "it-IT": {
+      "title": "Sblocca Astria Pro",
+      "subtitle": "Scopri i modelli più profondi, i tempi e i significati dietro la tua lettura"
+    },
+    "id-ID": {
+      "title": "Buka Astria Pro",
+      "subtitle": "Temukan pola, waktu, dan makna yang lebih dalam di balik bacaan Anda"
+    },
+    "vi-VN": {
+      "title": "Mở khóa Astria Pro",
+      "subtitle": "Khám phá những mô thức, nhịp thời gian và ý nghĩa sâu hơn đằng sau bài đọc của bạn"
+    },
+    "ms-MY": {
+      "title": "Buka Astria Pro",
+      "subtitle": "Temui corak, masa dan makna yang lebih mendalam di sebalik bacaan anda"
+    },
+    "fil-PH": {
+      "title": "I-unlock ang Astria Pro",
+      "subtitle": "Tuklasin ang mas malalalim na pattern, tiyempo, at kahulugan sa likod ng iyong reading"
+    },
+    "ru-RU": {
+      "title": "Откройте Astria Pro",
+      "subtitle": "Узнайте более глубокие закономерности, сроки и смыслы вашего расклада"
+    }
+  },
+  "copyFallbackOrder": [
+    "exact_locale",
+    "same_language",
+    "en-US"
+  ],
+  "copyNeedsNativeReview": [
+    "it-IT",
+    "id-ID",
+    "vi-VN",
+    "ms-MY",
+    "fil-PH",
+    "ru-RU",
+    "hi-IN"
+  ],
+  "upgradePriority": {
+    "priority1": [
+      "full_chart",
+      "full_personality",
+      "personality_blueprint",
+      "life_blueprint",
+      "current_season"
+    ],
+    "priority2": [
+      "growth_edge",
+      "relationship_pattern",
+      "relationship_dynamics",
+      "identity_pattern"
+    ],
+    "priority3": [
+      "question_limit_reached",
+      "general_locked_content"
+    ]
+  },
+  "decisions": {
+    "tabsVsRegionLock": "OPEN: planAccess still locks other regions (REGION_LOCKED). Not changed by this release.",
+    "freeLetItRide": "OPEN: letItRide.js untouched; Pro-only gating not applied.",
+    "dailyResetTimezone": "DECIDED: user's local day via letItRide.dayKey (region time zone, UTC fallback).",
+    "questionNumbering": "DECIDED: questions 1-12 are answered, question 13 is refused (limitReached).",
+    "previewDepth40": "OPEN: not enforced; needs a definition (sections vs characters).",
+    "conversionTargets": "Moved out of runtime config: KPI only, unit undefined in the PDF, 8 countries had no value."
+  }
+}

@@ -69,7 +69,7 @@ const SIGNUP_GRACE_MS = 24 * 60 * 60 * 1000;
 const LOCKED_FIELDS = new Set([
   "_id", "plan", "roleId", "unlockedRegions", "globalPass", "subscriptions",
   "allRegionsApproved", "allRegionsPending", "approveAllRegions",
-  "hasUsedFreeTrial", "energyMatchAccess", "isActive", "isDeleted", "createdAt", "updatedAt",
+  "hasUsedFreeTrial", "energyMatchAccess", "freeTalkUsage", "upgradePopup", "letItRide", "talkCoaching", "isActive", "isDeleted", "createdAt", "updatedAt",
 ]);
 
 // ─── Rules (no database, easy to test) ──────────────────────────────────────
@@ -185,7 +185,10 @@ async function checkChatAccess(req, res, next) {
     if (!user && body.userId) {
       return res.status(401).json({ success: false, code: "AUTH_REQUIRED", message: "Please sign in again." });
     }
-    if (user) body.userId = String(user._id);
+    if (user) {
+      body.userId = String(user._id);
+      req.authUser = user; // lets later guards (monetization) skip a second lookup
+    }
 
     const regions = await regionsOf(body.categoryId, body.subCategoryId);
     if (!regions.every((r) => canUse(user, r))) {
@@ -221,6 +224,7 @@ module.exports = {
   isPaid,
   hasEnergyMatch,
   regionOf,
+  seesAll,
   canUse,
   canSwitch,
   isLocked,

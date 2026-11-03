@@ -25,6 +25,7 @@ const lifeGpsRoutes = require("./Routes/lifeGpsRoutes.js");
 const letterRoutes = require("./Routes/letterRoutes.js");
 const zodiacRoutes = require("./Routes/zodiacRoutes.js");
 const globalPassRoutes = require("./Routes/globalPassRoutes.js");
+const monetizationRoutes = require("./Routes/monetizationRoutes.js");
 const { loadIndex, search, buildPrompt } = require("./helper/search.js");
 const { startTrendingTopicsCron } = require("./cron/TrendingTopicsCron.js");
 
@@ -56,6 +57,8 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   // "Accept" is required for the SSE chat stream (frontend sends text/event-stream).
   allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  // Free Companion Talk counter, read by the browser (see helper/monetization/talkGate.js).
+  exposedHeaders: ["X-Talk-Used", "X-Talk-Limit", "X-Talk-Warning", "X-Talk-Deep"],
 };
 
 app.use(cors(corsOptions));
@@ -95,6 +98,7 @@ app.use("/api/backend/life-gps", lifeGpsRoutes);
 app.use("/api/backend/letters", letterRoutes);
 app.use("/api/backend/zodiac", zodiacRoutes);
 app.use("/api/backend/global-pass", globalPassRoutes);
+app.use("/api/backend/monetization", monetizationRoutes);
 app.use("/api/generate-reading", indonesiaModulesRoutes);
 app.use("/api/backend", adminRoutes);
 app.use("/api", authRoutes);

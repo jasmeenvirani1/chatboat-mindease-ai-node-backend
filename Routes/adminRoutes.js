@@ -4,6 +4,7 @@ const fs = require("fs");
 const authenticateToken = require("../middleware/authenticateToken.js");
 const { requireSelfOrAdmin } = require("../middleware/adminAuth.js");
 const { checkChatAccess, userUpdateGuard } = require("../helper/planAccess.js");
+const { limitFreeTalkQuestions } = require("../helper/monetization/freeTalkLimit.js");
 const { threeuploads, singleupload } = require("../utils/imageUploder.js");
 const SettingController = require("../controllers/settingController.js");
 const userController = require("../controllers/userController.js");
@@ -33,7 +34,7 @@ const {
 const IndexBuildController = require("../controllers/indexBuildController.js");
 
 //Public Routes
-router.post("/chat/create", checkChatAccess, ChatHistory.createChat);
+router.post("/chat/create", checkChatAccess, limitFreeTalkQuestions, ChatHistory.createChat);
 router.get("/headlines", HeadlineController.getAllHeadlines);
 router.get("/headline/:date", HeadlineController.getHeadlineByDate);
 

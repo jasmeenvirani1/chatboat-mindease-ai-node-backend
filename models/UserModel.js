@@ -112,6 +112,20 @@ const userSchema = new Schema(
       dismissed: { type: Boolean, default: false },
       endedSeen: { type: Boolean, default: false },
     },
+    // Companion Talk free-tier counter and upgrade-popup throttle (see
+    // helper/monetization). Written only by the server; the client can never set them.
+    freeTalkUsage: {
+      day: { type: String, default: "" }, // "YYYY-MM-DD" (user's local day) that `used` counts for
+      used: { type: Number, default: 0 }, // Companion Talk questions asked that day
+    },
+    upgradePopup: {
+      day: { type: String, default: "" },
+      shown: { type: Number, default: 0 }, // popups shown that day
+      dismissed: { type: Number, default: 0 }, // popups dismissed that day
+      lastShownAt: { type: Date, default: null },
+      lastDismissedAt: { type: Date, default: null },
+      lastSessionId: { type: String, default: "" },
+    },
     // Daily Let It Ride passes for Astria Talk (see helper/letItRide.js).
     // Written only by the server; the client can never set it.
     letItRide: {
