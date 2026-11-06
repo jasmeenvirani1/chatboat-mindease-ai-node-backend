@@ -1,6 +1,11 @@
 // controllers/chatHistoryController.js
 
 const { generateGeminiResponse } = require("../helper/geminiService.js");
+const {
+  langInstruction: sharedLangInstruction,
+  resolvePreferredLanguage,
+} = require("../helper/languageDetect.js");
+const { cleanThaiOutput } = require("../helper/cleanThaiOutput");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 const HeadlineModel = require("../models/HeadlineModel.js");
 const LifeGraphCategoryModel = require("../models/LifeGraphCategoryModel.js");
@@ -53,18 +58,8 @@ const createLifeGraphHistory = async (req, res) => {
       return "th";
     };
 
-    const langInstruction = (lang) => {
-      switch (lang) {
-        case "th":
-          return "You MUST respond in Thai language only. IMPORTANT: Respond entirely in Thai, no matter what language the user writes in.";
-        case "zh":
-          return "You MUST respond in Chinese (Simplified) only. IMPORTANT: Respond entirely in Chinese, no matter what language the user writes in.";
-        case "ja":
-          return "You MUST respond in Japanese only. IMPORTANT: Respond entirely in Japanese, no matter what language the user writes in.";
-        default:
-          return "You MUST respond in English only. IMPORTANT: Respond entirely in English, no matter what language the user writes in.";
-      }
-    };
+    // Shared rule: covers every app language, not just th/zh/ja/en.
+    const langInstruction = (lang) => sharedLangInstruction(lang);
 
     let subCategoryPrompt = null;
     let subCategoryName = null;
@@ -190,7 +185,7 @@ ${systemPrompt}
     // });
 
     const aiResponse = await generateGeminiResponse(messages);
-    const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
+    const cleanedResponse = cleanThaiOutput(aiResponse?.trim(), userName?.preferredLanguage) || "Please try again. 🔮";
 
     // console.log("✅ LifeGraph AI Response received:", cleanedResponse);
 

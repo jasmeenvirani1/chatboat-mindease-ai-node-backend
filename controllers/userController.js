@@ -13,6 +13,39 @@ const { isValidSpanishToneLock } = require("../helper/spanishToneLock");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = require("../helper/jwtSecret");
 
+// Role of every self-registered account (email, Google, Apple sign-up).
+const NORMAL_USER_ROLE_ID = 2;
+
+/**
+ * Mongo query value that matches exactly this email, ignoring upper/lower case.
+ * The email is escaped first: "+" and "." are regex symbols, so without it
+ * "a+b@x.com" never found its own account and ".*" matched every account.
+ */
+const emailMatcher = (email) => {
+  const escaped = String(email ?? "").trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped}$`, "i");
+};
+
+// Languages a user can pick (Frontend/src/utils/languages.ts APP_LANGUAGES).
+const APP_LANGUAGES = new Set([
+  "en", "th", "vi", "id", "ms", "fil", "ko", "ja", "zh", "hi",
+  "ta", "mr", "es", "ar", "pt", "fr", "de", "it", "ru",
+]);
+
+/**
+ * Preferred language + home region for a new account, from the sign-up
+ * request. Unknown values fall back to English / Thailand ("healjai"), the
+ * schema defaults. "all" is never accepted: Global is granted, not chosen.
+ */
+const signupPreferences = (body = {}) => {
+  const language = String(body.preferredLanguage || "").trim().toLowerCase();
+  const region = String(body.region || "").trim().toLowerCase();
+  return {
+    preferredLanguage: APP_LANGUAGES.has(language) ? language : "en",
+    region: /^[a-z]{2,20}$/.test(region) && region !== "all" ? region : "healjai",
+  };
+};
+
 const makeUsernameFromEmail = (email) => {
   const base = (email || "user").split("@")[0];
   return base.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 20) || "user";
@@ -47,7 +80,7 @@ const userController = {
 
       // 🔍 Find user by email
       const user = await User.findOne({
-        email: new RegExp(`^${email}$`, "i"),
+        email: emailMatcher(email),
       });
 
       // ❌ User not found
@@ -167,10 +200,6 @@ const userController = {
         return res.status(400).json({ error: "Email is required" });
       }
 
-      if (!roleId) {
-        return res.status(400).json({ error: "Role is required" });
-      }
-
       // 🔴 CHECK IF EMAIL ALREADY EXISTS
       const existingUser = await User.findOne({ email });
       if (existingUser) {
@@ -192,13 +221,15 @@ const userController = {
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const newUser = new User({
-        roleId: roleId,
+        // Self sign-up is ALWAYS a normal user. The role is never taken from
+        // the request: sending roleId 1 used to create an admin account.
+        // Admins and testers are created from the admin panel (createUserFromAdmin).
+        roleId: NORMAL_USER_ROLE_ID,
         email,
         username,
         password: hashedPassword,
-        preferredLanguage,
         mobileNo,
-        region: region || "healjai",
+        ...signupPreferences({ preferredLanguage, region }),
       });
 
       await newUser.save();
@@ -317,18 +348,19 @@ const userController = {
       }
 
       // ✅ Find user by email
-      let user = await User.findOne({ email: new RegExp(`^${email}$`, "i") });
+      let user = await User.findOne({ email: emailMatcher(email) });
 
       // ✅ If not exists -> create user (no password)
       if (!user) {
         user = await User.create({
-          roleId: roleId || 2,
+          roleId: NORMAL_USER_ROLE_ID, // never from the request
           email,
           username: name || makeUsernameFromEmail(email),
           password: null,
           googleId: googleId || "",
           provider: "google",
           avatar: picture,
+          ...signupPreferences(req.body),
           isActive: true,
           isDeleted: false,
         });
@@ -441,18 +473,19 @@ const userController = {
       let user = await User.findOne({
         $or: [
           { appleId: appleId },
-          ...(email ? [{ email: new RegExp(`^${email}$`, "i") }] : []),
+          ...(email ? [{ email: emailMatcher(email) }] : []),
         ],
       });
 
       if (!user) {
         user = await User.create({
-          roleId: roleId ? Number(roleId) : 2,
+          roleId: NORMAL_USER_ROLE_ID, // never from the request
           email: email || `${appleId}@apple.local`,
           username: email ? makeUsernameFromEmail(email) : "apple_user",
           password: null,
           appleId,
           provider: "apple",
+          ...signupPreferences(req.body),
           isActive: true,
           isDeleted: false,
         });
@@ -534,7 +567,7 @@ const userController = {
       // gzrtvbeppsnwwbcd
       const supportPassword = process.env.SUPPORT_PASSWORD;
 
-      const user = await User.findOne({ email: new RegExp(`^${email}$`, "i") });
+      const user = await User.findOne({ email: emailMatcher(email) });
       const isAdmin = email.toLowerCase() === adminEmail.toLowerCase();
 
       const transporter = nodemailer.createTransport({
@@ -651,7 +684,7 @@ const userController = {
       }
 
       const email = decoded.email;
-      const user = await User.findOne({ email: new RegExp(`^${email}$`, "i") });
+      const user = await User.findOne({ email: emailMatcher(email) });
 
       if (!user) {
         logger.log(`Password reset failed: User not found - ${email}`);
@@ -674,7 +707,8 @@ const userController = {
       const { roleId, search } = req.query;
 
       // 🧩 Build dynamic filter
-      const filter = { isDeleted: false };
+      // QA Swarm test accounts are never listed.
+      const filter = { isDeleted: false, isQaTestUser: { $ne: true } };
 
       if (roleId) {
         filter.roleId = Number(roleId);

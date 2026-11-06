@@ -36,7 +36,7 @@ For life_guidance (Tab 1 — warm, emotional, modern):
 For astro_chart_view (Tab 2 — short, factual, chart-based):
 - Factual, concise tone — 2-4 lines per section, no coaching voice, no advice
 - NO fear language, no superstition, no doom
-- NO heavy Sanskrit jargon — name a term once if needed, then explain it in plain English
+- NO heavy Sanskrit jargon — name a term once if needed, then explain it in plain, everyday words
 - Every sentence must tie back to a SPECIFIC planet, house, or dasha period shown in the chart data below — never a vague generality
 - Do not invent planets, houses, or dates not present in the chart data provided
 

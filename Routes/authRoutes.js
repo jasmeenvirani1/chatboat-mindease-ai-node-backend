@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController.js');
 const SettingController = require('../controllers/settingController.js');
-const appleLoginService = require('../services/appleAuthService.js');
 const axios = require('axios');
 
-// const authenticateToken = require('../middleware/authenticateToken.js');
+const authenticateToken = require('../middleware/authenticateToken.js');
+const { requireAdmin, requireSelfOrAdmin } = require('../middleware/adminAuth.js');
 
 // IP → region detection (uses request IP, no API key required)
 router.get('/detect-region', async (req, res) => {
@@ -47,8 +47,15 @@ router.get('/detect-region', async (req, res) => {
       KR: 'korea',
       IN: 'india',
       JP: 'japan',
-      MX: 'spanish', ES: 'spanish', AR: 'spanish', CO: 'spanish', CL: 'spanish',
+      MX: 'mexico',
+      ES: 'spanish', AR: 'spanish', CO: 'spanish', CL: 'spanish',
       US: 'us',
+      VN: 'vietnam',
+      CN: 'china',
+      FR: 'france',
+      DE: 'germany',
+      IT: 'italy',
+      RU: 'russia',
     };
 
     const region = regionMap[countryCode] || 'healjai';
@@ -63,10 +70,12 @@ router.post('/register', userController.register);
 router.post('/sendOtp', userController.sendOtp);
 router.post('/verifyOtp', userController.verifyOtp);
 router.put('/resetPasswordWithOtp', userController.resetPasswordWithOtp);
-router.put('/fcmToken/:id', userController.updatefcmToken);
-router.get('/spanishToneLock/:id', userController.getSpanishToneLock);
-router.post('/spanishToneLock/:id', userController.setSpanishToneLock);
-router.get('/settings', SettingController.index);
+// Signed-in owner (or admin) only: the :id must be the logged-in user.
+router.put('/fcmToken/:id', authenticateToken, requireSelfOrAdmin(), userController.updatefcmToken);
+router.get('/spanishToneLock/:id', authenticateToken, requireSelfOrAdmin(), userController.getSpanishToneLock);
+router.post('/spanishToneLock/:id', authenticateToken, requireSelfOrAdmin(), userController.setSpanishToneLock);
+// Admin only: the settings record holds the AI API keys.
+router.get('/settings', authenticateToken, requireAdmin, SettingController.index);
 router.post('/googleLogin', userController.googleLogin);
 router.get("/auth/apple/start", userController.appleStart);
 router.post("/appleLogin", userController.appleLogin);

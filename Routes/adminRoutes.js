@@ -2,8 +2,9 @@ const express = require("express");
 const router = express.Router();
 const fs = require("fs");
 const authenticateToken = require("../middleware/authenticateToken.js");
-const { requireSelfOrAdmin } = require("../middleware/adminAuth.js");
+const { requireAdmin, requireSelfOrAdmin } = require("../middleware/adminAuth.js");
 const { checkChatAccess, userUpdateGuard } = require("../helper/planAccess.js");
+const { onlyOwnUserIdOrGuest } = require("../middleware/requireOwnUserId.js");
 const { limitFreeTalkQuestions } = require("../helper/monetization/freeTalkLimit.js");
 const { threeuploads, singleupload } = require("../utils/imageUploder.js");
 const SettingController = require("../controllers/settingController.js");
@@ -38,12 +39,14 @@ router.post("/chat/create", checkChatAccess, limitFreeTalkQuestions, ChatHistory
 router.get("/headlines", HeadlineController.getAllHeadlines);
 router.get("/headline/:date", HeadlineController.getHeadlineByDate);
 
-router.post("/tarotChat/create", createTarotHistory);
-router.post("/uranian/create", createUranianHistory);
-router.post("/lifeGraph/create", createLifeGraphHistory);
-router.post("/lifeGps/create", createLifeGpsMap);
-router.get("/lifeGps/latest/:userId", getLatestLifeGpsMap);
-router.post("/energyMatch/create", createEnergyMatchHistory);
+// Guests may use these without a userId. When a userId is sent, it must be
+// the signed-in user's own (or an admin's request).
+router.post("/tarotChat/create", onlyOwnUserIdOrGuest("body"), createTarotHistory);
+router.post("/uranian/create", onlyOwnUserIdOrGuest("body"), createUranianHistory);
+router.post("/lifeGraph/create", onlyOwnUserIdOrGuest("body"), createLifeGraphHistory);
+router.post("/lifeGps/create", onlyOwnUserIdOrGuest("body"), createLifeGpsMap);
+router.get("/lifeGps/latest/:userId", onlyOwnUserIdOrGuest("params"), getLatestLifeGpsMap);
+router.post("/energyMatch/create", onlyOwnUserIdOrGuest("body"), createEnergyMatchHistory);
 
 // Public: tester domain used by the frontend before login
 router.get(
@@ -94,14 +97,16 @@ router.use(authenticateToken);
 // Index build (protected): triggers helper/build-index.js
 router
   .route("/index/build")
-  .post(IndexBuildController.startIndexBuild)
-  .get(IndexBuildController.getIndexBuildStatus);
+  .post(requireAdmin, IndexBuildController.startIndexBuild)
+  .get(requireAdmin, IndexBuildController.getIndexBuildStatus);
 
 //Setting Routes
-router.get("/settings", SettingController.index);
-router.post("/settings/add", threeuploads("settings"), SettingController.store);
+// Admin only: the settings record holds the AI API keys.
+router.get("/settings", requireAdmin, SettingController.index);
+router.post("/settings/add", requireAdmin, threeuploads("settings"), SettingController.store);
 router.put(
   "/settings/:id/update",
+  requireAdmin,
   threeuploads("settings"),
   SettingController.update,
 );
@@ -123,54 +128,57 @@ router.get("/chats", ChatHistory.getChats);
 router.delete("/chat/:chatId", ChatHistory.deleteChat);
 
 //Category Routes
-router.post("/category/add", CategoryController.createCategory);
+router.post("/category/add", requireAdmin, CategoryController.createCategory);
 router.get("/categories", CategoryController.getAllCategories);
 router.get("/category/:id", CategoryController.getCategoryById);
-router.put("/category/:id/update", CategoryController.updateCategory);
-router.delete("/category/:id/delete", CategoryController.deleteCategory);
+router.put("/category/:id/update", requireAdmin, CategoryController.updateCategory);
+router.delete("/category/:id/delete", requireAdmin, CategoryController.deleteCategory);
 
 //SubCategory Routes
-router.post("/subcategory/add", SubCategoryController.createSubCategory);
+router.post("/subcategory/add", requireAdmin, SubCategoryController.createSubCategory);
 router.get("/subcategories", SubCategoryController.getAllSubCategories);
 router.get(
   "/subcategory/:categoryId",
   SubCategoryController.getSubCategoriesByCategory,
 );
-router.put("/subcategory/:id/update", SubCategoryController.updateSubCategory);
+router.put("/subcategory/:id/update", requireAdmin, SubCategoryController.updateSubCategory);
 router.delete(
   "/subcategory/:id/delete",
+  requireAdmin,
   SubCategoryController.deleteSubCategory,
 );
 
 //Case Routes
-router.post("/cases/add", CaseController.createCase);
+router.post("/cases/add", requireAdmin, CaseController.createCase);
 router.get("/cases", CaseController.getAllCases);
 router.get("/cases/:id", CaseController.getCaseById);
-router.put("/cases/:id/update", CaseController.updateCaseById);
-router.delete("/cases/:id/delete", CaseController.deleteCaseById);
+router.put("/cases/:id/update", requireAdmin, CaseController.updateCaseById);
+router.delete("/cases/:id/delete", requireAdmin, CaseController.deleteCaseById);
 
 // Headline Routes
 
 // Subscription Plans Routes
-router.post("/subscriptionPlans/add", SubscriptionPlansController.createPlan);
+router.post("/subscriptionPlans/add", requireAdmin, SubscriptionPlansController.createPlan);
 router.get("/subscriptionPlans", SubscriptionPlansController.getAllPlans);
 router.get("/subscriptionPlans/:id", SubscriptionPlansController.getPlanById);
 router.put(
   "/subscriptionPlans/:id/update",
+  requireAdmin,
   SubscriptionPlansController.updatePlanById,
 );
 router.delete(
   "/subscriptionPlans/:id/delete",
+  requireAdmin,
   SubscriptionPlansController.deletePlanById,
 );
 
 // Vocabulary Routes
 router.get("/vocabulary/latest", VocabularyController.getLatestVocabulary);
 router.get("/vocabulary/:id", VocabularyController.getVocabularyById);
-router.put("/vocabulary/:id/update", VocabularyController.updateVocabulary);
+router.put("/vocabulary/:id/update", requireAdmin, VocabularyController.updateVocabulary);
 
 //Log route
-router.get("/logs", (req, res) => {
+router.get("/logs", requireAdmin, (req, res) => {
   fs.readFile("./logs/app.jsonl", "utf8", (err, data) => {
     if (err) return res.status(500).json({ error: "Could not read log file" });
     res.json({ logs: data }); // ✅ Send logs inside JSON object

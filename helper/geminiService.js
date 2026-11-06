@@ -281,12 +281,12 @@ const generateGeminiResponse = async (messages, options = {}) => {
     );
 
     const usage = response.usage;
-    // console.log(
-      // `[OpenRouter model] requested=${modelToUse} actual=${response.model || "n/a"}`,
-    // );
-    // console.log(
-      // `[OpenRouter tokens] input=${usage?.prompt_tokens ?? 0} output=${usage?.completion_tokens ?? 0} cached=${usage?.prompt_tokens_details?.cached_tokens ?? 0} total=${usage?.total_tokens ?? 0} thinking=${usage?.completion_tokens_details?.reasoning_tokens ?? 0}`,
-    // );
+    console.log(
+      `[OpenRouter model] requested=${modelToUse} actual=${response.model || "n/a"}`,
+    );
+    console.log(
+      `[OpenRouter tokens] input=${usage?.prompt_tokens ?? 0} output=${usage?.completion_tokens ?? 0} cached=${usage?.prompt_tokens_details?.cached_tokens ?? 0} total=${usage?.total_tokens ?? 0} thinking=${usage?.completion_tokens_details?.reasoning_tokens ?? 0}`,
+    );
 
     return response.choices?.[0]?.message?.content ?? "";
   } catch (error) {
@@ -344,15 +344,15 @@ const generateGeminiResponseStream = async (messages, options = {}) => {
             yieldedAny = true;
             yield { text };
           }
-          // if (actualModel) {
-          //   console.log(
-          //     `[OpenRouter model] requested=${modelToUse} actual=${actualModel}`,
-          //   );
-          // }
+          if (actualModel) {
+            console.log(
+              `[OpenRouter model] requested=${modelToUse} actual=${actualModel}`,
+            );
+          }
           if (lastUsage) {
-            // console.log(
-              // `[OpenRouter tokens] input=${lastUsage.prompt_tokens ?? 0} output=${lastUsage.completion_tokens ?? 0} cached=${lastUsage.prompt_tokens_details?.cached_tokens ?? 0} total=${lastUsage.total_tokens ?? 0} thinking=${lastUsage.completion_tokens_details?.reasoning_tokens ?? 0}`,
-            // );
+            console.log(
+              `[OpenRouter tokens] input=${lastUsage.prompt_tokens ?? 0} output=${lastUsage.completion_tokens ?? 0} cached=${lastUsage.prompt_tokens_details?.cached_tokens ?? 0} total=${lastUsage.total_tokens ?? 0} thinking=${lastUsage.completion_tokens_details?.reasoning_tokens ?? 0}`,
+            );
           }
           return;
         } catch (err) {

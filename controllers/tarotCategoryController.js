@@ -1,8 +1,14 @@
 // controllers/chatHistoryController.js
 
 const { generateGeminiResponse } = require("../helper/geminiService.js");
+const {
+  langInstruction: sharedLangInstruction,
+  resolvePreferredLanguage,
+} = require("../helper/languageDetect.js");
 const SubCategory = require("../models/SubCategoryModel.js");
 const TarotCategoryModel = require("../models/TarotCategoryModel");
+const UserModel = require("../models/UserModel");
+const mongoose = require("mongoose");
 
 // @desc    Create a new tarot chat history
 // @route   POST /api/chat-history/tarot
@@ -36,18 +42,8 @@ const createTarotHistory = async (req, res) => {
       return "th";
     };
 
-    const langInstruction = (lang) => {
-      switch (lang) {
-        case "th":
-          return "You MUST respond in Thai language only. IMPORTANT: Respond entirely in Thai, no matter what language the user writes in.";
-        case "zh":
-          return "You MUST respond in Chinese (Simplified) only. IMPORTANT: Respond entirely in Chinese, no matter what language the user writes in.";
-        case "ja":
-          return "You MUST respond in Japanese only. IMPORTANT: Respond entirely in Japanese, no matter what language the user writes in.";
-        default:
-          return "You MUST respond in English only. IMPORTANT: Respond entirely in English, no matter what language the user writes in.";
-      }
-    };
+    // Shared rule: covers every app language, not just th/zh/ja/en.
+    const langInstruction = (lang) => sharedLangInstruction(lang);
 
     // Validate required fields
     if (!userMessage) {
@@ -84,9 +80,17 @@ const createTarotHistory = async (req, res) => {
 
     const questionText = String(question || "").trim();
     // console.log("Question:", questionText);
-    const targetLang = isEmpty(questionText)
-      ? "th"
-      : detectLangFromMessage(questionText);
+    // The question's language when it is clearly detected, otherwise the
+    // user's preferred language (then their region, then English).
+    const tarotUser =
+      userId && mongoose.isValidObjectId(userId)
+        ? await UserModel.findById(userId).select("preferredLanguage region").lean()
+        : null;
+    const targetLang = resolvePreferredLanguage({
+      text: questionText,
+      preferredLanguage: tarotUser?.preferredLanguage,
+      region: tarotUser?.region,
+    });
 
     // console.log("Lang:", targetLang);
 

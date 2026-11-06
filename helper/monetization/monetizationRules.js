@@ -42,6 +42,10 @@ function validateConfig(cfg) {
   if (!Array.isArray(cfg.companionTalk?.countedCategories) || !cfg.companionTalk.countedCategories.length) {
     bad("companionTalk.countedCategories must be a non-empty list");
   }
+  const countedSubs = cfg.companionTalk?.countedSubCategories;
+  if (countedSubs !== undefined && (!Array.isArray(countedSubs) || countedSubs.some((n) => typeof n !== "string" || !n))) {
+    bad("companionTalk.countedSubCategories must be a list of names");
+  }
 
   const cd = cfg.upsellRules?.cooldown;
   for (const key of ["maxPerSession", "maxPerDay", "cooldownMinutes", "suppressAfterDismissals"]) {
@@ -119,7 +123,11 @@ function getTesterEmails(env = process.env) {
 function isMonetizationOnFor(user, env = process.env) {
   const mode = getMonetizationMode(env);
   if (mode === "on") return true;
-  if (mode === "testers") return getTesterEmails(env).has(String(user?.email || "").trim().toLowerCase());
+  if (mode === "testers") {
+    // QA Swarm test accounts (backend/qaSwarm) always count as testers.
+    if (user?.isQaTestUser === true) return true;
+    return getTesterEmails(env).has(String(user?.email || "").trim().toLowerCase());
+  }
   return false;
 }
 
@@ -150,13 +158,24 @@ function getUpgradeCopy(language, country) {
   const base = tag.split("-")[0].toLowerCase();
   const exact = Object.keys(all).find((k) => k.toLowerCase() === tag.toLowerCase());
   const sameLang = Object.keys(all).find((k) => k.split("-")[0].toLowerCase() === base);
+  const isEnglish = !(exact || sameLang) || base === "en";
   const copy = all[exact || sameLang || "en-US"];
   return {
     title: copy.title,
     subtitle: copy.subtitle,
-    countryLine: config.countries[country]?.upsell || null,
+    // A translated line wins over the (English) per-country line, so a Thai
+    // user never sees English text inside the Thai popup.
+    countryLine: (!isEnglish && copy.countryLine) || config.countries[country]?.upsell || null,
     upgradeStrength: config.countries[country]?.upgradeStrength || "medium",
   };
+}
+
+/** The Talk-limit message in the user's language (English when no translation exists). */
+function getHardMessage(language) {
+  const all = config.localizedUpsellCopy;
+  const base = String(language || "").replace("_", "-").split("-")[0].toLowerCase();
+  const key = Object.keys(all).find((k) => k.split("-")[0].toLowerCase() === base);
+  return (key && all[key].hardMessage) || config.companionTalk.upsellTriggers.hardMessage;
 }
 
 // ─── Companion Talk limit (pure decision) ───────────────────────────────────
@@ -237,6 +256,7 @@ function cleanAnalyticsEvent(name, props = {}) {
 
 module.exports = {
   MODES,
+  getHardMessage,
   config,
   ready,
   configProblems,

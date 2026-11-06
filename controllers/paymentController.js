@@ -19,6 +19,40 @@ const { hasEnergyMatch } = require("../helper/planAccess");
 const clientUrl = process.env.PAYMENT_URL;
 
 /**
+ * Return a Stripe Customer id for this user that exists in the Stripe account
+ * of the current STRIPE_SECRET_KEY. One customer per user keeps saved cards
+ * and receipts together.
+ *
+ * The stored id can be stale: it may belong to another Stripe account or
+ * mode (test vs live) after a key change, or the customer may have been
+ * deleted. Stripe then rejects every checkout with "No such customer", so a
+ * missing or deleted customer is replaced with a new one and saved.
+ */
+async function ensureStripeCustomer(user) {
+  if (user.stripeCustomerId) {
+    try {
+      const existing = await stripe.customers.retrieve(user.stripeCustomerId);
+      if (!existing.deleted) return existing.id;
+      logger.log(`Stripe customer ${user.stripeCustomerId} was deleted; recreating for user=${user._id}`);
+    } catch (err) {
+      if (err.code !== "resource_missing") throw err;
+      logger.log(`Stripe customer ${user.stripeCustomerId} not found; recreating for user=${user._id}`);
+    }
+  }
+
+  const customer = await stripe.customers.create({
+    email: user.email,
+    name: user.username,
+    metadata: { userId: String(user._id) },
+  });
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { stripeCustomerId: customer.id } },
+  );
+  return customer.id;
+}
+
+/**
  * Apply a paid plan to a user and record it in history.
  *
  * Idempotent: activation is claimed with a single atomic upsert keyed on
@@ -123,6 +157,14 @@ async function activateSubscription({ session, user, plan, durationDays }) {
   logger.log(
     `Subscription activated: user=${user._id} plan=${plan._id} session=${session.id}`,
   );
+  try {
+    const rules = require("../helper/monetization/monetizationRules");
+    require("../helper/monetization/monetizationDatabase").saveAnalyticsEvent("pro_subscribed", user._id, {
+      country: rules.getCountryFromRegion(user.region), entry_point: session.metadata?.entryPoint || "checkout", language: user.preferredLanguage,
+    });
+  } catch (err) {
+    logger.error("pro_subscribed analytics failed", err);
+  }
 
   return { alreadyProcessed: false, history };
 }
@@ -244,16 +286,7 @@ const createEnergyMatchCheckout = async (req, res) => {
       return res.status(404).json({ message: "Energy Match is not available in your region" });
     }
 
-    let customerId = user.stripeCustomerId;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.username,
-        metadata: { userId: String(user._id) },
-      });
-      customerId = customer.id;
-      await User.updateOne({ _id: user._id }, { $set: { stripeCustomerId: customerId } });
-    }
+    const customerId = await ensureStripeCustomer(user);
 
     const currency = (plan.currency || DEFAULT_CURRENCY).toLowerCase();
     const metadata = {
@@ -335,21 +368,7 @@ const createCheckoutSession = async (req, res) => {
       return res.status(500).json({ message: "Plan is misconfigured" });
     }
 
-    // Reuse one Stripe Customer per user so saved cards and receipts stay
-    // together instead of creating a new customer on every purchase.
-    let customerId = user.stripeCustomerId;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: user.username,
-        metadata: { userId: String(user._id) },
-      });
-      customerId = customer.id;
-      await User.updateOne(
-        { _id: user._id },
-        { $set: { stripeCustomerId: customerId } },
-      );
-    }
+    const customerId = await ensureStripeCustomer(user);
 
     const currency = (plan.currency || DEFAULT_CURRENCY).toLowerCase();
     const isTrial = isFreePlan(plan.price);

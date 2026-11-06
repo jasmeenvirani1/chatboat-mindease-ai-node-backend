@@ -8,6 +8,7 @@
 
 const express = require("express");
 const router = express.Router();
+const { onlyOwnUserIdOrGuest } = require("../middleware/requireOwnUserId.js");
 const {
   scan,
   deepAnalysis,
@@ -26,7 +27,7 @@ router.post("/deep-analysis", deepAnalysis);
 router.post("/team-scan", teamScan);
 
 // Retrieve all scans for a user
-router.get("/user/:userId", getByUser);
+router.get("/user/:userId", onlyOwnUserIdOrGuest("params"), getByUser);
 
 // Retrieve a saved scan by ID
 router.get("/scan/:id", getById);

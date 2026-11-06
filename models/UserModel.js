@@ -87,6 +87,9 @@ const userSchema = new Schema(
     // "pro" or "global" (see activateSubscription) and a refund/dispute resets it.
     plan: { type: String, enum: ["free", "pro", "global"], default: "free" },
     region: { type: String, default: "healjai" },
+    // Fake account created by the QA Swarm (backend/qaSwarm). Hidden from the
+    // admin user list and deleted when the QA run ends.
+    isQaTestUser: { type: Boolean, default: false, index: true },
     // Regions this user has purchased via Journey (POST /payment/checkout with
     // a region-scoped plan). Separate from `region`, which is the ONE region
     // whose content is currently active — a purchase adds here AND switches

@@ -23,7 +23,10 @@ router.use(authenticateToken);
 
 const getTier = (user) => (isFreePlanUser(user) ? "free" : "pro");
 const cleanText = (value, maxLength = 64) => (typeof value === "string" ? value.trim().slice(0, maxLength) : "");
-const EVENTS_BROWSER_MAY_SEND = new Set(["locked_content_opened", "upsell_clicked"]);
+const EVENTS_BROWSER_MAY_SEND = new Set([
+  "locked_content_opened", "upsell_clicked", "current_season_clicked", "growth_edge_clicked", "life_blueprint_clicked",
+  "full_chart_clicked", "energy_match_started", "energy_match_partner_missing", "letter_never_sent_started", "life_gps_opened",
+]);
 
 /** Wraps a handler: on any error answer quietly (no popup) instead of a 500. */
 const answerQuietlyOnError = (handler) => async (req, res) => {

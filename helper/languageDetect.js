@@ -279,7 +279,7 @@ const PORTUGUESE_MARKERS =
 
 // Spanish words that are NOT valid Portuguese (so they disambiguate the two).
 const SPANISH_MARKERS =
-  /(?<![\p{L}\p{N}_])(hola|gracias|estoy|estás|estas|está|quiero|necesito|necesita|necesitas|tengo|tienes|tiene|soy|eres|somos|porque|cuando|dónde|quién|qué|también|pero|muy|ahora|aquí|aqui|siempre|trabajo|dinero|tiempo|día|noche|amor|gusta|gustaría|puedo|hacer|hago|siento|esto|eso|mucho|muchas|mejor|jefe|ayuda|ayúdame|conmigo|cómo|triste|feliz|relación|relacion|consejo|consejos|decisión|decision|futuro|confundido|confundida|carrera|últimamente|ultimamente|hay|cosas|cosa|cabeza|pasando|este|momento|inseguro|insegura|seguir|empezar|etapa|vida|sé|se|correcto|debería|deberia)(?![\p{L}\p{N}_])/iu;
+  /(?<![\p{L}\p{N}_])(hola|gracias|estoy|estás|estas|está|quiero|necesito|necesita|necesitas|tengo|tienes|tiene|soy|eres|somos|porque|cuando|dónde|quién|qué|también|pero|muy|ahora|aquí|aqui|siempre|trabajo|dinero|tiempo|día|noche|amor|gusta|gustaría|puedo|hacer|hago|siento|esto|eso|mucho|muchas|mejor|jefe|ayuda|ayúdame|conmigo|cómo|triste|feliz|relación|relacion|consejo|consejos|decisión|decision|futuro|confundido|confundida|carrera|últimamente|ultimamente|hay|cosas|cosa|cabeza|pasando|este|momento|inseguro|insegura|seguir|empezar|etapa|vida|sé|se|correcto|debería|deberia|ayer|tuve|hermana|hermano|dejar|pensar|ello|ella|los|las|y|discusión|pelea|peleas|dije|decirle|hablar|podría|podria|personas|calmarme|termino)(?![\p{L}\p{N}_])/iu;
 
 // French-exclusive function words. Words that collide with
 // Spanish/Portuguese/Italian (e.g. "por", "la") are excluded.
@@ -444,13 +444,14 @@ function detectLanguageRaw(rawText) {
   // Spanish / Portuguese exclusive punctuation & letters — decisive.
   if (/[¿¡]/.test(text) || /ñ/i.test(text))
     return { code: "es", confident: true, source: "char:es-exclusive" };
-  if (/[ãõ]/i.test(text))
-    return { code: "pt", confident: true, source: "char:pt-exclusive" };
-  // Vietnamese-exclusive diacritic letters. NOTE: ê ô â are also valid in
+  // Vietnamese-exclusive diacritic letters (checked BEFORE Portuguese:
+  // Vietnamese also uses ã/õ, e.g. "đã", which used to be read as PT). NOTE: ê ô â are also valid in
   // Portuguese/French, so only ă đ ơ ư (plus the stacked-tone letters) count
   // as VN-exclusive here.
   if (/[ăđơư]/i.test(text) && !/[ñ¿¡]/i.test(text))
     return { code: "vi", confident: true, source: "char:vi-exclusive" };
+  if (/[ãõ]/i.test(text))
+    return { code: "pt", confident: true, source: "char:pt-exclusive" };
   // German-exclusive.
   if (/[äöüß]/i.test(text) && !/[ăđơư]/i.test(text))
     return { code: "de", confident: true, source: "char:de-exclusive" };
@@ -643,9 +644,14 @@ function resolveReplyLanguage(opts = {}) {
   // trust it before falling back further. Only for sources that actually
   // carry a linguistic signal — "form-or-data"/"fallback"/"empty" are a pure
   // give-up (always "en") and must not shadow the region default.
+  // The user's own saved language outranks a weak guess: an unconfident
+  // detection is usually one or two incidental collision words (Spanish "no"
+  // also counts as English), so a Spanish speaker in the US region would
+  // otherwise get an English reply.
   const NO_SIGNAL_SOURCES = new Set(["form-or-data", "fallback", "empty"]);
   if (
     isNewChat &&
+    !clean(preferredLanguage) &&
     clean(detection.code) &&
     !NO_SIGNAL_SOURCES.has(detection.source)
   ) {
@@ -767,10 +773,16 @@ function resolvePreferredLanguage(opts = {}) {
  * Falls back to English for an unknown/empty code.
  */
 function langInstruction(code) {
-  const name = LANG_NAMES[cleanLang(code)] || LANG_NAMES.en;
+  const lang = cleanLang(code);
+  const name = LANG_NAMES[lang] || LANG_NAMES.en;
+  const noMixing =
+    lang && lang !== "en" && lang !== "hinglish"
+      ? ` Never mix in English or other-language words (like "young", "helps", "confide"); use the natural ${name} word. Only proper names and brand names may stay in Latin letters.`
+      : "";
   return (
     `LANGUAGE RULE: You MUST respond in ${name} only. ` +
-    `Respond entirely in ${name}, regardless of the language the user writes in.`
+    `Respond entirely in ${name}, regardless of the language the user writes in.` +
+    noMixing
   );
 }
 

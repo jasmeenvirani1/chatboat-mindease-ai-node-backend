@@ -3,7 +3,19 @@ const ChatHistory = require("../models/ChatModel.js");
 const Category = require("../models/CategoryModel.js");
 const SubCategory = require("../models/SubCategoryModel.js");
 const logger = require("../helper/logger.js");
+const { isAdmin } = require("../middleware/adminAuth.js");
 const { hasPaidAccess } = require("../helper/subscriptionAccess.js");
+const planAccess = require("../helper/planAccess.js");
+const { getMarketLaneByCategory } = require("../helper/marketLanes");
+
+/**
+ * Plan level a market lane reads with: paid users (Pro, Global), admins and
+ * all-region accounts get every reading in full; everyone else is "free".
+ */
+const marketLaneTier = (user) =>
+  user && (planAccess.getPlan(user) !== "free" || planAccess.seesAll(user))
+    ? "pro_plus"
+    : "free";
 const {
   generateDeepseekResponse,
   generateDeepseekResponseStream,
@@ -1187,6 +1199,7 @@ const chatController = {
       let subscriptionStatus;
       let roleId;
       let userRegion;
+      let userPreferredLanguage;
       let userGccToneMode;
       let userSpanishToneLock;
       let userMusicMemory = null;
@@ -1205,6 +1218,7 @@ const chatController = {
           dob_place0 = user.dob_place;
           userName = user.username;
           userRegion = user.region;
+          userPreferredLanguage = user.preferredLanguage;
           subscriptionId = user.subscriptionId;
           subscriptionStatus = user.subscriptionStatus;
           roleId = user.roleId;
@@ -1436,6 +1450,9 @@ const chatController = {
 
       // Astria US Flag
       const isAstriaUS = pickFirstMatch(categoryName === "Astria US");
+
+      // France / Germany / Italy / Russia / China lane, or null.
+      const marketLane = getMarketLaneByCategory(categoryName);
 
       // Astria India Flag
       const isAstriaIndiaCategory = pickFirstMatch(
@@ -2061,6 +2078,7 @@ const chatController = {
           userMessage,
           chatLang: priorChatLang,
           isNewChat,
+          preferredLanguage: userPreferredLanguage,
           regionDefault: regionDefaultLang(userRegion),
         });
         target = resolved.code;
@@ -2097,16 +2115,10 @@ const chatController = {
         target = chat.chatLang;
       }
 
-      // Astria Spanish / Spanish V2 language lock — these categories ARE the
-      // Spanish lane, so always reply in Spanish regardless of what
-      // detectLangFromMessage guessed. Without this, terse/data-heavy
-      // messages (e.g. an Energy Match form submission full of dates, times,
-      // and city names) can contain too few Spanish marker words and get
-      // misdetected as English, causing the LLM to reply in English even
-      // though the user is in the Spanish lane.
-      if ((isAstriaSpanish || isAstriaSpanishV2) && !isAstriaUS) {
-        target = "es";
-      }
+      // No per-lane language lock (Spanish, Korea): every lane follows the
+      // rule above — the message's language when detected, otherwise the
+      // user's preferred language. A form submission full of dates is not a
+      // confident detection, so it already gets the preferred language.
 
       const currentDomain = v4Classification.domain;
       const shouldIncludeHistory =
@@ -2703,6 +2715,39 @@ RULES:
         );
       }
 
+      // FRANCE / GERMANY / ITALY / RUSSIA / CHINA (helper/marketLanes).
+      // Free tabs give a short reading; Pro tabs give Free users a teaser with
+      // an upgrade line and paid users (Pro, Global) the full reading.
+      if (marketLane) {
+        let laneBirthChart = null;
+        if (selfDob0) {
+          try {
+            laneBirthChart = marketLane.computeBirthChart({
+              dob: String(selfDob0).trim(),
+              dob_time: selfDobTime0 || null,
+              dob_place: selfDobPlace0 || null,
+            });
+          } catch (chartErr) {
+            logger.error(`${categoryName} birth chart error:`, chartErr);
+          }
+        }
+
+        systemPrompt = marketLane.buildContext({
+          subCategoryName,
+          categoryPrompt,
+          subCategoryPrompt,
+          birthChart: laneBirthChart,
+          langName: resolveLangName(target),
+          userTier: marketLaneTier(req.authUser),
+        });
+        systemPrompt = appendAstriaDobAndMessageContext(
+          systemPrompt,
+          selfDob0,
+          userMessage,
+          translatedMessage !== userMessage ? translatedMessage : null,
+        );
+      }
+
       // ASTRIA SPANISH ENGINE — Astria Spanish category ONLY
       let energyMatchMissingQuestionES = null;
       if (isAstriaSpanish && !isAstriaUS) {
@@ -3027,12 +3072,6 @@ RULES:
       // ASTRIA KOREA ENGINE — Astria Korea category ONLY
       let compatibilityMissingQuestionKR = null;
       if (isAstriaKorea) {
-        // Region-based language: the "Astria Korea" category IS the Korea
-        // region lane, so always reply in Korean regardless of what language
-        // the user typed in (previously this fell through to
-        // detectLangFromMessage, which replied in English/Thai/etc. if the
-        // user's message wasn't in Korean).
-        target = "ko";
         const isSajuTab = isSajuSubcategoryKR(subCategoryName);
         const isKoreanCompat =
           !isSajuTab &&
@@ -3201,7 +3240,6 @@ RULES:
       // ASTRIA KOREA V2 ENGINE — Astria Korea V2 category ONLY
       let compatibilityMissingQuestionKRV2 = null;
       if (isAstriaKoreaV2) {
-        target = "ko";
         const isRelationshipEngineTab =
           isRelationshipEngineSubcategoryKRV2(subCategoryName);
         const isCompatibilityTab =
@@ -6467,6 +6505,7 @@ RULES:
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaIndonesia &&
+        !marketLane &&
         musicRecommendation?.shouldRecommend
       ) {
         systemPrompt = `${musicRecommendation.promptBlock}
@@ -6489,6 +6528,7 @@ RULES:
         !isAstriaGCC &&
         !isAstriaGCCV2 &&
         !isAstriaIndonesia &&
+        !marketLane &&
         foodRecommendation?.shouldRecommend
       ) {
         const isTeasing = foodRecommendation.isTeasing;
@@ -6546,6 +6586,7 @@ RULES:
         hasActiveSubscription &&
         !healjaiTalkOwnsPrompt &&
         !isAstriaTalk &&
+        !marketLane &&
         Array.isArray(sentences) &&
         sentences.length > 0
       ) {
@@ -6606,9 +6647,9 @@ FREE TIER REPLY LENGTH (overrides any length or depth instruction above):
 - Give a SHORT insight only: at most 3 short paragraphs of 1-2 sentences each, about 80 words in total.
 - Name the main pattern or answer, then stop. No deep reflection, no step-by-step plans, no long lists, no multi-part analysis.
 - Do not mention plans, upgrades or what the user is missing.
-- Keep the same language, tone and any required output format.`;
+- ${target && target !== "en" && target !== "hinglish" ? `Write the whole reply in ${resolveLangName(target)} only (the instructions above are in English, the reply must not be). ` : ""}Keep the same language, tone and any required output format.`;
       }
-      // console.log("System prompt: ", systemPrompt);
+      console.log("System prompt: ", systemPrompt);
 
       if (shouldIncludeHistory) {
         chat.chats.slice(-4).forEach((c) => {
@@ -6805,7 +6846,7 @@ FREE TIER REPLY LENGTH (overrides any length or depth instruction above):
 
           if (phVnIdV2ExpansionPrompt) {
             // Astria Philippines V2 — the seed picked deterministically above
-            // is expanded into a full Taglish response via the LLM, per the
+            // is expanded into a full Filipino response via the LLM, per the
             // client's emotion-picker expansion spec. Word-chunked over SSE
             // like every other lane, so the frontend streaming UI is unaffected.
             const phCompletion = await llmResponse([
@@ -9224,16 +9265,30 @@ FREE TIER REPLY LENGTH (overrides any length or depth instruction above):
   getChats: async (req, res) => {
     try {
       const { userId, chatId } = req.query;
+      // A user may only read their own chats; admins may read any.
+      // req.user comes from the verified login token (authenticateToken).
+      const signedInId = String(req.user?._id || "");
+      const admin = isAdmin(req.user);
       let data;
 
       if (chatId) {
-        data = await ChatHistory.findById(chatId).lean();
-        if (!data) {
+        data = mongoose.isValidObjectId(chatId)
+          ? await ChatHistory.findById(chatId).lean()
+          : null;
+        // Someone else's chat answers "not found", so chat ids cannot be probed.
+        const ownedBySomeoneElse =
+          data?.userId && String(data.userId) !== signedInId && !admin;
+        if (!data || ownedBySomeoneElse) {
           return res
             .status(404)
             .json({ success: false, message: "Chat not found" });
         }
       } else if (userId) {
+        if (String(userId) !== signedInId && !admin) {
+          return res
+            .status(403)
+            .json({ success: false, message: "You can only view your own chats" });
+        }
         data = await ChatHistory.find({ userId })
           .select("sessionTitle createdAt updatedAt categoryId subCategoryId")
           .sort({ updatedAt: -1 })
@@ -9256,16 +9311,21 @@ FREE TIER REPLY LENGTH (overrides any length or depth instruction above):
   deleteChat: async (req, res) => {
     try {
       const { chatId } = req.params;
-      const { userId } = req.body;
 
-      const chat = await ChatHistory.findById(chatId).select("userId");
+      const chat = mongoose.isValidObjectId(chatId)
+        ? await ChatHistory.findById(chatId).select("userId")
+        : null;
       if (!chat) {
         return res
           .status(404)
           .json({ success: false, message: "Chat not found" });
       }
 
-      if (userId && chat.userId?.toString() !== userId.toString()) {
+      // Only the chat's owner (from the login token, never the request body)
+      // or an admin may delete it.
+      const isOwner =
+        !!chat.userId && String(chat.userId) === String(req.user?._id || "");
+      if (!isOwner && !isAdmin(req.user)) {
         return res.status(403).json({
           success: false,
           message: "Not authorized to delete this chat",

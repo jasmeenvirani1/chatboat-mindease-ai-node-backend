@@ -14,6 +14,19 @@ const { buildMarriageContext } = require("../helper/marriageVerdict/marriageCont
 const { buildMarriagePrompt } = require("../helper/marriageVerdict/marriagePromptBuilder.js");
 const { formatMarriageResponse } = require("../helper/marriageVerdict/marriageResponseFormatter.js");
 const MarriageVerdictModel = require("../models/MarriageVerdictModel.js");
+const User = require("../models/UserModel.js");
+const mongoose = require("mongoose");
+const { langInstruction, resolvePreferredLanguage } = require("../helper/languageDetect.js");
+
+// The owner's preferred language (then region, then English). Guests get English.
+async function verdictLanguage(userId) {
+  if (!userId || !mongoose.isValidObjectId(userId)) return "en";
+  const user = await User.findById(userId).select("preferredLanguage region").lean();
+  return resolvePreferredLanguage({
+    preferredLanguage: user?.preferredLanguage,
+    region: user?.region,
+  });
+}
 
 const VALID_TABS = ["life_guidance", "astro_chart_view"];
 
@@ -38,7 +51,9 @@ async function runVerdictPipeline(record, formInput) {
       {
         role: "system",
         content:
-          "You are Astria — a premium Vedic astrology and cosmic intelligence engine. Always respond with valid JSON only.",
+          "You are Astria — a premium Vedic astrology and cosmic intelligence engine. Always respond with valid JSON only. " +
+          langInstruction(await verdictLanguage(record.userId)) +
+          " Keep every JSON key exactly as given; only the text values follow this language rule.",
       },
       { role: "user", content: prompt },
     ];

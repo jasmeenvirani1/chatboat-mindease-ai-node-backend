@@ -408,12 +408,17 @@ async function detectEmotion(text) {
     // We normalize the score based on typical high-intensity messages (score 10+)
     // but also weight it by sentiment and keyword density.
     let intensity = Math.min(maxScore / 12, 1.0);
-    
+
     // Boost intensity for specific high-weight keywords or patterns
-    if (msg.includes("worthless") || msg.includes("die") || msg.includes("hopeless") || msg.includes("can't go on")) {
+    if (
+      msg.includes("worthless") ||
+      msg.includes("die") ||
+      msg.includes("hopeless") ||
+      msg.includes("can't go on")
+    ) {
       intensity = Math.max(intensity, 0.9);
     }
-    
+
     if (msg.includes(" exhausted") || msg.includes(" tired of life")) {
       intensity = Math.max(intensity, 0.8);
     }

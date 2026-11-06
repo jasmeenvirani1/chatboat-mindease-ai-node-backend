@@ -4,6 +4,7 @@ const User = require("../models/UserModel");
 // const Menu = require("../models/MenuModel");
 
 const jwtkey = require("../helper/jwtSecret");
+const { downgradeIfLapsed } = require("../helper/subscriptionAccess");
 
 const authenticateToken = async (req, res, next) => {
   try {
@@ -13,11 +14,14 @@ const authenticateToken = async (req, res, next) => {
       { path: "/sendOtp", method: "POST" },
       { path: "/verifyOtp", method: "POST" },
       { path: "/resetPasswordWithOtp", method: "PUT" },
-      { path: "/settings", method: "GET" },
+      // "/settings" is NOT public: the settings record holds the AI API keys.
+      // (It also matched every router's own GET /settings, e.g. Life GPS, and
+      // made those run without req.user.) Branding fields, if ever needed
+      // before login, must come from a separate endpoint that returns only them.
     ];
 
     const isPublicRoute = publicRoutes.some(
-      (route) => route.path === req.path && route.method === req.method
+      (route) => route.path === req.path && route.method === req.method,
     );
 
     if (isPublicRoute) {
@@ -47,12 +51,15 @@ const authenticateToken = async (req, res, next) => {
     const user = await User.findById(decodedToken.id).populate("email");
     // console.log("User found:", JSON.stringify(user, null, 2));
     if (!user || !user.email) {
-      // console.log("User or role not found. User:", JSON.stringify(user, null, 2));
+      // console.log(
+        // "User or role not found. User:",
+        // JSON.stringify(user, null, 2),
+      // );
       return res.status(403).json({ error: "Invalid user email!" });
     }
 
     // if (user.roleId.roleId === 1) {
-    //   // console.log("Admin access granted. Bypassing dynamic authorization.");
+    //   console.log("Admin access granted. Bypassing dynamic authorization.");
     //   req.user = user;
     //   return next();
     // } else {
@@ -63,10 +70,10 @@ const authenticateToken = async (req, res, next) => {
     //   roleId: user.roleId._id,
     //   isDeleted: false,
     // }).populate("permissions.menuId");
-    // // console.log("Role permissions:", JSON.stringify(rolePermissions, null, 2));
+    // console.log("Role permissions:", JSON.stringify(rolePermissions, null, 2));
 
     // if (!rolePermissions) {
-    //   // console.log("No role permissions found for roleId:", user.roleId._id);
+    //   console.log("No role permissions found for roleId:", user.roleId._id);
     //   return res.status(403).json({ error: "No permissions assigned to this role!" });
     // }
 
@@ -81,7 +88,7 @@ const authenticateToken = async (req, res, next) => {
     // console.log("Extracted menu slug:", extractedSlug);
 
     if (!extractedSlug) {
-      console.log("Menu slug extraction failed, empty slug detected!");
+      // console.log("Menu slug extraction failed, empty slug detected!");
       return res.status(400).json({ error: "Invalid or missing menu slug!" });
     }
 
@@ -94,7 +101,7 @@ const authenticateToken = async (req, res, next) => {
 
     let isMatch = false;
     // rolePermissions.permissions.forEach((permission, index) => {
-    //   // console.log("permission", permission?.menuId?._id, "menu._id", menu?._id);
+    //   console.log("permission", permission?.menuId?._id, "menu._id", menu?._id);
     //   if (permission?.menuId._id.toString() == menu?._id.toString()) {
     //     if (req.method == "GET" && permission.permissionIds.get) {
     //       console.log("permission", permission);
@@ -116,7 +123,7 @@ const authenticateToken = async (req, res, next) => {
     // );
 
     // if (!permission) {
-    //   // console.log("Permission not found for menu with _id:", menu._id);
+    //   console.log("Permission not found for menu with _id:", menu._id);
     //   return res.status(403).json({ error: "Access denied!" });
     // }
 
@@ -131,9 +138,12 @@ const authenticateToken = async (req, res, next) => {
     // console.log("HTTP method:", method, "Mapped action:", action);
 
     // if (action && !permission.permissionIds[action]) {
-    //   // console.log("Permission denied for action:", action, "Permission IDs:", JSON.stringify(permission.permissionIds, null, 2));
+    //   console.log("Permission denied for action:", action, "Permission IDs:", JSON.stringify(permission.permissionIds, null, 2));
     //   return res.status(403).json({ error: `Access denied for ${action} action!` });
     // }
+
+    // Expired plan => Free in the database on this very request.
+    await downgradeIfLapsed(User, user).catch(() => {});
 
     req.user = user;
     // console.log("User authorized, proceeding to next middleware...");

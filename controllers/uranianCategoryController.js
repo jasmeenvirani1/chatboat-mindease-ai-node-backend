@@ -1,6 +1,11 @@
 // controllers/chatHistoryController.js
 
 const { generateGeminiResponse } = require("../helper/geminiService.js");
+const {
+  langInstruction: sharedLangInstruction,
+  resolvePreferredLanguage,
+} = require("../helper/languageDetect.js");
+const { cleanThaiOutput } = require("../helper/cleanThaiOutput");
 const { calculateUranianPlanets } = require("../helper/uranianPlanets.js");
 const SubCategory = require("../models/SubCategoryModel.js");
 const TarotCategoryModel = require("../models/TarotCategoryModel.js");
@@ -40,18 +45,8 @@ const createUranianHistory = async (req, res) => {
       return "th";
     };
 
-    const langInstruction = (lang) => {
-      switch (lang) {
-        case "th":
-          return "You MUST respond in Thai language only. IMPORTANT: Respond entirely in Thai, no matter what language the user writes in.";
-        case "zh":
-          return "You MUST respond in Chinese (Simplified) only. IMPORTANT: Respond entirely in Chinese, no matter what language the user writes in.";
-        case "ja":
-          return "You MUST respond in Japanese only. IMPORTANT: Respond entirely in Japanese, no matter what language the user writes in.";
-        default:
-          return "You MUST respond in English only. IMPORTANT: Respond entirely in English, no matter what language the user writes in.";
-      }
-    };
+    // Shared rule: covers every app language, not just th/zh/ja/en.
+    const langInstruction = (lang) => sharedLangInstruction(lang);
 
     // Validate required fields
     if (!userMessage) {
@@ -135,7 +130,7 @@ PLANETS:
 ${realPlanets}
 
 LANGUAGE RULE:
-- ${langInstruction(lang)}
+- ${langInstruction(lang || userName?.preferredLanguage)}
 - Use soft language: "may", "seems", "tends to", "likely"
 - Never use absolute claims
 `.trim();
@@ -159,7 +154,7 @@ PLANETS:
 ${realPlanets}
 
 LANGUAGE RULE:
-- ${langInstruction(lang)}
+- ${langInstruction(lang || userName?.preferredLanguage)}
 - Use soft language: "may", "seems", "tends to", "likely"
 - Never use absolute claims
 
@@ -200,7 +195,7 @@ If Birth Time or Birth Place is missing, proceed with available information.
     // });
 
     const aiResponse = await generateGeminiResponse(messages);
-    const cleanedResponse = aiResponse?.trim() || "Please try again. 🔮";
+    const cleanedResponse = cleanThaiOutput(aiResponse?.trim(), userName?.preferredLanguage) || "Please try again. 🔮";
 
     // console.log("✅ LifeGraph AI Response received");
 

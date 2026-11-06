@@ -48,6 +48,10 @@ const SubCategorySchema = new Schema(
       type: String,
       trim: true,
     },
+    name_ru: {
+      type: String,
+      trim: true,
+    },
 
     description: {
       type: String,
@@ -78,6 +82,10 @@ const SubCategorySchema = new Schema(
       default: "",
     },
     description_ar: {
+      type: String,
+      default: "",
+    },
+    description_ru: {
       type: String,
       default: "",
     },

@@ -69,7 +69,7 @@ const SIGNUP_GRACE_MS = 24 * 60 * 60 * 1000;
 const LOCKED_FIELDS = new Set([
   "_id", "plan", "roleId", "unlockedRegions", "globalPass", "subscriptions",
   "allRegionsApproved", "allRegionsPending", "approveAllRegions",
-  "hasUsedFreeTrial", "energyMatchAccess", "freeTalkUsage", "upgradePopup", "letItRide", "talkCoaching", "isActive", "isDeleted", "createdAt", "updatedAt",
+  "hasUsedFreeTrial", "energyMatchAccess", "freeTalkUsage", "isQaTestUser", "upgradePopup", "letItRide", "talkCoaching", "isActive", "isDeleted", "createdAt", "updatedAt",
 ]);
 
 // ─── Rules (no database, easy to test) ──────────────────────────────────────

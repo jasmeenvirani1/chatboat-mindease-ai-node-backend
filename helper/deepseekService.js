@@ -274,12 +274,12 @@ const generateDeepseekResponse = async (messages, options = {}) => {
     );
 
     const usage = response.usage;
-    // console.log(
-      // `[DeepSeek model] requested=${modelToUse} actual=${response.model || "n/a"}`,
-    // );
-    // console.log(
-      // `[DeepSeek tokens] input=${usage?.prompt_tokens ?? 0} output=${usage?.completion_tokens ?? 0} cacheHit=${usage?.prompt_cache_hit_tokens ?? 0} cacheMiss=${usage?.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(usage)} total=${usage?.total_tokens ?? 0} thinking=${usage?.completion_tokens_details?.reasoning_tokens ?? 0}`,
-    // );
+    console.log(
+      `[DeepSeek model] requested=${modelToUse} actual=${response.model || "n/a"}`,
+    );
+    console.log(
+      `[DeepSeek tokens] input=${usage?.prompt_tokens ?? 0} output=${usage?.completion_tokens ?? 0} cacheHit=${usage?.prompt_cache_hit_tokens ?? 0} cacheMiss=${usage?.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(usage)} total=${usage?.total_tokens ?? 0} thinking=${usage?.completion_tokens_details?.reasoning_tokens ?? 0}`,
+    );
 
     const content = response.choices?.[0]?.message?.content ?? "";
     if (options.maxOutputTokens && response.choices?.[0]?.finish_reason === "length") {
@@ -365,14 +365,14 @@ const generateDeepseekResponseStream = async (messages, options = {}) => {
             }
           }
           if (actualModel) {
-            // console.log(
-              // `[DeepSeek model] requested=${modelToUse} actual=${actualModel}`,
-            // );
+            console.log(
+              `[DeepSeek model] requested=${modelToUse} actual=${actualModel}`,
+            );
           }
           if (lastUsage) {
-            // console.log(
-              // `[DeepSeek tokens] input=${lastUsage.prompt_tokens ?? 0} output=${lastUsage.completion_tokens ?? 0} cacheHit=${lastUsage.prompt_cache_hit_tokens ?? 0} cacheMiss=${lastUsage.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(lastUsage)} total=${lastUsage.total_tokens ?? 0} thinking=${lastUsage.completion_tokens_details?.reasoning_tokens ?? 0}`,
-            // );
+            console.log(
+              `[DeepSeek tokens] input=${lastUsage.prompt_tokens ?? 0} output=${lastUsage.completion_tokens ?? 0} cacheHit=${lastUsage.prompt_cache_hit_tokens ?? 0} cacheMiss=${lastUsage.prompt_cache_miss_tokens ?? 0} hitRate=${formatCacheHitRate(lastUsage)} total=${lastUsage.total_tokens ?? 0} thinking=${lastUsage.completion_tokens_details?.reasoning_tokens ?? 0}`,
+            );
           }
           return;
         } catch (err) {

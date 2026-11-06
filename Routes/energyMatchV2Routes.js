@@ -8,13 +8,14 @@
 
 const express = require("express");
 const router = express.Router();
+const { onlyOwnUserIdOrGuest } = require("../middleware/requireOwnUserId.js");
 const { scan, getById, getByUser } = require("../controllers/energyMatchV2Controller.js");
 
 // Run an Energy Match scan (user + partner energy analysis)
-router.post("/scan", scan);
+router.post("/scan", onlyOwnUserIdOrGuest("body"), scan);
 
 // Retrieve all scans for a user
-router.get("/user/:userId", getByUser);
+router.get("/user/:userId", onlyOwnUserIdOrGuest("params"), getByUser);
 
 // Retrieve a saved scan by ID
 router.get("/scan/:id", getById);

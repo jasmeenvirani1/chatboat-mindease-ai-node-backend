@@ -12,6 +12,24 @@ const {
   langInstruction,
 } = require("../helper/languageDetect.js");
 const { localize } = require("../helper/lifeGpsLocalize.js");
+const monetizationRules = require("../helper/monetization/monetizationRules.js");
+const planAccess = require("../helper/planAccess.js");
+
+// Pro-only layers of the map (masterConfig.json lifeGPS.pro.unlock).
+const PRO_LAYER_KEYS = ["currentSeason", "growthEdge", "hiddenStrength"];
+
+/** Free users (when Free/Pro rules apply to them) never receive the Pro layers. */
+function hidePro(user, map) {
+  if (!map?.proLayers) return map;
+  const locked =
+    monetizationRules.config.lifeGPS?.enforced === true &&
+    monetizationRules.isMonetizationOnFor(user) &&
+    planAccess.getPlan(user) === "free" &&
+    !planAccess.seesAll(user);
+  if (!locked) return map;
+  const { proLayers, ...free } = map;
+  return { ...free, proLocked: true };
+}
 
 // Optional: personal memory may not exist in every deployment.
 let AstriaPersonal = null;
@@ -148,6 +166,15 @@ function extractJson(text) {
 
 // Coerce the raw model output into the Life GPS contract so the frontend never
 // has to defend against missing/mistyped fields.
+function normalizeProLayers(raw) {
+  const out = {};
+  for (const key of PRO_LAYER_KEYS) {
+    const meaning = str(raw?.[key]?.meaning);
+    if (meaning) out[key] = { meaning };
+  }
+  return Object.keys(out).length ? out : undefined; // optional: never fail a map because of it
+}
+
 function normalizeMap(raw, { userId, offeredSources = [] }) {
   const axesIn = raw?.lifeGps?.axes || {};
   const axes = {};
@@ -198,6 +225,7 @@ function normalizeMap(raw, { userId, offeredSources = [] }) {
     interpretation: { oneSentence },
     nextStep: { action, timeHint: str(raw?.nextStep?.timeHint) || null },
     reasoning: { summary: str(raw?.reasoning?.summary), sources },
+    proLayers: normalizeProLayers(raw?.proLayers),
     memoryIndicator: {
       render: `Personalized with: ${sources.map((s) => SOURCE_LABELS[s]).join(" · ")}`,
     },
@@ -353,13 +381,18 @@ ${lane.notes.map((n) => `- ${n}`).join("\n")}`
 
 OUTPUT: respond with ONLY one JSON object, no markdown, in exactly this shape:
 {
-  "currentTheme": { "label": "<2-4 word phase name ending in 'Phase', e.g. 'Quiet Consolidation Phase'>", "window": "now | next_3_months | long_arc" },
+  "currentTheme": { "label": "<${lang && lang !== "en" ? "2-4 word phase name in the reply language, ending with that language's word for 'phase'; never the English word 'Phase'" : "2-4 word phase name ending in 'Phase', e.g. 'Quiet Consolidation Phase'"}>", "window": "now | next_3_months | long_arc" },
   "lifeGps": { "axes": {
     "direction": { "state": "", "meaning": "<2-3 warm, plain sentences: what it means, how it shows up in daily life, one gentle suggestion>" },
     "pace":      { "state": "", "meaning": "" },
     "energy":    { "state": "", "meaning": "" },
     "focus":     { "state": "", "meaning": "" }
   } },
+  "proLayers": {
+    "currentSeason": { "meaning": "<2-3 plain sentences: the season of life the user is in right now and what it asks of them>" },
+    "growthEdge": { "meaning": "<2-3 plain sentences: the one area where gentle stretching would help most>" },
+    "hiddenStrength": { "meaning": "<2-3 plain sentences: a strength the user may under-use and how to lean on it>" }
+  },
   "interpretation": { "oneSentence": "<2-3 warm, plain sentences: where the user is now, what this phase is good for, how long it lasts>" },
   "nextStep": { "action": "<one concrete, doable action for today, plus a short reason why it helps>", "timeHint": "<e.g. 'Today · 15–20 minutes around 7:00 PM' or null>" },
   "reasoning": { "summary": "<3-4 sentences in plain words: why this phase fits, using the signals above>", "sources": [<subset of ${JSON.stringify(offeredSources)} you actually used; [] if none>] }
@@ -368,16 +401,23 @@ Rules: JSON keys and the enum state values stay in English exactly as shown; onl
 ${extraPrompt ? `\nADDITIONAL INSTRUCTIONS:\n${extraPrompt}` : ""}
 `.trim();
 
-    const aiResponse = await generateDeepseekResponse([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: String(user.dob) },
-    ]);
-
+    // The model sometimes returns broken/incomplete JSON (most often in
+    // non-Latin languages). Try once more before giving up.
     let map;
-    try {
-      map = normalizeMap(extractJson(aiResponse), { userId, offeredSources });
-    } catch (parseErr) {
-      console.error("❌ Life GPS bad AI output:", parseErr.message);
+    let lastErr;
+    for (let attempt = 1; attempt <= 2 && !map; attempt += 1) {
+      try {
+        const aiResponse = await generateDeepseekResponse([
+          { role: "system", content: systemPrompt },
+          { role: "user", content: String(user.dob) },
+        ]);
+        map = normalizeMap(extractJson(aiResponse), { userId, offeredSources });
+      } catch (parseErr) {
+        lastErr = parseErr;
+        console.error(`❌ Life GPS bad AI output (attempt ${attempt}):`, parseErr.message);
+      }
+    }
+    if (!map) {
       return res.status(502).json({
         success: false,
         message: "Could not read the Life GPS response. Please try again.",
@@ -388,7 +428,7 @@ ${extraPrompt ? `\nADDITIONAL INSTRUCTIONS:\n${extraPrompt}` : ""}
 
     return res
       .status(201)
-      .json({ success: true, data: map, updateAvailable: false });
+      .json({ success: true, data: hidePro(user, map), updateAvailable: false });
   } catch (error) {
     console.error("❌ Error in createLifeGpsMap:", error);
     return res.status(500).json({
@@ -414,7 +454,7 @@ const getLatestLifeGpsMap = async (req, res) => {
     const owner = map ? await UserModel.findById(req.params.userId) : null;
     return res.json({
       success: true,
-      data: map && owner ? await inUserLang(owner, map) : map,
+      data: map && owner ? await inUserLang(owner, hidePro(owner, map)) : map,
       updateAvailable,
     });
   } catch (error) {

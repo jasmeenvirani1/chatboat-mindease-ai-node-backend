@@ -11,6 +11,16 @@ const {
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+// Out-of-order protection. Stripe does not guarantee event order: a refund or
+// dispute can arrive before the checkout.session.completed that writes the
+// SubscriptionHistory row (e.g. while that webhook is still being retried).
+// Dropping it would leave the refunded user on Pro once checkout lands. For
+// this long after the event we answer 500 so Stripe retries later; after it we
+// assume the charge is not ours and acknowledge.
+const OUT_OF_ORDER_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const isRecentEvent = (event) =>
+  Number.isFinite(event?.created) && Date.now() - event.created * 1000 < OUT_OF_ORDER_RETRY_WINDOW_MS;
+
 /**
  * POST /api/payment/webhook
  *
@@ -51,11 +61,11 @@ const handleStripeWebhook = async (req, res) => {
         break;
 
       case "charge.refunded":
-        await onChargeRefunded(event.data.object);
+        await onChargeRefunded(event.data.object, event);
         break;
 
       case "charge.dispute.created":
-        await onDisputeCreated(event.data.object);
+        await onDisputeCreated(event.data.object, event);
         break;
 
       default:
@@ -121,7 +131,7 @@ async function onCheckoutCompleted(session) {
  * Revoke access when a payment is refunded in full, so a refunded customer
  * does not keep a paid plan.
  */
-async function onChargeRefunded(charge) {
+async function onChargeRefunded(charge, event) {
   if (charge.amount_refunded < charge.amount) {
     logger.log(`Charge ${charge.id} partially refunded; access unchanged`);
     return;
@@ -132,6 +142,9 @@ async function onChargeRefunded(charge) {
   });
 
   if (!history) {
+    if (isRecentEvent(event)) {
+      throw new Error(`Refund for ${charge.payment_intent} arrived before its payment was recorded; asking Stripe to retry`);
+    }
     logger.error(`Refund for ${charge.payment_intent}: no history row found`);
     return;
   }
@@ -158,12 +171,15 @@ async function onChargeRefunded(charge) {
 }
 
 /** A disputed charge should suspend access until the dispute resolves. */
-async function onDisputeCreated(dispute) {
+async function onDisputeCreated(dispute, event) {
   const history = await SubscriptionHistory.findOne({
     stripePaymentIntentId: dispute.payment_intent,
   });
 
   if (!history) {
+    if (isRecentEvent(event)) {
+      throw new Error(`Dispute ${dispute.id} arrived before its payment was recorded; asking Stripe to retry`);
+    }
     logger.error(`Dispute ${dispute.id}: no history row found`);
     return;
   }
@@ -189,4 +205,4 @@ async function onDisputeCreated(dispute) {
   logger.log(`Dispute opened: user=${history.userId} dispute=${dispute.id}`);
 }
 
-module.exports = { handleStripeWebhook };
+module.exports = { handleStripeWebhook, isRecentEvent };

@@ -43,7 +43,17 @@
     "countedCategories": [
       "Astria Talk",
       "Companion Talk",
-      "HealJai Talk"
+      "HealJai Talk",
+      "Astria Japan Talk",
+      "Astria Indonesia Talk",
+      "Astria Korea Talk"
+    ],
+    "countedSubCategories": [
+      "Companion Talk",
+      "Companion",
+      "Companion Mode",
+      "GCC Companion v2",
+      "Astria Japan Talk"
     ],
     "free": {
       "dailyQuestionLimit": 12,
@@ -99,7 +109,7 @@
         "next_growth_opportunity"
       ]
     },
-    "enforced": false
+    "enforced": true
   },
   "upsellRules": {
     "showWhen": [
@@ -150,7 +160,8 @@
     "uk": "GB",
     "us": "US",
     "canada": "CA",
-    "gcc": "GCC"
+    "gcc": "GCC",
+    "russia": "RU"
   },
   "countries": {
     "IN": {
@@ -520,34 +531,21 @@
       "upsell": "Unlock the deeper relationship dynamics and life direction behind this message.",
       "upgradeStrength": "medium"
     },
-    "AR": {
-      "label": "Argentina",
+    "RU": {
+      "label": "Russia",
       "free": [
-        {
-          "id": "relationship",
-          "label": "Relationship"
-        },
-        {
-          "id": "daily_flow",
-          "label": "Daily Flow"
-        }
+        { "id": "life_theme", "label": "Life Theme" },
+        { "id": "signs", "label": "Signs" },
+        { "id": "daily_flow", "label": "Daily Flow" }
       ],
       "pro": [
-        {
-          "id": "hidden_relationship_pattern",
-          "label": "Hidden Relationship Pattern"
-        },
-        {
-          "id": "emotional_needs",
-          "label": "Emotional Needs"
-        },
-        {
-          "id": "long_term_dynamic",
-          "label": "Long Term Dynamic"
-        }
+        { "id": "life_blueprint", "label": "Life Blueprint" },
+        { "id": "current_season", "label": "Current Season" },
+        { "id": "growth_edge", "label": "Growth Edge" },
+        { "id": "relationship_pattern", "label": "Relationship Pattern" }
       ],
-      "upsell": "Discover what this connection is really asking of you.",
-      "upgradeStrength": "medium"
+      "upsell": "Unlock your life blueprint, current season and deeper relationship patterns.",
+      "upgradeStrength": "high"
     },
     "BR": {
       "label": "Brazil",
@@ -950,7 +948,15 @@
         "questions_used",
         "country",
         "language"
-      ]
+      ],
+      "current_season_clicked": ["country","user_tier","language"],
+      "growth_edge_clicked": ["country","user_tier","language"],
+      "life_blueprint_clicked": ["country","user_tier","language"],
+      "full_chart_clicked": ["country","user_tier","language"],
+      "energy_match_started": ["country","user_tier","language"],
+      "energy_match_partner_missing": ["country","user_tier","language"],
+      "letter_never_sent_started": ["country","user_tier","language"],
+      "life_gps_opened": ["country","user_tier","language"]
     }
   },
   "localizedUpsellCopy": {
@@ -960,71 +966,105 @@
     },
     "th-TH": {
       "title": "ปลดล็อก Astria Pro",
-      "subtitle": "ค้นพบรูปแบบที่ซ่อนอยู่ จังหวะชีวิต และความหมายที่ลึกกว่าของคุณ"
+      "subtitle": "ค้นพบรูปแบบที่ซ่อนอยู่ จังหวะชีวิต และความหมายที่ลึกกว่าของคุณ",
+      "countryLine": "เห็นรูปแบบความสัมพันธ์ที่ลึกขึ้น และจุดแข็งที่ซ่อนอยู่ซึ่งกำลังหล่อหลอมชีวิตของคุณ",
+      "hardMessage": "อาจมีรูปแบบที่ลึกกว่านี้ซ่อนอยู่ในบทสนทนานี้ ไปต่อกับ Astria Pro ได้เลย"
     },
     "ja-JP": {
       "title": "Astria Proをアンロック",
-      "subtitle": "今の流れの奥にある成長のテーマを見つけましょう"
+      "subtitle": "今の流れの奥にある成長のテーマを見つけましょう",
+      "countryLine": "より深い成長の季節と、人生のタイミングを見つけましょう。",
+      "hardMessage": "この会話の奥には、さらに深いパターンがあるのかもしれません。Astria Proで続けましょう。"
     },
     "ko-KR": {
       "title": "Astria Pro 잠금 해제",
-      "subtitle": "당신의 인생 흐름과 숨겨진 성장 패턴을 확인해 보세요"
+      "subtitle": "당신의 인생 흐름과 숨겨진 성장 패턴을 확인해 보세요",
+      "countryLine": "사주 전체 풀이와 더 깊은 삶의 타이밍을 확인해 보세요.",
+      "hardMessage": "이 대화 속에는 더 깊은 패턴이 숨어 있을지도 몰라요. Astria Pro로 계속해 보세요."
     },
     "zh-CN": {
       "title": "解锁 Astria Pro",
-      "subtitle": "探索命运节奏、成长主题与更深层的人生模式"
+      "subtitle": "探索命运节奏、成长主题与更深层的人生模式",
+      "countryLine": "查看完整的八字周期、时机与命运走向。",
+      "hardMessage": "这段对话背后，或许还藏着更深层的模式。继续使用 Astria Pro 吧。"
     },
     "zh-TW": {
       "title": "解鎖 Astria Pro",
-      "subtitle": "探索更深層的人生模式與成長方向"
+      "subtitle": "探索更深層的人生模式與成長方向",
+      "countryLine": "查看完整的八字週期、時機與命運走向。",
+      "hardMessage": "這段對話背後，或許還藏著更深層的模式。繼續使用 Astria Pro 吧。"
     },
     "hi-IN": {
       "title": "Astria Pro अनलॉक करें",
-      "subtitle": "अपने जीवन के गहरे पैटर्न, समय और अर्थ को जानें"
+      "subtitle": "अपने जीवन के गहरे पैटर्न, समय और अर्थ को जानें",
+      "countryLine": "अपने मार्ग के पीछे छिपे गहरे सबक और उद्देश्य को जानें।",
+      "hardMessage": "इस बातचीत के नीचे एक गहरा पैटर्न छिपा हो सकता है। Astria Pro के साथ आगे बढ़ें।"
     },
     "pt-BR": {
       "title": "Desbloqueie o Astria Pro",
-      "subtitle": "Descubra os padrões emocionais e o significado por trás da sua jornada"
+      "subtitle": "Descubra os padrões emocionais e o significado por trás da sua jornada",
+      "countryLine": "Descubra o padrão emocional que molda sua vida amorosa e seus relacionamentos.",
+      "hardMessage": "Pode haver um padrão mais profundo por trás desta conversa. Continue com o Astria Pro."
     },
     "es-ES": {
       "title": "Desbloquea Astria Pro",
-      "subtitle": "Descubre los patrones y significados ocultos detrás de tu lectura"
+      "subtitle": "Descubre los patrones y significados ocultos detrás de tu lectura",
+      "countryLine": "Descubre cómo se combinan tu Sol, tu Luna y tu Ascendente en tu vida.",
+      "hardMessage": "Puede que haya un patrón más profundo detrás de esta conversación. Continúa con Astria Pro."
     },
     "fr-FR": {
       "title": "Débloquez Astria Pro",
-      "subtitle": "Explorez les thèmes profonds qui façonnent votre parcours"
+      "subtitle": "Explorez les thèmes profonds qui façonnent votre parcours",
+      "countryLine": "Découvrez comment votre Soleil, votre Lune et votre Ascendant façonnent votre vie ensemble.",
+      "hardMessage": "Il y a peut-être un schéma plus profond derrière cette conversation. Continuez avec Astria Pro."
     },
     "de-DE": {
       "title": "Astria Pro freischalten",
-      "subtitle": "Entdecken Sie die tieferen Muster hinter Ihrer aktuellen Lebensphase"
+      "subtitle": "Entdecken Sie die tieferen Muster hinter Ihrer aktuellen Lebensphase",
+      "countryLine": "Entdecken Sie Ihr Persönlichkeitsprofil und Ihre tiefere Lebensrichtung.",
+      "hardMessage": "Hinter diesem Gespräch könnte ein tieferes Muster liegen. Machen Sie mit Astria Pro weiter."
     },
     "ar-AE": {
       "title": "افتح Astria Pro",
-      "subtitle": "اكتشف الأنماط الأعمق والاتجاهات التي تشكل مسارك"
+      "subtitle": "اكتشف الأنماط الأعمق والاتجاهات التي تشكل مسارك",
+      "countryLine": "اكتشف رؤى أعمق حول الإرث والعائلة واتجاه حياتك.",
+      "hardMessage": "قد يكون هناك نمط أعمق وراء هذه المحادثة. تابع مع Astria Pro."
     },
     "it-IT": {
       "title": "Sblocca Astria Pro",
-      "subtitle": "Scopri i modelli più profondi, i tempi e i significati dietro la tua lettura"
+      "subtitle": "Scopri i modelli più profondi, i tempi e i significati dietro la tua lettura",
+      "countryLine": "Scopri gli schemi emotivi che si nascondono nelle tue relazioni e nel tuo cuore.",
+      "hardMessage": "Potrebbe esserci uno schema più profondo dietro questa conversazione. Continua con Astria Pro."
     },
     "id-ID": {
       "title": "Buka Astria Pro",
-      "subtitle": "Temukan pola, waktu, dan makna yang lebih dalam di balik bacaan Anda"
+      "subtitle": "Temukan pola, waktu, dan makna yang lebih dalam di balik bacaan Anda",
+      "countryLine": "Buka keseimbangan emosi dan jalan bimbingan Anda yang lebih dalam.",
+      "hardMessage": "Mungkin ada pola yang lebih dalam di balik percakapan ini. Lanjutkan dengan Astria Pro."
     },
     "vi-VN": {
       "title": "Mở khóa Astria Pro",
-      "subtitle": "Khám phá những mô thức, nhịp thời gian và ý nghĩa sâu hơn đằng sau bài đọc của bạn"
+      "subtitle": "Khám phá những mô thức, nhịp thời gian và ý nghĩa sâu hơn đằng sau bài đọc của bạn",
+      "countryLine": "Mở khóa con đường phát triển ẩn giấu bên trong mối quan hệ này.",
+      "hardMessage": "Có thể có một mô thức sâu hơn ẩn bên dưới cuộc trò chuyện này. Hãy tiếp tục với Astria Pro."
     },
     "ms-MY": {
       "title": "Buka Astria Pro",
-      "subtitle": "Temui corak, masa dan makna yang lebih mendalam di sebalik bacaan anda"
+      "subtitle": "Temui corak, masa dan makna yang lebih mendalam di sebalik bacaan anda",
+      "countryLine": "Buka makna yang lebih mendalam di sebalik hubungan ini.",
+      "hardMessage": "Mungkin ada corak yang lebih mendalam di sebalik perbualan ini. Teruskan dengan Astria Pro."
     },
     "fil-PH": {
-      "title": "I-unlock ang Astria Pro",
-      "subtitle": "Tuklasin ang mas malalalim na pattern, tiyempo, at kahulugan sa likod ng iyong reading"
+      "title": "Buksan ang Astria Pro",
+      "subtitle": "Tuklasin ang mas malalalim na padron, tamang panahon, at kahulugan sa likod ng iyong pagbasa",
+      "countryLine": "Unawain kung paano lumalago at nag-uusap ang inyong ugnayan.",
+      "hardMessage": "Maaaring may mas malalim na padron sa ilalim ng usapang ito. Magpatuloy sa Astria Pro."
     },
     "ru-RU": {
       "title": "Откройте Astria Pro",
-      "subtitle": "Узнайте более глубокие закономерности, сроки и смыслы вашего расклада"
+      "subtitle": "Узнайте более глубокие закономерности, сроки и смыслы вашего расклада",
+      "countryLine": "Откройте карту своей жизни, текущий жизненный период и более глубокие закономерности в отношениях.",
+      "hardMessage": "Возможно, за этим разговором скрывается более глубокая закономерность. Продолжите с Astria Pro."
     }
   },
   "copyFallbackOrder": [

@@ -8,13 +8,14 @@
 
 const express = require("express");
 const router = express.Router();
+const { onlyOwnUserIdOrGuest } = require("../middleware/requireOwnUserId.js");
 const { scan, getById, getByUser } = require("../controllers/matescanController.js");
 
 // Run a group Matescan (leader + members energy analysis)
 router.post("/scan", scan);
 
 // Retrieve all scans for a user
-router.get("/user/:userId", getByUser);
+router.get("/user/:userId", onlyOwnUserIdOrGuest("params"), getByUser);
 
 // Retrieve a saved scan by ID
 router.get("/scan/:id", getById);

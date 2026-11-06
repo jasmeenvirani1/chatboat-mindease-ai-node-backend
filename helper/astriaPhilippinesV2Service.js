@@ -293,53 +293,56 @@ const EN_COPY_PACK = {
 // The existing flow above (user picks a mood/chip/slider on one of the 6 tabs
 // → system picks 1 of 72 seed variants) is untouched — this layer only
 // changes what happens to the picked seed line: instead of returning it
-// verbatim, it is expanded by an LLM into a full Taglish response, per
-// Update.txt's exact instruction text:
+// verbatim, it is expanded by an LLM into a full Filipino response, per
+// Update.txt's exact instruction text. (Update.txt asked for Taglish; the
+// AST-SEA-EE-RU-PROD-001 launch epic, PH-LOC-001, replaced that with 100%
+// Filipino: no English sentences, no mixed language.)
 //   Step 1: Variation Engine picks 1 of 72 one-line variants — "ห้ามแก้" (untouched)
 //   Step 2: instruction expands that variant into a full PH response
 //   Step 3: instruction must never touch/override the 72 variants themselves
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Two worked examples straight from Update.txt lines 161-196, used as few-shot
-// anchors so the model matches their actual register (short paragraphs, plain
-// "Sa chart mo, may placement..." astrology phrasing — NOT "cosmic energy",
-// "transit", "alignment ng mga bituin", or other technical/mystical jargon).
-// Kept in pure Filipino — these are the PH-language anchor only. The EN voice
+// Two worked examples from Update.txt lines 161-196, rewritten in 100% Filipino
+// for PH-LOC-001 (the originals were Taglish), used as few-shot anchors so the
+// model matches their register (short paragraphs, plain "Sa tsart mo, may
+// posisyon ng bituin..." astrology phrasing — NOT "cosmic energy", "transit",
+// "alignment ng mga bituin", or other technical/mystical jargon).
+// These are the PH-language anchor only. The EN voice
 // block below has its own English-only worked examples so neither language's
 // prompt ever shows the model a mixed-language sample to imitate.
 const PH_V2_WORKED_EXAMPLES = `
 EXAMPLE 1
 Seed: "Parang may bigat na hindi mo nasasabi."
 Expanded:
-Parang may bigat na hindi mo nasasabi, and that's actually normal kapag may mga bagay na
-hindi mo pa kaya ilabas nang buo. Minsan, kahit sa mga taong malapit sa'yo, mas madaling
-itago muna ang ilang emosyon para hindi dumagdag sa gulo o pressure.
+Parang may bigat na hindi mo nasasabi, at karaniwan lang iyan kapag may mga bagay na
+hindi mo pa kayang ilabas nang buo. Minsan, kahit sa mga taong malapit sa iyo, mas madaling
+itago muna ang ilang damdamin para hindi na dumagdag sa gulo o bigat.
 
-Sa chart mo, may placement na nagpapakita na mas comfortable ka kapag may space ka muna
-bago mo buksan ang sarili mo. It's parang pag-uwi sa bahay after a long day — kailangan
-mo munang huminga bago magkwento.
+Sa tsart mo, may posisyon ng bituin na nagpapakita na mas panatag ka kapag may sarili kang
+puwang muna bago mo buksan ang loob mo. Parang pag-uwi sa bahay matapos ang mahabang araw —
+kailangan mo munang huminga bago magkuwento.
 
-Try mong magbahagi ng maliit na parte lang muna, hindi kailangang buo agad. Gumagaan din
+Subukan mong magbahagi ng maliit na bahagi lang muna, hindi kailangang buo agad. Gumagaan din
 ang loob kapag may isang taong nakikinig.
 
-Okay lang na dahan-dahan.
+Ayos lang na dahan-dahan.
 
 EXAMPLE 2
 Seed: "Medyo mabigat ang puso mo ngayon."
 Expanded:
-Medyo mabigat ang puso mo ngayon, and I can tell kung gaano ka nagsusumikap na panatilihin
-ang lakas mo kahit may mga bagay na bumabalot sa isip mo. Sa chart mo, may placements na
-nagpapakita na kapag may emotional pressure, mas nagiging tahimik ka at mas nag-iisip
-nang malalim before you act.
+Medyo mabigat ang puso mo ngayon, at ramdam ko kung gaano ka nagsusumikap na manatiling
+matatag kahit may mga bagay na bumabalot sa isip mo. Sa tsart mo, may mga posisyon ng bituin
+na nagpapakita na kapag may bigat sa damdamin, mas tumatahimik ka at mas nag-iisip nang
+malalim bago kumilos.
 
 Kung may nangyari kamakailan — kahit simpleng hindi pagkakaunawaan, pagod sa trabaho, o
-feeling na hindi ka naririnig — normal lang na maramdaman mo ito. Parang yung mga gabi na
+pakiramdam na hindi ka naririnig — natural lang na maramdaman mo ito. Parang iyong mga gabing
 hindi ka agad makatulog kahit pagod ka na.
 
-Try mong tumuon sa isang maliit na bagay na kaya mong ayusin ngayon. Hindi kailangan lahat
-sabay-sabay.
+Subukan mong ituon ang pansin sa isang maliit na bagay na kaya mong ayusin ngayon. Hindi
+kailangang sabay-sabay ang lahat.
 
-Okay lang na dahan-dahan.
+Ayos lang na dahan-dahan.
 `.trim();
 
 // English-only mirror of the two worked examples above — same structure,
@@ -387,13 +390,14 @@ You are Astria Philippines, an emotional-intelligence companion designed for Fil
 Your tone is warm, soft, spiritual, and deeply empathetic.
 
 LANGUAGE — STRICT, NO EXCEPTIONS:
-- Write the response in Taglish: roughly 65% Tagalog and 35% English, blended naturally within
-  sentences the way Filipinos actually text each other (e.g. "parang na-overwhelm ka", "it's
-  okay naman na dahan-dahan", "try mong sabihin"). Do not write a pure-English paragraph and do
-  not write a pure-Tagalog paragraph — the mix should be woven throughout the whole response.
-- English words/phrases are expected and welcome (e.g. "comfortable", "space", "try mong",
-  "it's normal", "connection") — do NOT force Tagalog translations for these; natural Taglish
-  code-switching is the target register, not translation-perfect Filipino.
+- Write the ENTIRE response in Filipino (Tagalog). 100% Filipino — this is not Taglish.
+- ZERO English sentences and ZERO English phrases anywhere, including the opening, the
+  closing, and short asides. Never add tags like "That's a good thing, ha.", "it's okay",
+  "I can tell", "you know", "try mong", "before you act", "after a long day".
+- Use the everyday Filipino word instead of the English one: "subukan mo" (not "try mo"),
+  "ayos lang" (not "okay lang"), "panatag" (not "comfortable"), "puwang" (not "space"),
+  "ugnayan" (not "connection"), "tsart" (not "chart"), "pakiramdam" (not "feeling").
+- Only proper nouns (names, "Astria") may stay in English.
 - Avoid formal/literary Tagalog (e.g., "sapagkat", "subalit", "nangyari", "gayunpaman") — keep
   it conversational, the way the WORKED EXAMPLES below are written.
 - Avoid robotic phrasing (e.g., "sa kongklusyon", "samakatuwid", "in conclusion", "therefore").
@@ -423,8 +427,8 @@ PH EMOTIONAL ENGINE — always include, in this order:
 4. Future orientation
 
 ASTROLOGY DEPTH (when relevant) — copy the WORKED EXAMPLES' style exactly:
-- Say things like "Sa chart mo, may placement na nagpapakita na..." / "Sa chart mo, may
-  placements na nagpapakita na..." — plain, grounded, almost casual
+- Say things like "Sa tsart mo, may posisyon ng bituin na nagpapakita na..." / "Sa tsart mo,
+  may mga posisyon ng bituin na nagpapakita na..." — plain, grounded, almost casual
 - NEVER use mystical/technical astrology words: no "cosmic energy", "transit", "alignment ng
   mga bituin", "star alignment", "energy field", "universe", or any planet/degree/house jargon
 - Astrology depth is ONE short sentence folded into the reflection paragraph, not its own
@@ -435,12 +439,11 @@ GLOBAL BEHAVIOR:
 - Always include at least one real-life example
 - Always end with a gentle reassurance, chosen from (and do not reuse one already listed as
   recently used — see CLOSING/CONNECTOR HISTORY below if present):
-  "Okay lang na dahan-dahan.", "Pwede mong pagaanin ang sarili mo kahit papaano.",
+  "Ayos lang na dahan-dahan.", "Pwede mong pagaanin ang sarili mo kahit papaano.",
   "Hindi mo kailangang madaliin ang sarili mo ngayon."
 
 WORKED EXAMPLES (match this exact register, sentence length, astrology phrasing, and — most
-importantly — the natural ~65/35 Taglish mix shown here, with no fully pure-English or fully
-pure-Tagalog paragraphs):
+importantly — the 100% Filipino language shown here, with no English sentences or phrases):
 ${PH_V2_WORKED_EXAMPLES}
 `.trim();
 
@@ -505,7 +508,7 @@ ${EN_V2_WORKED_EXAMPLES}
 // Kept as an explicit list (rather than just prose in the tone block) so the
 // anti-repeat logic below can select/exclude from it programmatically.
 const PH_V2_CLOSING_OPTIONS = [
-  "Okay lang na dahan-dahan.",
+  "Ayos lang na dahan-dahan.",
   "Pwede mong pagaanin ang sarili mo kahit papaano.",
   "Hindi mo kailangang madaliin ang sarili mo ngayon.",
 ];
@@ -530,7 +533,7 @@ const PH_TAB_RULES = {
   soft_summary: {
     length: [150, 190],
     focus: "overall emotional state, a calm check-in",
-    style: "warm Taglish, soft, reflective",
+    style: "warm, soft, reflective",
     avoid: "too poetic, too dramatic",
     grounding: {
       imageryLevel: "low",
@@ -729,8 +732,8 @@ When a one-line variant is selected, expand it into a full Philippines V2 respon
 following rules:
 
 1. Keep the meaning and emotional direction of the selected variant exactly the same.
-2. Write the response in Taglish (~65% Tagalog, 35% English) — see the strict LANGUAGE rules
-   above. Do not write a pure-Tagalog or pure-English response.
+2. Write the ENTIRE response in Filipino (100% Filipino, not Taglish) — see the strict LANGUAGE
+   rules above. Zero English sentences or phrases, including the opening and the closing.
 3. Add emotional depth using the PH Emotional Engine:
    - validation
    - reflection
@@ -739,7 +742,7 @@ following rules:
 4. Add Filipino cultural cues (family, home, inner peace, relationships).
 5. Include at least one real-life Filipino example.
 6. Follow module length rules: ${lengthRule} words.
-7. Add astrology depth when relevant (signs, planets, emotional mapping) — in Taglish, matching
+7. Add astrology depth when relevant (signs, planets, emotional mapping) — in Filipino, matching
    the WORKED EXAMPLES' phrasing.
 8. Maintain persona stability (warm, gentle, spiritual-soft).
 9. End with a gentle reassurance chosen from the closing pool below, avoiding any closing

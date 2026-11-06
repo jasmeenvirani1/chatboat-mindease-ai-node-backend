@@ -15,6 +15,9 @@ const {
 } = require("../services/energyMatchService.js");
 const UserModel = require("../models/UserModel.js");
 const { resolvePreferredLanguage } = require("../helper/languageDetect.js");
+const { localizeValidation } = require("../utils/energyMatchMessages.js");
+const rules = require("../helper/monetization/monetizationRules");
+const planAccess = require("../helper/planAccess");
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
@@ -23,12 +26,33 @@ const scan = async (req, res) => {
   try {
     const { valid, errors, sanitized } = validateEnergyMatchInput(req.body);
     if (!valid) {
+      const payer = req.authUser || null;
+      const lang = resolvePreferredLanguage({
+        preferredLanguage: payer?.preferredLanguage,
+        region: payer?.region,
+      });
+      const localized = localizeValidation(lang, errors);
       return res
         .status(400)
-        .json({ success: false, message: "Validation failed", errors });
+        .json({ success: false, message: localized.message, errors: localized.errors });
     }
 
     const userId = req.body?.userId || null;
+
+    // Energy Match is a paid add-on: Free users (and guests, when Free/Pro rules are on) need it.
+    const mode = rules.getMonetizationMode();
+    if (mode !== "off") {
+      const payer = req.authUser || null;
+      const guestBlocked = !payer && mode === "on";
+      const userBlocked = payer && rules.isMonetizationOnFor(payer) &&
+        !planAccess.hasEnergyMatch(payer) && planAccess.getPlan(payer) === "free" && !planAccess.seesAll(payer);
+      if (guestBlocked || userBlocked) {
+        return res.status(402).json({
+          success: false, code: "ENERGY_MATCH_ADDON_REQUIRED",
+          message: "Energy Match is part of Astria Pro or the Energy Match add-on.",
+        });
+      }
+    }
 
     let user = null;
     if (userId) {
