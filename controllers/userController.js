@@ -10,6 +10,7 @@ const { OAuth2Client } = require("google-auth-library");
 const Chat = require("../models/ChatModel");
 const { generateAppleClientSecret } = require("../utils/appleClientSecret");
 const { isValidSpanishToneLock } = require("../helper/spanishToneLock");
+const { buildOtpEmail } = require("../helper/otpEmailTemplate");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const JWT_SECRET = require("../helper/jwtSecret");
 
@@ -598,11 +599,13 @@ const userController = {
       }
 
       // Send OTP email
+      const { html, text } = buildOtpEmail({ otp, minutes: 10, supportEmail });
       await transporter.sendMail({
-        from: `"Support Team" <${supportEmail}>`,
+        from: `"Astria" <${supportEmail}>`,
         to: email,
-        subject: "Your OTP Code",
-        html: `<p>Your OTP is <strong>${otp}</strong>. Valid for 10 minutes.</p>`,
+        subject: "Your Astria verification code",
+        html,
+        text,
       });
 
       return res.json({ message: "OTP sent to your email" });
