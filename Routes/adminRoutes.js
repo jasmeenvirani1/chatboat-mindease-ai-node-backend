@@ -121,7 +121,7 @@ router.put(
   userController.updateUser,
 );
 router.delete("/user/:id", requireSelfOrAdmin(), userController.deleteUser);
-router.post("/user/create", userController.createUserFromAdmin);
+router.post("/user/create", requireAdmin, userController.createUserFromAdmin);
 
 //Chat History Routes
 router.get("/chats", ChatHistory.getChats);

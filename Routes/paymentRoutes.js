@@ -6,6 +6,7 @@ const {
   createEnergyMatchCheckout,
   verifyAndSavePlan,
   getMyRegionSubscriptions,
+  getMyAccessStatus,
 } = require("../controllers/paymentController");
 const {
   handleStripeWebhook,
@@ -35,5 +36,8 @@ router.post("/verify", parseJson, authenticate, verifyAndSavePlan);
 
 // Purchased region plans (plan name, start and renewal dates) for Journey.
 router.get("/subscriptions", authenticate, getMyRegionSubscriptions);
+
+// Live plan and region access, for the app to refresh instantly.
+router.get("/status", authenticate, getMyAccessStatus);
 
 module.exports = router;

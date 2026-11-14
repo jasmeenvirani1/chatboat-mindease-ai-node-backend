@@ -128,6 +128,66 @@ async function onCheckoutCompleted(session) {
 }
 
 /**
+ * Take back everything a purchase granted: the plan itself and, for a region
+ * plan, the unlocked region. Used by both refunds and disputes.
+ */
+async function revokeAccess(history) {
+  if (history.product === "energy_match") {
+    await User.updateOne(
+      { _id: history.userId, "energyMatchAccess.stripeSessionId": history.stripeSessionId },
+      { $set: { "energyMatchAccess.active": false } },
+    );
+    logger.log(`Energy Match revoked: user=${history.userId}`);
+    return;
+  }
+
+  // Mark this purchase cancelled in the user's own history list first, so the
+  // checks below only see the purchases the user still holds.
+  await User.updateOne(
+    { _id: history.userId, "subscriptions.stripeSessionId": history.stripeSessionId },
+    { $set: { "subscriptions.$.status": "cancelled" } },
+  );
+
+  const user = await User.findById(history.userId);
+  if (!user) return;
+  const plan = await SubscriptionPlans.findById(history.planId);
+
+  const otherPurchases = (user.subscriptions || []).filter(
+    (sub) => sub.status === "active" || sub.status === "trialing",
+  );
+  const isSamePlan = (sub) => String(sub.subscriptionId) === String(history.planId);
+
+  // Downgrade only if this purchase is still the user's current plan and they
+  // hold no other unexpired purchase of it. Refunding an old charge must never
+  // cancel a newer one.
+  const stillHasPlan = otherPurchases.some(
+    (sub) => isSamePlan(sub) && new Date(sub.endDate) > new Date(),
+  );
+  if (!stillHasPlan) {
+    await User.updateOne(
+      { _id: user._id, subscriptionId: String(history.planId) },
+      { $set: { subscriptionStatus: "cancelled", plan: "free" } },
+    );
+  }
+
+  // Region plans also unlock a region. Remove it unless another purchase the
+  // user still holds unlocks the same region. (Trial entries carry no region,
+  // so they are matched by plan.)
+  if (!plan?.region) return;
+  const stillHasRegion = otherPurchases.some(
+    (sub) => sub.region === plan.region || isSamePlan(sub),
+  );
+  if (stillHasRegion) return;
+
+  const update = { $pull: { unlockedRegions: plan.region } };
+  // The purchase also made this their home region, which grants access too.
+  if (user.region === plan.region) update.$set = { region: "healjai" };
+
+  await User.updateOne({ _id: user._id }, update);
+  logger.log(`Region ${plan.region} removed: user=${user._id}`);
+}
+
+/**
  * Revoke access when a payment is refunded in full, so a refunded customer
  * does not keep a paid plan.
  */
@@ -151,21 +211,7 @@ async function onChargeRefunded(charge, event) {
 
   history.status = "refunded";
   await history.save();
-
-  if (history.product === "energy_match") {
-    await User.updateOne(
-      { _id: history.userId, "energyMatchAccess.stripeSessionId": history.stripeSessionId },
-      { $set: { "energyMatchAccess.active": false } },
-    );
-    logger.log(`Energy Match revoked: user=${history.userId}`);
-    return;
-  }
-
-
-  await User.updateOne(
-    { _id: history.userId, subscriptionId: String(history.planId) },
-    { $set: { subscriptionStatus: "cancelled", plan: "free" } },
-  );
+  await revokeAccess(history);
 
   logger.log(`Refund processed: user=${history.userId} charge=${charge.id}`);
 }
@@ -186,21 +232,7 @@ async function onDisputeCreated(dispute, event) {
 
   history.status = "cancelled";
   await history.save();
-
-  if (history.product === "energy_match") {
-    await User.updateOne(
-      { _id: history.userId, "energyMatchAccess.stripeSessionId": history.stripeSessionId },
-      { $set: { "energyMatchAccess.active": false } },
-    );
-    logger.log(`Energy Match revoked: user=${history.userId}`);
-    return;
-  }
-
-
-  await User.updateOne(
-    { _id: history.userId, subscriptionId: String(history.planId) },
-    { $set: { subscriptionStatus: "cancelled", plan: "free" } },
-  );
+  await revokeAccess(history);
 
   logger.log(`Dispute opened: user=${history.userId} dispute=${dispute.id}`);
 }

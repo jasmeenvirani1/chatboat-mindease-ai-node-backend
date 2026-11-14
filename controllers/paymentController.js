@@ -14,7 +14,8 @@ const {
   resolveSubscriptionStart,
 } = require("../helper/planPricing");
 
-const { hasEnergyMatch } = require("../helper/planAccess");
+const { hasEnergyMatch, getPlan } = require("../helper/planAccess");
+const { downgradeIfLapsed } = require("../helper/subscriptionAccess");
 
 const clientUrl = process.env.PAYMENT_URL;
 
@@ -677,7 +678,40 @@ const getMyRegionSubscriptions = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/payment/status
+ *
+ * The user's current access, read live from the database. The app calls this
+ * after checkout, on app focus, or on a short poll, so a webhook change
+ * (purchase, refund, dispute, expiry) shows up right away.
+ */
+const getMyAccessStatus = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // A plan past its end date is saved as expired now, not at the next cron
+    // run, so the status below never says "active" for a lapsed plan.
+    await downgradeIfLapsed(User, user);
+
+    // Always fresh: no browser or proxy may serve an old copy.
+    res.set("Cache-Control", "no-store");
+    return res.status(200).json({
+      plan: getPlan(user),
+      subscriptionStatus: user.subscriptionStatus,
+      subscriptionEndDate: user.subscriptionEndDate,
+      region: user.region,
+      unlockedRegions: user.unlockedRegions || [],
+      energyMatch: hasEnergyMatch(user),
+    });
+  } catch (err) {
+    logger.error("Get access status failed", err);
+    return res.status(500).json({ message: "Failed to load status" });
+  }
+};
+
 module.exports = {
+  getMyAccessStatus,
   createCheckoutSession,
   createEnergyMatchCheckout,
   activateEnergyMatch,
