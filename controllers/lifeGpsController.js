@@ -2070,6 +2070,10 @@ module.exports = {
   updateNextStep,
   getInsights,
   getEnergyMatchPromo,
+  // shared with the Tarot → Life GPS flow
+  applyCheckIn,
+  latestSnapshots,
+  plainDims,
   // pure helpers (unit-tested)
   _logic: {
     CATALOGUE,

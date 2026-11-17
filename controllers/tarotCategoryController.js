@@ -9,6 +9,7 @@ const SubCategory = require("../models/SubCategoryModel.js");
 const TarotCategoryModel = require("../models/TarotCategoryModel");
 const UserModel = require("../models/UserModel");
 const mongoose = require("mongoose");
+const { analyseReading } = require("../helper/tarotThemes.js");
 
 // @desc    Create a new tarot chat history
 // @route   POST /api/chat-history/tarot
@@ -236,10 +237,37 @@ provide a complete interpretation following the structure above.
         ? userMessage.substring(0, 47) + "..."
         : userMessage;
 
+    // Reading facts for the Tarot → Companion flow (follow-ups, Journey,
+    // Life GPS, card patterns). Derived here so the client can't skew them.
+    const cards = selectedCards
+      .map((c) => ({
+        cardId: String(c?.card_id ?? ""),
+        cardName: String(c?.card_name || "").trim(),
+        isReversed: !!c?.isReversed,
+      }))
+      .filter((c) => c.cardName);
+    const { theme } = analyseReading(cards, tarotCategoryName);
+    let summary = cleanedResponse;
+    try {
+      const m = cleanedResponse.match(/\{[\s\S]*\}/);
+      const parsed = m ? JSON.parse(m[0]) : null;
+      const list = Array.isArray(parsed) ? parsed : parsed?.cards;
+      if (Array.isArray(list)) {
+        summary = list.map((e) => e?.guidance || e?.summary || "").filter(Boolean).join(" ");
+      }
+    } catch (_) {
+      /* keep the raw text */
+    }
+    summary = summary.replace(/\s+/g, " ").trim().slice(0, 500);
+
     const chatHistory = await TarotCategoryModel.create({
       userId: userId || null,
       tarotCategoryName: tarotCategoryName || null,
       chats: [newMessage],
+      question: questionText.slice(0, 500),
+      cards,
+      theme,
+      summary,
     });
 
     return res.status(201).json({
@@ -248,6 +276,8 @@ provide a complete interpretation following the structure above.
       data: chatHistory,
       promptSource,
       aiResponse: cleanedResponse,
+      readingId: chatHistory._id,
+      theme,
       subCategoryUsed: subCategoryName || null,
     });
   } catch (error) {
