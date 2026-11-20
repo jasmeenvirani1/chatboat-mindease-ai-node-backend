@@ -6,36 +6,46 @@
 //
 // A letter is always in one of four states:
 //   draft     can be edited
-//   sealed    locked with a passphrase; needed to read, edit, or keep a copy on release
-//   kept      read-only archive entry
-//   released  final: never edited and never sealed again
+//   kept      saved unsealed and read-only until the owner continues writing
+//   sealed    locked with a passphrase; reading needs the passphrase, editing needs
+//             an explicit "unseal & continue" (POST /:id/continue)
+//   released  final symbolic release: never edited or sealed again. Either keeps a
+//             read-only private copy (with the SAME protection it had) or nothing.
 //
 // Privacy rules:
-//   - Letter text is always encrypted before it is stored.
-//   - Letter text and passphrases are never logged.
+//   - Letter text, title and recipient are encrypted together before storage (blob v2).
+//   - Letter text, titles and passphrases are never logged.
 //   - Passphrases are never stored; they are only used to derive an encryption key.
+//   - A copy kept on release is never moved to weaker protection than it had.
+//   - The list never returns body previews, and never returns metadata of sealed letters.
+//
+// Honest limits: "server" mode letters are encrypted at rest with a server key,
+// so the server can technically read them. This is NOT end-to-end encryption.
 
 const crypto = require("crypto");
-const { promisify } = require("util");
 const mongoose = require("mongoose");
 const Letter = require("../models/LetterModel");
 const jwtSecret = require("../helper/jwtSecret");
 
-const scrypt = promisify(crypto.scrypt);
-
 // ── Settings ────────────────────────────────────────────────────────────────
 
-const FREE_LETTER_LIMIT = 1; // free users may hold 1 draft/sealed/kept letter
+const FREE_LETTER_LIMIT = 1; // free users may hold 1 draft/sealed/kept letter (unchanged)
 const MAX_CONTENT_CHARS = 20000;
 const MAX_TITLE_CHARS = 120;
 const MAX_RECIPIENT_NAME_CHARS = 80;
-const MIN_PASSPHRASE_CHARS = 4;
-const MAX_PASSPHRASE_CHARS = 128;
+const MIN_NEW_PASSPHRASE_CHARS = 12; // new seals
+const MIN_LEGACY_PASSPHRASE_CHARS = 1; // unlocking / importing letters sealed under older rules
+const MAX_PASSPHRASE_CHARS = 256;
 const MAX_FAILED_UNLOCKS = 5;
 const LOCK_MINUTES = 15;
 const MAX_IMPORT_BATCH = 20;
-const PREVIEW_CHARS = 140;
 const TESTER_ROLE_ID = 3; // testers are treated as paid users, same as the plan check elsewhere
+const DEFAULT_TITLE = "Untitled Letter";
+const PAYLOAD_VERSION = 2;
+
+// scrypt cost for NEW seals. Old blobs without `kdf` use Node's defaults (N=16384, r=8, p=1).
+const KDF_PARAMS = { name: "scrypt", N: 32768, r: 8, p: 1 };
+const LEGACY_KDF_PARAMS = { name: "scrypt", N: 16384, r: 8, p: 1 };
 
 // Released letters do not count toward the free limit.
 const ACTIVE_STATUSES = ["draft", "sealed", "kept"];
@@ -62,34 +72,81 @@ const withErrorHandling = (handler) => async (req, res) => {
     if (error instanceof HttpError) {
       return res.status(error.status).json({ error: error.message, code: error.code, ...error.extra });
     }
+    if (error && error.name === "VersionError") {
+      return res
+        .status(409)
+        .json({ error: "This letter was changed somewhere else.", code: "REVISION_CONFLICT" });
+    }
     console.error("letters error:", error && error.name, error && error.message);
     return res.status(500).json({ error: "Something went wrong. Please try again.", code: "SERVER" });
   }
 };
 
-// ── Encryption ──────────────────────────────────────────────────────────────
-// AES-256-GCM. The letter id is mixed into the encryption as "additional data",
-// so an encrypted blob copied onto a different letter cannot be opened.
+// ── Keys ────────────────────────────────────────────────────────────────────
+// Server-mode letters were originally encrypted with a key derived from JWT_SECRET,
+// which tied letter readability to the login secret. New writes use a dedicated
+// LETTERS_ENCRYPTION_KEY (32 random bytes, base64 or 64 hex chars) when it is set.
+// The legacy key stays available for reading, so nothing becomes unreadable.
+// Do NOT rotate JWT_SECRET until every keyVersion-1 blob has been re-encrypted.
 
-let cachedServerKey = null;
+let cachedLegacyKey = null;
+let cachedDedicatedKey; // undefined = not looked up yet, null = not configured
+let warnedNoDedicatedKey = false;
 
-// Key for drafts, kept letters and retained copies (anything not sealed).
-// It is made from JWT_SECRET, so changing JWT_SECRET makes these letters unreadable.
-// The "letters:" prefix keeps it different from the login-token key.
-const getServerKey = () => {
-  if (!cachedServerKey) {
-    cachedServerKey = crypto.createHash("sha256").update(`letters:${jwtSecret}`).digest();
+const getLegacyServerKey = () => {
+  if (!cachedLegacyKey) {
+    cachedLegacyKey = crypto.createHash("sha256").update(`letters:${jwtSecret}`).digest();
   }
-  return cachedServerKey;
+  return cachedLegacyKey;
 };
 
-// Turns the passphrase into a 32-byte key. scrypt is deliberately slow,
-// which makes guessing passphrases expensive.
-const deriveKeyFromPassphrase = (passphrase, saltBase64) =>
-  scrypt(passphrase, Buffer.from(saltBase64, "base64"), 32);
+const parseDedicatedKey = (raw) => {
+  if (!raw) return null;
+  const value = String(raw).trim();
+  const bytes = /^[0-9a-fA-F]{64}$/.test(value) ? Buffer.from(value, "hex") : Buffer.from(value, "base64");
+  return bytes.length === 32 ? bytes : null;
+};
+
+const getDedicatedKey = () => {
+  if (cachedDedicatedKey === undefined) {
+    const raw = process.env.LETTERS_ENCRYPTION_KEY;
+    cachedDedicatedKey = parseDedicatedKey(raw);
+    if (raw && !cachedDedicatedKey) {
+      console.error("letters: LETTERS_ENCRYPTION_KEY is set but is not 32 bytes (base64 or hex); using legacy key");
+    }
+  }
+  return cachedDedicatedKey;
+};
+
+// Key used for NEW server-mode encryptions.
+const currentServerKey = () => {
+  const dedicated = getDedicatedKey();
+  if (dedicated) return { key: dedicated, keyVersion: 2 };
+  if (!warnedNoDedicatedKey) {
+    warnedNoDedicatedKey = true;
+    console.warn("letters: LETTERS_ENCRYPTION_KEY not set; new letters use the legacy JWT-derived key");
+  }
+  return { key: getLegacyServerKey(), keyVersion: undefined };
+};
+
+// Key that opens an existing server-mode blob.
+const serverKeyFor = (blob) => {
+  if (blob.keyVersion === 2) {
+    const dedicated = getDedicatedKey();
+    if (!dedicated) {
+      throw new HttpError(503, "Your letters are safe but temporarily unavailable.", "KEY_UNAVAILABLE");
+    }
+    return dedicated;
+  }
+  return getLegacyServerKey();
+};
+
+// ── Encryption ──────────────────────────────────────────────────────────────
+// AES-256-GCM, fresh 96-bit IV per encryption. The letter id is bound as
+// additional authenticated data, so a blob copied onto another letter fails.
 
 const encryptWith = (key, text, letterId, extraFields) => {
-  const iv = crypto.randomBytes(12); // a fresh iv for every encryption
+  const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   cipher.setAAD(Buffer.from(String(letterId)));
 
@@ -112,50 +169,138 @@ const decryptWith = (key, blob, letterId) => {
   return decrypted.toString("utf8");
 };
 
-const encryptWithServerKey = (letter, text) =>
-  encryptWith(getServerKey(), text, letter._id, { mode: "server" });
+// scrypt is deliberately slow, which makes guessing passphrases expensive.
+const deriveKeyFromPassphrase = (passphrase, saltBase64, params = LEGACY_KDF_PARAMS) =>
+  new Promise((resolve, reject) => {
+    const { N, r, p } = params;
+    crypto.scrypt(
+      passphrase.normalize("NFC"),
+      Buffer.from(saltBase64, "base64"),
+      32,
+      { N, r, p, maxmem: 256 * N * r },
+      (err, key) => (err ? reject(err) : resolve(key)),
+    );
+  });
 
-const encryptWithPassphrase = async (letter, text, passphrase) => {
+// Legacy passphrase keys were derived without NFC normalisation; keep that exact path for them.
+const deriveLegacyKey = (passphrase, saltBase64) =>
+  new Promise((resolve, reject) =>
+    crypto.scrypt(passphrase, Buffer.from(saltBase64, "base64"), 32, (err, key) => (err ? reject(err) : resolve(key))),
+  );
+
+// ── Private payload (body + title + recipient) ──────────────────────────────
+
+const normaliseTitle = (title) => (typeof title === "string" && title !== DEFAULT_TITLE ? title : "");
+
+const emptyPrivate = () => ({ body: "", title: "", recipientType: "other", recipientName: "" });
+
+const isPrivateEmpty = (p) =>
+  !p.body && !p.title && !p.recipientName && (!p.recipientType || p.recipientType === "other");
+
+// Turns decrypted text back into the private fields. Legacy blobs held only the body.
+const decodePayload = (letter, blob, plaintext) => {
+  if (blob.v === PAYLOAD_VERSION) {
+    const parsed = JSON.parse(plaintext);
+    return {
+      body: typeof parsed.body === "string" ? parsed.body : "",
+      title: typeof parsed.title === "string" ? parsed.title : "",
+      recipientType: Letter.RECIPIENT_TYPES.includes(parsed.recipientType) ? parsed.recipientType : "other",
+      recipientName: typeof parsed.recipientName === "string" ? parsed.recipientName : "",
+    };
+  }
+  return {
+    body: plaintext,
+    title: normaliseTitle(letter.title),
+    recipientType: letter.recipientType || "other",
+    recipientName: letter.recipientName || "",
+  };
+};
+
+const encodePayload = (p) =>
+  JSON.stringify({ body: p.body, title: p.title, recipientType: p.recipientType, recipientName: p.recipientName });
+
+// The plain metadata fields are reset whenever the private payload is (re)written,
+// so titles and names only ever live inside the encrypted blob.
+const clearPlainMetadata = (letter) => {
+  letter.title = DEFAULT_TITLE;
+  letter.recipientType = "other";
+  letter.recipientName = "";
+};
+
+const encryptPrivateWithServerKey = (letter, priv) => {
+  const { key, keyVersion } = currentServerKey();
+  const extra = { mode: "server", v: PAYLOAD_VERSION };
+  if (keyVersion) extra.keyVersion = keyVersion;
+  return encryptWith(key, encodePayload(priv), letter._id, extra);
+};
+
+const encryptPrivateWithPassphrase = async (letter, priv, passphrase) => {
   const salt = crypto.randomBytes(16).toString("base64");
-  const key = await deriveKeyFromPassphrase(passphrase, salt);
-  return encryptWith(key, text, letter._id, { mode: "passphrase", salt });
+  const key = await deriveKeyFromPassphrase(passphrase, salt, KDF_PARAMS);
+  return encryptWith(key, encodePayload(priv), letter._id, {
+    mode: "passphrase",
+    v: PAYLOAD_VERSION,
+    kdf: { ...KDF_PARAMS },
+    salt,
+  });
 };
 
-// Text of a letter that is NOT sealed. Returns "" when there is none.
-const readUnsealedText = (letter) => {
-  const hasServerCopy = letter.content && letter.content.mode === "server";
-  return hasServerCopy ? decryptWith(getServerKey(), letter.content, letter._id) : "";
+// Stores the private fields on an unsealed letter (or clears them when empty).
+const storePrivateUnsealed = (letter, priv) => {
+  letter.content = isPrivateEmpty(priv) ? null : encryptPrivateWithServerKey(letter, priv);
+  clearPlainMetadata(letter);
 };
 
-// Text of a sealed letter.
-// Wrong guesses are counted, and after too many the letter is locked for a
-// while, so the passphrase cannot be brute-forced.
-const readSealedText = async (letter, passphrase) => {
+const storePrivateSealed = async (letter, priv, passphrase) => {
+  letter.content = await encryptPrivateWithPassphrase(letter, priv, passphrase);
+  clearPlainMetadata(letter);
+};
+
+const isPassphraseProtected = (letter) => !!(letter.content && letter.content.mode === "passphrase");
+
+// Private fields of a letter that is NOT passphrase protected.
+const readUnsealedPrivate = (letter) => {
+  if (!letter.content) {
+    // Released marker: never surface any metadata. Legacy empty draft: plain fields.
+    if (letter.status === "released") return emptyPrivate();
+    return { ...emptyPrivate(), title: normaliseTitle(letter.title), recipientType: letter.recipientType || "other", recipientName: letter.recipientName || "" };
+  }
+  if (letter.content.mode !== "server") throw new Error("letter content is passphrase protected");
+  const plaintext = decryptWith(serverKeyFor(letter.content), letter.content, letter._id);
+  return decodePayload(letter, letter.content, plaintext);
+};
+
+// Private fields of a passphrase-protected letter.
+// Wrong guesses are counted, and after too many the letter is locked for a while.
+// (This limits online guessing only; it does not stop offline attacks on a stolen database.)
+const readSealedPrivate = async (letter, passphrase) => {
   const isLocked = letter.lockedUntil && letter.lockedUntil > new Date();
   if (isLocked) {
     const retryAfterSec = Math.ceil((letter.lockedUntil - Date.now()) / 1000);
     throw new HttpError(429, "Too many attempts. Please try again later.", "LOCKED", { retryAfterSec });
   }
-  requireValidPassphrase(passphrase);
+  requirePassphrase(passphrase, MIN_LEGACY_PASSPHRASE_CHARS);
 
-  let text;
+  let priv;
   try {
-    const key = await deriveKeyFromPassphrase(passphrase, letter.content.salt);
-    text = decryptWith(key, letter.content, letter._id);
+    const blob = letter.content;
+    const key = blob.kdf
+      ? await deriveKeyFromPassphrase(passphrase, blob.salt, blob.kdf)
+      : await deriveLegacyKey(passphrase, blob.salt);
+    priv = decodePayload(letter, blob, decryptWith(key, blob, letter._id));
   } catch (error) {
     await recordFailedUnlock(letter);
     throw new HttpError(403, "That passphrase doesn't open this letter.", "WRONG_PASSPHRASE");
   }
 
-  // Correct passphrase: forget earlier wrong guesses.
   if (letter.failedUnlocks || letter.lockedUntil) {
     await Letter.updateOne({ _id: letter._id }, { failedUnlocks: 0, lockedUntil: null }, { timestamps: false });
   }
-  return text;
+  return priv;
 };
 
 const recordFailedUnlock = async (letter) => {
-  const failedCount = letter.failedUnlocks + 1;
+  const failedCount = (letter.failedUnlocks || 0) + 1;
   const shouldLock = failedCount >= MAX_FAILED_UNLOCKS;
 
   await Letter.updateOne(
@@ -168,7 +313,7 @@ const recordFailedUnlock = async (letter) => {
   );
 };
 
-// ── Plan limits ─────────────────────────────────────────────────────────────
+// ── Plan limits (unchanged behaviour) ───────────────────────────────────────
 
 const hasActiveSubscription = (user) => {
   const status = user.subscriptionStatus;
@@ -197,36 +342,39 @@ const getLetterLimit = async (user) => {
 
 // ── Checking what the user sends ────────────────────────────────────────────
 
-const requireValidPassphrase = (passphrase) => {
+const requirePassphrase = (passphrase, minChars) => {
   const isValid =
-    typeof passphrase === "string" &&
-    passphrase.length >= MIN_PASSPHRASE_CHARS &&
-    passphrase.length <= MAX_PASSPHRASE_CHARS;
+    typeof passphrase === "string" && passphrase.length >= minChars && passphrase.length <= MAX_PASSPHRASE_CHARS;
 
   if (!isValid) {
     throw new HttpError(
       422,
-      `Please enter a passphrase of ${MIN_PASSPHRASE_CHARS} to ${MAX_PASSPHRASE_CHARS} characters.`,
+      `Please enter a passphrase of ${minChars} to ${MAX_PASSPHRASE_CHARS} characters.`,
       "BAD_PASSPHRASE",
+      { minChars },
     );
   }
 };
 
-// Copies over only the fields a user may edit, and only if the value is valid.
-// Anything else in the request (status, userId, ...) is ignored.
-const pickEditableFields = (body) => {
+// Stationery the user may change. Unknown values are ignored.
+const pickStationery = (body) => {
   const fields = {};
+  if (Letter.PAPERS.includes(body.paper)) fields.paper = body.paper;
+  if (Letter.FONTS.includes(body.font)) fields.font = body.font;
+  if (Letter.INKS.includes(body.ink)) fields.ink = body.ink;
+  if (Letter.ENVELOPES.includes(body.envelope)) fields.envelope = body.envelope;
+  if (Letter.WAX_SEALS.includes(body.waxSeal)) fields.waxSeal = body.waxSeal;
+  return fields;
+};
 
-  if (typeof body.title === "string") {
-    fields.title = body.title.trim().slice(0, MAX_TITLE_CHARS) || "Untitled Letter";
-  }
+// Private metadata edits (title, recipient). Only valid values are taken.
+const pickPrivateEdits = (body) => {
+  const fields = {};
+  if (typeof body.title === "string") fields.title = normaliseTitle(body.title.trim().slice(0, MAX_TITLE_CHARS));
   if (typeof body.recipientName === "string") {
     fields.recipientName = body.recipientName.trim().slice(0, MAX_RECIPIENT_NAME_CHARS);
   }
   if (Letter.RECIPIENT_TYPES.includes(body.recipientType)) fields.recipientType = body.recipientType;
-  if (Letter.PAPERS.includes(body.paper)) fields.paper = body.paper;
-  if (Letter.FONTS.includes(body.font)) fields.font = body.font;
-
   return fields;
 };
 
@@ -243,45 +391,71 @@ const checkContent = (value) => {
   return value;
 };
 
+// Idempotency key from the header (preferred) or the body. Optional.
+const readOperationKey = (req) => {
+  const raw = (req.headers && req.headers["idempotency-key"]) || (req.body && req.body.operationId);
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  if (typeof raw !== "string" || !/^[A-Za-z0-9_-]{8,100}$/.test(raw)) {
+    throw new HttpError(422, "Invalid operation id.", "INVALID_PAYLOAD");
+  }
+  return raw;
+};
+
+const revisionOf = (letter) => (typeof letter.__v === "number" ? letter.__v : 0);
+
+// Optional optimistic concurrency: when the app says which revision it edited,
+// refuse the change if the stored letter has moved on.
+const checkExpectedRevision = (letter, body) => {
+  const expected = body && body.expectedRevision;
+  if (expected === undefined || expected === null) return;
+  if (!Number.isInteger(expected) || expected !== revisionOf(letter)) {
+    throw new HttpError(409, "This letter was changed somewhere else.", "REVISION_CONFLICT", {
+      revision: revisionOf(letter),
+    });
+  }
+};
+
 // ── Building replies ────────────────────────────────────────────────────────
 
-const canReadWithoutPassphrase = (letter) =>
-  letter.status === "draft" ||
-  letter.status === "kept" ||
-  (letter.status === "released" && letter.retainedCopy);
+const protectionOf = (letter) => {
+  if (!letter.content) return "none";
+  return letter.content.mode === "passphrase" ? "passphrase" : "server";
+};
 
-// The letter as the app sees it. Never includes the full text.
-const toSummary = (letter, preview = null) => ({
+// The letter as the app sees it. Never includes the body.
+// `priv` is passed only when the private fields are readable without a passphrase.
+const toSummary = (letter, priv = null) => ({
   id: String(letter._id),
-  title: letter.title,
-  recipientType: letter.recipientType,
-  recipientName: letter.recipientName,
+  title: priv ? priv.title : "",
+  recipientType: priv ? priv.recipientType : "other",
+  recipientName: priv ? priv.recipientName : "",
   paper: letter.paper,
   font: letter.font,
+  ink: letter.ink || "auto",
+  envelope: letter.envelope || "ivory_classic",
+  waxSeal: letter.waxSeal || "astria_violet",
   status: letter.status,
+  protection: protectionOf(letter),
+  locked: isPassphraseProtected(letter),
   retainedCopy: letter.retainedCopy,
+  revision: revisionOf(letter),
   createdAt: letter.createdAt,
   updatedAt: letter.updatedAt,
   sealedAt: letter.sealedAt,
   releasedAt: letter.releasedAt,
-  preview, // only for letters that are open to read; never for sealed ones
+  preview: null, // body previews are never sent (kept for older clients)
 });
 
-// First line or so of the text, for the list screen. Null for sealed letters.
-const makePreview = (letter) => {
-  if (!canReadWithoutPassphrase(letter)) return null;
+// Summary with metadata only where it can be read without a passphrase.
+const summarise = (letter) => toSummary(letter, isPassphraseProtected(letter) ? null : readUnsealedPrivate(letter));
 
-  const text = readUnsealedText(letter).replace(/\s+/g, " ").trim();
-  return text ? text.slice(0, PREVIEW_CHARS) : null;
-};
+const withContent = (letter, priv) => ({ ...toSummary(letter, priv), content: priv.body });
 
 // Loads the letter from the URL, but only if it belongs to the signed-in user.
 // A letter that belongs to someone else looks exactly like one that doesn't exist.
 const findMyLetter = async (req) => {
   const { id } = req.params;
-  const letter = mongoose.isValidObjectId(id)
-    ? await Letter.findOne({ _id: id, userId: req.user._id })
-    : null;
+  const letter = mongoose.isValidObjectId(id) ? await Letter.findOne({ _id: id, userId: req.user._id }) : null;
 
   if (!letter) throw new HttpError(404, "Letter not found.", "NOT_FOUND");
   return letter;
@@ -295,87 +469,130 @@ const refuseIfReleased = (letter) => {
 
 // ── Route handlers ──────────────────────────────────────────────────────────
 
-// GET /   → my letters (no full text) and how many I may keep
+// GET /   → my letters (no body text) and how many I may keep
 const list = withErrorHandling(async (req, res) => {
   const letters = await Letter.find({ userId: req.user._id }).sort({ updatedAt: -1 });
 
-  res.json({
-    letters: letters.map((letter) => toSummary(letter, makePreview(letter))),
-    limit: await getLetterLimit(req.user),
+  const summaries = letters.map((letter) => {
+    try {
+      return summarise(letter);
+    } catch (error) {
+      if (error instanceof HttpError) return { ...toSummary(letter), unavailable: true };
+      throw error;
+    }
   });
+
+  res.json({ letters: summaries, limit: await getLetterLimit(req.user) });
 });
 
-// GET /:id   → one letter with its text. Sealed letters must use /unlock instead.
+// GET /:id   → one letter with its text. Passphrase-protected letters must use /unlock.
 const getOne = withErrorHandling(async (req, res) => {
   const letter = await findMyLetter(req);
-  if (letter.status === "sealed") {
+  if (isPassphraseProtected(letter)) {
     throw new HttpError(403, "This letter is sealed. Unlock it first.", "SEALED");
   }
-
-  // A released letter whose copy was erased has no text, so content is "".
-  res.json({ letter: { ...toSummary(letter), content: readUnsealedText(letter) } });
+  res.json({ letter: withContent(letter, readUnsealedPrivate(letter)) });
 });
 
-// POST /   → start a new draft
+// POST /   → start a new draft. A repeated Idempotency-Key returns the first letter.
 const create = withErrorHandling(async (req, res) => {
+  const createKey = readOperationKey(req);
+  if (createKey) {
+    const existing = await Letter.findOne({ userId: req.user._id, createKey });
+    if (existing) {
+      return res.status(200).json({ letter: summarise(existing), limit: await getLetterLimit(req.user), replayed: true });
+    }
+  }
+
   const limit = await getLetterLimit(req.user);
   if (limit.max !== null && limit.used >= limit.max) {
     throw new HttpError(403, "Your plan's letter limit has been reached.", "LIMIT_REACHED", { limit });
   }
 
-  const content = checkContent(req.body.content) || "";
-  const letter = new Letter({ userId: req.user._id, ...pickEditableFields(req.body) });
-  if (content) letter.content = encryptWithServerKey(letter, content);
-  await letter.save();
+  const body = checkContent(req.body.content) || "";
+  const letter = new Letter({ userId: req.user._id, ...pickStationery(req.body), createKey });
+  const priv = { ...emptyPrivate(), ...pickPrivateEdits(req.body), body };
+  storePrivateUnsealed(letter, priv);
 
-  res.status(201).json({
-    letter: { ...toSummary(letter), content },
-    limit: await getLetterLimit(req.user),
-  });
+  try {
+    await letter.save();
+  } catch (error) {
+    if (createKey && error && error.code === 11000) {
+      const existing = await Letter.findOne({ userId: req.user._id, createKey });
+      if (existing) {
+        return res.status(200).json({ letter: summarise(existing), limit: await getLetterLimit(req.user), replayed: true });
+      }
+    }
+    throw error;
+  }
+
+  res.status(201).json({ letter: withContent(letter, priv), limit: await getLetterLimit(req.user) });
 });
 
-// PUT /:id   → save changes (also used by autosave). A sealed letter also needs its passphrase.
+// PUT /:id   → save changes (also used by autosave).
+// Sealed letters may still be edited in place with their passphrase (V2 clients);
+// V3 clients unseal explicitly with /continue first.
 const update = withErrorHandling(async (req, res) => {
   const letter = await findMyLetter(req);
   refuseIfReleased(letter);
   if (letter.status === "kept") {
-    throw new HttpError(409, "A kept letter is read-only.", "KEPT");
+    throw new HttpError(409, "A kept letter is read-only. Continue writing first.", "KEPT");
+  }
+  checkExpectedRevision(letter, req.body);
+
+  const newBody = checkContent(req.body.content);
+  Object.assign(letter, pickStationery(req.body));
+  const edits = pickPrivateEdits(req.body);
+
+  if (isPassphraseProtected(letter)) {
+    const current = await readSealedPrivate(letter, req.body.passphrase);
+    const next = { ...current, ...edits, body: newBody === undefined ? current.body : newBody };
+    await storePrivateSealed(letter, next, req.body.passphrase);
+    await letter.save();
+    return res.json({ letter: toSummary(letter) });
   }
 
-  const newContent = checkContent(req.body.content);
-  Object.assign(letter, pickEditableFields(req.body));
-
-  if (letter.status === "sealed") {
-    // Reading the current text first proves the user knows the passphrase.
-    const currentText = await readSealedText(letter, req.body.passphrase);
-    const textToSave = newContent === undefined ? currentText : newContent;
-    letter.content = await encryptWithPassphrase(letter, textToSave, req.body.passphrase);
-  } else if (newContent !== undefined) {
-    // Draft: an empty text clears the stored content.
-    letter.content = newContent ? encryptWithServerKey(letter, newContent) : null;
-  }
-
+  const current = readUnsealedPrivate(letter);
+  const next = { ...current, ...edits, body: newBody === undefined ? current.body : newBody };
+  storePrivateUnsealed(letter, next);
   await letter.save();
-  res.json({ letter: toSummary(letter, makePreview(letter)) });
+  res.json({ letter: toSummary(letter, next) });
 });
 
-// POST /:id/seal   → lock a draft with a passphrase
+// POST /:id/keep   → save an unsealed draft as a read-only keepsake
+const keep = withErrorHandling(async (req, res) => {
+  const letter = await findMyLetter(req);
+  if (letter.status !== "draft" || isPassphraseProtected(letter)) {
+    throw new HttpError(409, "Only an unsealed draft can be kept.", "INVALID_TRANSITION");
+  }
+  checkExpectedRevision(letter, req.body);
+  const priv = readUnsealedPrivate(letter);
+  if (!priv.body.trim()) throw new HttpError(422, "Write something before keeping it.", "EMPTY");
+
+  letter.status = "kept";
+  await letter.save();
+  res.json({ letter: toSummary(letter, priv) });
+});
+
+// POST /:id/seal   → protect a draft or kept letter with a NEW passphrase (12+ characters)
 const seal = withErrorHandling(async (req, res) => {
   const letter = await findMyLetter(req);
-  if (letter.status !== "draft") {
+  if (!["draft", "kept"].includes(letter.status) || isPassphraseProtected(letter)) {
     throw new HttpError(409, "Only a draft can be sealed.", "NOT_DRAFT");
   }
-  requireValidPassphrase(req.body.passphrase);
+  checkExpectedRevision(letter, req.body);
+  requirePassphrase(req.body.passphrase, MIN_NEW_PASSPHRASE_CHARS);
 
   // Use the text sent with this request if there is any, otherwise the saved draft.
-  const sentContent = checkContent(req.body.content);
-  const text = sentContent === undefined ? readUnsealedText(letter) : sentContent;
-  if (!text.trim()) {
+  const current = readUnsealedPrivate(letter);
+  const sentBody = checkContent(req.body.content);
+  const priv = { ...current, ...pickPrivateEdits(req.body), body: sentBody === undefined ? current.body : sentBody };
+  if (!priv.body.trim()) {
     throw new HttpError(422, "Write something before sealing.", "EMPTY");
   }
 
-  Object.assign(letter, pickEditableFields(req.body));
-  letter.content = await encryptWithPassphrase(letter, text, req.body.passphrase);
+  Object.assign(letter, pickStationery(req.body));
+  await storePrivateSealed(letter, priv, req.body.passphrase);
   letter.status = "sealed";
   letter.sealedAt = new Date();
   await letter.save();
@@ -383,50 +600,107 @@ const seal = withErrorHandling(async (req, res) => {
   res.json({ letter: toSummary(letter), limit: await getLetterLimit(req.user) });
 });
 
-// POST /:id/unlock   → read a sealed letter. It stays sealed afterwards.
+// POST /:id/unlock   → read a passphrase-protected letter (sealed, or a sealed copy kept on
+// release). Nothing about the stored letter changes.
 const unlock = withErrorHandling(async (req, res) => {
   const letter = await findMyLetter(req);
-  if (letter.status !== "sealed") {
+  if (!isPassphraseProtected(letter)) {
     throw new HttpError(409, "This letter is not sealed.", "NOT_SEALED");
   }
-
-  const content = await readSealedText(letter, req.body.passphrase);
-  res.json({ letter: { ...toSummary(letter), content } });
+  const priv = await readSealedPrivate(letter, req.body.passphrase);
+  res.json({ letter: withContent(letter, priv) });
 });
 
-// POST /:id/release   → let the letter go. This is saved BEFORE the app plays its animation.
-//   retainCopy (default true): keep an encrypted copy the user can still read.
-//   A sealed letter needs its passphrase only when a copy is being kept.
-const release = withErrorHandling(async (req, res) => {
+// POST /:id/continue   → back to an editable draft.
+//   kept   → draft
+//   sealed → draft: needs the passphrase and { confirm: true }; the words move to the
+//            ordinary (server-key) protection the owner explicitly asked for.
+const continueWriting = withErrorHandling(async (req, res) => {
   const letter = await findMyLetter(req);
   refuseIfReleased(letter);
+  checkExpectedRevision(letter, req.body);
 
-  const userWantsCopy = req.body.retainCopy !== false;
-
-  let text = "";
-  if (userWantsCopy) {
-    text = letter.status === "sealed"
-      ? await readSealedText(letter, req.body.passphrase)
-      : readUnsealedText(letter);
-  } else if (letter.status === "draft" && !readUnsealedText(letter).trim()) {
-    throw new HttpError(422, "There is nothing to release yet.", "EMPTY");
+  if (letter.status === "kept") {
+    const priv = readUnsealedPrivate(letter);
+    letter.status = "draft";
+    await letter.save();
+    return res.json({ letter: withContent(letter, priv) });
   }
 
-  // An empty letter has nothing worth keeping, even if a copy was requested.
-  const keepCopy = userWantsCopy && text.trim().length > 0;
+  if (letter.status === "sealed" && isPassphraseProtected(letter)) {
+    if (req.body.confirm !== true) {
+      throw new HttpError(422, "Please confirm unsealing this letter.", "CONFIRM_REQUIRED");
+    }
+    const priv = await readSealedPrivate(letter, req.body.passphrase);
+    storePrivateUnsealed(letter, priv);
+    letter.status = "draft";
+    letter.sealedAt = null;
+    letter.failedUnlocks = 0;
+    letter.lockedUntil = null;
+    await letter.save();
+    return res.json({ letter: withContent(letter, priv) });
+  }
 
-  letter.content = keepCopy ? encryptWithServerKey(letter, text) : null;
+  throw new HttpError(409, "This letter is already being written.", "INVALID_TRANSITION");
+});
+
+// POST /:id/release   → symbolic release. Saved BEFORE the app plays its ceremony.
+//   retainCopy (boolean): keep a read-only private copy. V3 clients always send it
+//   explicitly; older clients that omit it keep a copy (previous behaviour).
+//   A copy keeps the protection it had: a sealed letter's copy stays passphrase sealed.
+//   Idempotency-Key: a retry of the same release returns the same receipt.
+const release = withErrorHandling(async (req, res) => {
+  const letter = await findMyLetter(req);
+  const releaseKey = readOperationKey(req);
+
+  if (letter.status === "released") {
+    if (releaseKey && letter.releaseKey === releaseKey) {
+      return res.json({
+        letter: summarise(letter),
+        receipt: { releasedAt: letter.releasedAt, retainedCopy: letter.retainedCopy, protection: protectionOf(letter) },
+        limit: await getLetterLimit(req.user),
+        replayed: true,
+      });
+    }
+    refuseIfReleased(letter);
+  }
+  checkExpectedRevision(letter, req.body);
+
+  const keepCopy = req.body.retainCopy !== false;
+
+  if (isPassphraseProtected(letter)) {
+    // The words cannot be checked without the passphrase; sealing already required words.
+    // When a passphrase is supplied for an old-format blob, upgrade it in place (same passphrase).
+    if (keepCopy && req.body.passphrase !== undefined && letter.content.v !== PAYLOAD_VERSION) {
+      const priv = await readSealedPrivate(letter, req.body.passphrase);
+      await storePrivateSealed(letter, priv, req.body.passphrase);
+    }
+  } else {
+    const priv = readUnsealedPrivate(letter);
+    if (!priv.body.trim()) throw new HttpError(422, "There is nothing to release yet.", "EMPTY");
+    if (keepCopy && letter.content.v !== PAYLOAD_VERSION) storePrivateUnsealed(letter, priv);
+  }
+
+  if (!keepCopy) {
+    letter.content = null;
+    clearPlainMetadata(letter);
+  }
   letter.retainedCopy = keepCopy;
   letter.status = "released";
   letter.releasedAt = new Date();
+  letter.releaseKey = releaseKey;
   letter.failedUnlocks = 0;
   letter.lockedUntil = null;
   await letter.save();
 
-  res.json({ letter: toSummary(letter, makePreview(letter)), limit: await getLetterLimit(req.user) });
+  res.json({
+    letter: summarise(letter),
+    receipt: { releasedAt: letter.releasedAt, retainedCopy: letter.retainedCopy, protection: protectionOf(letter) },
+    limit: await getLetterLimit(req.user),
+  });
 });
 
-// DELETE /:id/copy   → permanently erase the retained copy of a released letter
+// DELETE /:id/copy   → permanently erase the retained words of a released letter, keep the moment
 const deleteCopy = withErrorHandling(async (req, res) => {
   const letter = await findMyLetter(req);
   if (letter.status !== "released") {
@@ -438,23 +712,20 @@ const deleteCopy = withErrorHandling(async (req, res) => {
 
   letter.content = null;
   letter.retainedCopy = false;
+  clearPlainMetadata(letter);
   await letter.save();
 
   res.json({ letter: toSummary(letter) });
 });
 
-// DELETE /:id?confirm=true   → delete a draft, sealed or kept letter.
-// A released letter stays as a record of that moment; only its copy can be erased.
+// DELETE /:id?confirm=true   → delete any letter permanently, including released markers.
 const remove = withErrorHandling(async (req, res) => {
   const letter = await findMyLetter(req);
-  if (letter.status === "released") {
-    throw new HttpError(409, "A released letter cannot be deleted. You can erase its copy instead.", "RELEASED");
-  }
   if (req.query.confirm !== "true") {
     throw new HttpError(422, "Please confirm the deletion.", "CONFIRM");
   }
 
-  await Letter.deleteOne({ _id: letter._id });
+  await Letter.deleteOne({ _id: letter._id, userId: req.user._id });
   res.json({ ok: true, limit: await getLetterLimit(req.user) });
 });
 
@@ -498,8 +769,8 @@ const dateOrNow = (value) => {
 };
 
 // POST /import   { letters: [{ legacyId, status, text, passphrase, category, paper, font, updatedAt }] }
-// Letters that were already imported are skipped, so importing twice is harmless.
-// Old letters are never refused because of the plan limit.
+// The app sends these only after the owner confirms. Letters already imported are skipped,
+// so importing twice is harmless. Old letters are never refused because of the plan limit.
 const importV1 = withErrorHandling(async (req, res) => {
   const items = Array.isArray(req.body.letters) ? req.body.letters : [];
   if (items.length > MAX_IMPORT_BATCH) {
@@ -530,24 +801,25 @@ const importV1 = withErrorHandling(async (req, res) => {
     const letter = new Letter({
       userId: req.user._id,
       legacyId,
-      recipientType: V1_RECIPIENT_TYPES[oldLetter.category] || "other",
       paper: V1_PAPERS[oldLetter.paper] || "soft_ivory",
       font: V1_FONTS[oldLetter.font] || "modern_sans",
       status,
     });
+    const priv = { ...emptyPrivate(), recipientType: V1_RECIPIENT_TYPES[oldLetter.category] || "other", body: text };
 
     if (status === "draft") {
-      if (text) letter.content = encryptWithServerKey(letter, text);
+      storePrivateUnsealed(letter, priv);
     } else if (status === "sealed") {
-      requireValidPassphrase(oldLetter.passphrase);
+      requirePassphrase(oldLetter.passphrase, MIN_LEGACY_PASSPHRASE_CHARS);
       if (!text.trim()) {
         skipped.push(legacyId);
         continue;
       }
-      letter.content = await encryptWithPassphrase(letter, text, oldLetter.passphrase);
+      await storePrivateSealed(letter, priv, oldLetter.passphrase);
       letter.sealedAt = new Date();
     } else {
       // Released letters keep no text, only the moment they were let go.
+      clearPlainMetadata(letter);
       letter.releasedAt = dateOrNow(oldLetter.updatedAt);
     }
 
@@ -559,17 +831,39 @@ const importV1 = withErrorHandling(async (req, res) => {
   res.json({ imported, created, skipped, limit: await getLetterLimit(req.user) });
 });
 
-module.exports = { list, getOne, create, update, seal, unlock, release, deleteCopy, remove, importV1 };
+module.exports = {
+  list,
+  getOne,
+  create,
+  update,
+  keep,
+  seal,
+  unlock,
+  continueWriting,
+  release,
+  deleteCopy,
+  remove,
+  importV1,
+};
 
 // Pure helpers, exposed for tests.
 module.exports._logic = {
   encryptWith,
   decryptWith,
   passphraseKey: deriveKeyFromPassphrase,
+  legacyPassphraseKey: deriveLegacyKey,
+  parseDedicatedKey,
   isPaidUser,
-  cleanFields: pickEditableFields,
+  pickStationery,
+  pickPrivateEdits,
   cleanContent: checkContent,
   FREE_LETTER_LIMIT,
   MAX_CONTENT_CHARS,
+  MIN_NEW_PASSPHRASE_CHARS,
+  KDF_PARAMS,
   HttpError,
+  _resetKeyCache: () => {
+    cachedDedicatedKey = undefined;
+    warnedNoDedicatedKey = false;
+  },
 };
