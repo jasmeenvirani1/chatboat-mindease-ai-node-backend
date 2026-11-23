@@ -719,7 +719,10 @@ const userController = {
 
       // 🧩 Add search functionality
       if (search && search.trim()) {
-        const searchRegex = new RegExp(search.trim(), "i"); // Case-insensitive search
+        const searchRegex = new RegExp(
+          search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+          "i",
+        ); // Case-insensitive search
 
         // Search in multiple fields
         filter.$or = [
@@ -733,19 +736,38 @@ const userController = {
         ];
       }
 
-      // Fetch users + total count
+      // Pagination (default: page 1, 10 users per page, max 100)
+      const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+      const limit = Math.min(
+        Math.max(parseInt(req.query.limit, 10) || 10, 1),
+        100,
+      );
+      const skip = (page - 1) * limit;
+
+      // Fetch users for this page + total count
       const [users, totalCount] = await Promise.all([
-        User.find(filter),
+        User.find(filter)
+          .sort({ createdAt: -1, _id: -1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
         User.countDocuments(filter),
       ]);
 
+      const totalPages = Math.ceil(totalCount / limit);
+
       logger.log(
-        `Fetched ${users.length} users. Filter: ${JSON.stringify(filter)}`,
+        `Fetched ${users.length} users (page ${page}/${totalPages}). Filter: ${JSON.stringify(filter)}`,
       );
 
       res.status(200).json({
         success: true,
         total: totalCount,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
         data: users,
       });
     } catch (err) {
