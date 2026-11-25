@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express = require("express");
+const { limitFreeTarotReading } = require("../helper/monetization/freeReadingLimit.js");
 const router = express.Router();
 const { questionTypes, reading, cardReading } = require("../controllers/brTarotController.js");
 
@@ -15,9 +16,9 @@ const { questionTypes, reading, cardReading } = require("../controllers/brTarotC
 router.get("/question-types", questionTypes);
 
 // Build + persist a Brazil Tarot reading for a given questionType.
-router.post("/reading", reading);
+router.post("/reading", limitFreeTarotReading, reading);
 
 // Build + persist an LLM-generated reading from user-selected tarot cards.
-router.post("/card-reading", cardReading);
+router.post("/card-reading", limitFreeTarotReading, cardReading);
 
 module.exports = router;
