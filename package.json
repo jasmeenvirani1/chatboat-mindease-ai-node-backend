@@ -25,6 +25,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.18.2",
+    "express-rate-limit": "7.5.0",
     "franc-min": "^5.0.0",
     "google-auth-library": "^10.5.0",
     "hnswlib-node": "^3.0.0",
@@ -36,6 +37,7 @@
     "nodemailer": "^6.9.8",
     "nodemon": "^3.0.2",
     "openai": "^6.16.0",
+    "pdfkit": "^0.21.0",
     "stripe": "^22.0.0",
     "wink-eng-lite-web-model": "^1.8.1",
     "wink-nlp": "^2.4.0"

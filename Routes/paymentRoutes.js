@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const authenticate = require("../middleware/authenticateuser");
+const { paymentLimiter, statusLimiter } = require("../middleware/rateLimits");
 const {
   createCheckoutSession,
   createEnergyMatchCheckout,
@@ -8,6 +9,7 @@ const {
   getMyRegionSubscriptions,
   getMyAccessStatus,
 } = require("../controllers/paymentController");
+const { createKundaliReportCheckout } = require("../controllers/kundaliReportController");
 const {
   handleStripeWebhook,
 } = require("../controllers/paymentWebhookController");
@@ -26,18 +28,21 @@ router.post(
 const parseJson = express.json();
 
 // Create a Stripe Checkout session for the authenticated user.
-router.post("/checkout", parseJson, authenticate, createCheckoutSession);
+router.post("/checkout", parseJson, authenticate, paymentLimiter, createCheckoutSession);
 
 // Stripe Checkout for the Energy Match™ add-on (Life GPS promo card).
-router.post("/energy-match/checkout", parseJson, authenticate, createEnergyMatchCheckout);
+router.post("/energy-match/checkout", parseJson, authenticate, paymentLimiter, createEnergyMatchCheckout);
+
+// Stripe Checkout for the one-time Kundali Report (India accounts).
+router.post("/kundali-report/checkout", parseJson, authenticate, paymentLimiter, createKundaliReportCheckout);
 
 // Confirm a completed session from the success page.
-router.post("/verify", parseJson, authenticate, verifyAndSavePlan);
+router.post("/verify", parseJson, authenticate, paymentLimiter, verifyAndSavePlan);
 
 // Purchased region plans (plan name, start and renewal dates) for Journey.
 router.get("/subscriptions", authenticate, getMyRegionSubscriptions);
 
 // Live plan and region access, for the app to refresh instantly.
-router.get("/status", authenticate, getMyAccessStatus);
+router.get("/status", authenticate, statusLimiter, getMyAccessStatus);
 
 module.exports = router;

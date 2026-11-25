@@ -16,6 +16,7 @@ const {
 
 const { hasEnergyMatch, getPlan } = require("../helper/planAccess");
 const { downgradeIfLapsed } = require("../helper/subscriptionAccess");
+const { KUNDALI_PRODUCT, hasKundaliReport, activateKundaliReport } = require("../helper/kundaliReport");
 
 const clientUrl = process.env.PAYMENT_URL;
 
@@ -474,6 +475,23 @@ const verifyAndSavePlan = async (req, res) => {
       return res.status(403).json({ message: "Session does not belong to you" });
     }
 
+    // The Kundali Report is a one-off with no plan or duration, so it is
+    // confirmed here before the plan checks below.
+    if (session.metadata?.product === KUNDALI_PRODUCT) {
+      if (session.payment_status !== "paid") {
+        return res.status(400).json({ message: "Payment not completed" });
+      }
+      const buyer = await User.findById(userId);
+      if (!buyer) return res.status(404).json({ message: "User not found" });
+      const { alreadyProcessed } = await activateKundaliReport({ session, user: buyer });
+      return res.status(200).json({
+        success: true,
+        message: alreadyProcessed ? "Kundali Report already unlocked" : "Kundali Report unlocked",
+        product: KUNDALI_PRODUCT,
+        verdictId: session.metadata?.verdictId || null,
+      });
+    }
+
     const isTrial = session.metadata?.isTrial === "true";
     const durationDays = parseInt(session.metadata?.durationDays, 10);
     if (!Number.isFinite(durationDays) || durationDays <= 0) {
@@ -703,6 +721,7 @@ const getMyAccessStatus = async (req, res) => {
       region: user.region,
       unlockedRegions: user.unlockedRegions || [],
       energyMatch: hasEnergyMatch(user),
+      kundaliReport: hasKundaliReport(user),
     });
   } catch (err) {
     logger.error("Get access status failed", err);
@@ -711,6 +730,7 @@ const getMyAccessStatus = async (req, res) => {
 };
 
 module.exports = {
+  ensureStripeCustomer,
   getMyAccessStatus,
   createCheckoutSession,
   createEnergyMatchCheckout,

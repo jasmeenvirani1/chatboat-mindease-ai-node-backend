@@ -14,6 +14,10 @@ const {
   getUserVerdicts,
 } = require("../services/marriageVerdictService.js");
 
+const { buildMarriageVerdictPdf } = require("../helper/marriageVerdict/marriagePdfBuilder.js");
+const { resolveViewer, gateResult, gateRecord } = require("../helper/marriageVerdict/marriageAccess.js");
+const { isKundaliLocked } = require("../helper/kundaliReport.js");
+
 const ID_PATTERN = /^[a-f\d]{24}$/i;
 
 // POST /api/backend/marriage-verdict/generate
@@ -32,7 +36,9 @@ const generate = async (req, res) => {
     // userId is optional (guests allowed)
     const userId = req.body?.userId || null;
 
+    const viewer = await resolveViewer(req);
     const result = await generateMarriageVerdict(sanitized, userId);
+    const { locked, access } = gateResult(viewer, result);
 
     return res.status(200).json({
       success: true,
@@ -41,6 +47,8 @@ const generate = async (req, res) => {
       astroCore: result.astroCore,
       isLimited: result.isLimited,
       selectedTab: result.selectedTab,
+      locked,
+      access,
     });
   } catch (err) {
     console.error("[marriageVerdictController] generate error:", err?.message || err);
@@ -70,10 +78,12 @@ const update = async (req, res) => {
       });
     }
 
+    const viewer = await resolveViewer(req);
     const result = await updateMarriageVerdict(id, sanitized);
     if (!result) {
       return res.status(404).json({ success: false, message: "Verdict not found" });
     }
+    const { locked, access } = gateResult(viewer, result);
 
     return res.status(200).json({
       success: true,
@@ -82,6 +92,8 @@ const update = async (req, res) => {
       astroCore: result.astroCore,
       isLimited: result.isLimited,
       selectedTab: result.selectedTab,
+      locked,
+      access,
     });
   } catch (err) {
     console.error("[marriageVerdictController] update error:", err?.message || err);
@@ -132,12 +144,15 @@ const getById = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid verdict ID" });
     }
 
-    const record = await getVerdictById(id);
-    if (!record) {
+    const viewer = await resolveViewer(req);
+    const found = await getVerdictById(id);
+    if (!found) {
       return res.status(404).json({ success: false, message: "Verdict not found" });
     }
+    const { locked, access } = gateRecord(viewer, found);
+    const record = found;
 
-    return res.status(200).json({ success: true, record });
+    return res.status(200).json({ success: true, record, locked, access });
   } catch (err) {
     console.error("[marriageVerdictController] getById error:", err?.message || err);
     return res.status(500).json({ success: false, message: "Server error" });
@@ -160,4 +175,60 @@ const getByUser = async (req, res) => {
   }
 };
 
-module.exports = { generate, update, updateTab, getById, getByUser };
+// GET /api/backend/marriage-verdict/:id/pdf
+// Streams the saved verdict as a designed A4 PDF. Built only from the stored
+// record (never from client-sent data), so the PDF always matches what the
+// user's verdict says.
+const downloadPdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !ID_PATTERN.test(id)) {
+      return res.status(400).json({ success: false, message: "Invalid verdict ID" });
+    }
+
+    const record = await getVerdictById(id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: "Verdict not found" });
+    }
+    if (record.status !== "completed" || !record.aiVerdict) {
+      return res.status(409).json({ success: false, message: "This verdict is not ready yet." });
+    }
+    // The PDF is the full report, so it is part of what the Kundali Report unlocks.
+    if (isKundaliLocked(await resolveViewer(req))) {
+      return res.status(402).json({
+        success: false,
+        locked: true,
+        message: "Unlock the full Kundali Report to download the PDF.",
+      });
+    }
+
+    const names = [record.formInput?.partner_a?.full_name, record.formInput?.partner_b?.full_name]
+      .map((n) => String(n || "").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, ""))
+      .filter(Boolean);
+    // ASCII-safe fallback plus the UTF-8 name, so Hindi names still download cleanly.
+    const base = `Astria-Marriage-Verdict${names.length ? `-${names.join("-and-")}` : ""}`;
+    const asciiName = base.replace(/[^\x20-\x7E]/g, "").replace(/-{2,}/g, "-") || "Astria-Marriage-Verdict";
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${encodeURIComponent(base)}.pdf`,
+    );
+    res.setHeader("Cache-Control", "private, no-store");
+
+    const pdf = buildMarriageVerdictPdf(record);
+    pdf.on("error", (err) => {
+      console.error("[marriageVerdictController] pdf stream error:", err?.message || err);
+      res.destroy(err);
+    });
+    pdf.pipe(res);
+  } catch (err) {
+    console.error("[marriageVerdictController] downloadPdf error:", err?.message || err);
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, message: "Could not create the PDF. Please try again." });
+    }
+    res.destroy(err);
+  }
+};
+
+module.exports = { generate, update, updateTab, getById, getByUser, downloadPdf };

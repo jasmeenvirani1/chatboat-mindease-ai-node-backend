@@ -104,6 +104,14 @@ const userSchema = new Schema(
       expiresAt: { type: Date, default: null },
       stripeSessionId: { type: String, default: "" },
     },
+    // Kundali Report, bought once on its own by India accounts (see
+    // helper/kundaliReport.js). Permanent, so there is no expiry. Written only
+    // by the server; the client can never set it.
+    kundaliReportAccess: {
+      active: { type: Boolean, default: false },
+      purchasedAt: { type: Date, default: null },
+      stripeSessionId: { type: String, default: "" },
+    },
     // Monthly Global Pass (see helper/globalPass.js). Written only by the
     // server; the client can never set it.
     globalPass: {

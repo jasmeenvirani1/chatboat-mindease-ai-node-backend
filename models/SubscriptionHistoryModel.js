@@ -13,12 +13,15 @@ const SubscriptionHistorySchema = new Schema(
     planId: {
       type: Schema.Types.ObjectId,
       ref: "SubscriptionPlans",
-      required: true,
+      // The Kundali Report is a fixed-price product, so it has no plan row.
+      required: function () {
+        return this.product !== "kundali_report";
+      },
     },
-    // What was bought: a plan subscription, or the Energy Match add-on.
+    // What was bought: a plan subscription, or an add-on (Energy Match, Kundali Report).
     product: {
       type: String,
-      enum: ["subscription", "energy_match"],
+      enum: ["subscription", "energy_match", "kundali_report"],
       default: "subscription",
     },
     // Stripe Checkout Session id. Unique so a replayed session_id can never

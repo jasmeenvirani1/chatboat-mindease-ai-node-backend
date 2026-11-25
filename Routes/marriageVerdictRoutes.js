@@ -8,13 +8,16 @@
 const express = require("express");
 const router = express.Router();
 const { onlyOwnUserIdOrGuest } = require("../middleware/requireOwnUserId.js");
-const { generate, update, updateTab, getById, getByUser } = require("../controllers/marriageVerdictController.js");
+const { generate, update, updateTab, getById, getByUser, downloadPdf } = require("../controllers/marriageVerdictController.js");
 
 // Generate a new marriage verdict (public — guests allowed)
 router.post("/generate", generate);
 
 // Retrieve all verdicts for a user
 router.get("/user/:userId", onlyOwnUserIdOrGuest("params"), getByUser);
+
+// Download a saved verdict as a PDF report
+router.get("/:id/pdf", downloadPdf);
 
 // Retrieve a saved verdict by ID
 router.get("/:id", getById);

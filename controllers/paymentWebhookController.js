@@ -8,6 +8,7 @@ const {
   activateTrial,
   activateEnergyMatch,
 } = require("./paymentController");
+const { KUNDALI_PRODUCT, activateKundaliReport, revokeKundaliReport } = require("../helper/kundaliReport");
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -82,7 +83,23 @@ const handleStripeWebhook = async (req, res) => {
   }
 };
 
+/** The one-off Kundali Report has no plan or duration, so it is handled on its own. */
+async function onKundaliCheckoutCompleted(session) {
+  if (session.payment_status !== "paid") {
+    logger.log(`Kundali Report checkout ${session.id} completed but unpaid; waiting`);
+    return;
+  }
+  const user = await User.findById(session.metadata?.userId);
+  if (!user) {
+    logger.error(`Checkout ${session.id}: user ${session.metadata?.userId} not found`);
+    return;
+  }
+  await activateKundaliReport({ session, user });
+}
+
 async function onCheckoutCompleted(session) {
+  if (session.metadata?.product === KUNDALI_PRODUCT) return onKundaliCheckoutCompleted(session);
+
   const { userId, planId, durationDays, isTrial } = session.metadata || {};
 
   if (!userId || !planId) {
@@ -132,6 +149,11 @@ async function onCheckoutCompleted(session) {
  * plan, the unlocked region. Used by both refunds and disputes.
  */
 async function revokeAccess(history) {
+  if (history.product === KUNDALI_PRODUCT) {
+    await revokeKundaliReport(history);
+    return;
+  }
+
   if (history.product === "energy_match") {
     await User.updateOne(
       { _id: history.userId, "energyMatchAccess.stripeSessionId": history.stripeSessionId },
