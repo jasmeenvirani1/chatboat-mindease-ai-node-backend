@@ -6,7 +6,7 @@
 const TAROT_COMPANION_FLOW = {
   free: {
     fullReading: true,
-    includedFollowUps: 1,
+    includedFollowUps: 1, // lifetime, account-wide (see tarotFollowUpQuota.js)
     afterLimit: {
       showPaywall: true,
       title: "Continue This Reading",
@@ -14,7 +14,7 @@ const TAROT_COMPANION_FLOW = {
       cta: "Unlock Astria Pro",
       dismiss: "Maybe Later",
       features: [
-        "Unlimited follow-up questions",
+        "More follow-up questions every day",
         "Reading history",
         "Journey memories",
         "Life GPS connections",
@@ -24,7 +24,7 @@ const TAROT_COMPANION_FLOW = {
   },
   pro: {
     fullReading: true,
-    unlimitedFollowUps: true,
+    dailyFollowUps: 3, // per local day, shared by all readings
     journeyIntegration: true,
     lifeGpsIntegration: true,
     patternTracking: true,

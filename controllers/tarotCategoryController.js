@@ -24,6 +24,7 @@ const createTarotHistory = async (req, res) => {
       question,
       selectedCards, // Array of selected cards (1 or 4)
       subCategoryId, // Add subCategoryId to get the specific tarot prompt
+      language, // Current app language (short code), used when the question is not clearly detected
     } = req.body;
 
     const isEmpty = (v) => !v || String(v).trim().length === 0;
@@ -89,7 +90,7 @@ const createTarotHistory = async (req, res) => {
         : null;
     const targetLang = resolvePreferredLanguage({
       text: questionText,
-      preferredLanguage: tarotUser?.preferredLanguage,
+      preferredLanguage: language || tarotUser?.preferredLanguage,
       region: tarotUser?.region,
     });
 

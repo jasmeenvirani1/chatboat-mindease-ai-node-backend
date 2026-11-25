@@ -17,6 +17,12 @@ const TarotCategoryMessageSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    // V4 follow-up: the single card drawn for this question + retry key.
+    card: {
+      type: new Schema({ cardId: String, cardName: String }, { _id: false }),
+      default: undefined,
+    },
+    idempotencyKey: { type: String, default: undefined },
   },
   { _id: false },
 );

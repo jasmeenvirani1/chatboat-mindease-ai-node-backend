@@ -3,10 +3,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // tarotCompanionController — Tarot → Companion → Journey → Life GPS (AST-TAROT-V3)
 //
-//   Free: full reading (already free) + 1 included follow-up per reading,
+//   Free: full reading (already free) + 1 follow-up for the whole account,
 //         then a "Continue This Reading" paywall.
-//   Pro : unlimited follow-ups, Save to Journey, Apply to Life GPS and
-//         recurring-card pattern awareness in the conversation.
+//   Pro : 3 follow-ups per local day (shared by all readings), Save to
+//         Journey, Apply to Life GPS and recurring-card pattern awareness.
+//   Every follow-up draws ONE new card; quota lives in helper/tarotFollowUpQuota.js.
 //
 // Mounted at /api/backend/tarot-companion (all routes need a signed-in user).
 // The reading itself is created by POST /api/backend/tarotChat/create.
@@ -23,6 +24,7 @@ const { getPlan } = require("../helper/planAccess.js");
 const { TAROT_COMPANION_FLOW } = require("../helper/tarotCompanionFlow.js");
 const { analyseReading, cardKey } = require("../helper/tarotThemes.js");
 const lifeGps = require("./lifeGpsController.js");
+const quota = require("../helper/tarotFollowUpQuota.js");
 
 const TESTER_ROLE_ID = 3;
 const PATTERN_WINDOW_MS = 365 * 24 * 60 * 60 * 1000;
@@ -83,7 +85,7 @@ async function cardRecurrence(userId, reading) {
   return out;
 }
 
-const readingView = (r, pro) => ({
+const readingView = (r, pro, q) => ({
   readingId: r._id,
   question: r.question,
   cards: r.cards,
@@ -95,12 +97,12 @@ const readingView = (r, pro) => ({
     userMessage: f.userMessage,
     aiResponse: f.aiResponse,
     messageTime: f.messageTime,
+    card: f.card ? { card_id: Number(f.card.cardId), card_name: f.card.cardName } : undefined,
   })),
   followUpsUsed: r.followUpsUsed || 0,
-  followUpsIncluded: pro ? null : TAROT_COMPANION_FLOW.free.includedFollowUps,
-  followUpsRemaining: pro
-    ? null
-    : Math.max(0, TAROT_COMPANION_FLOW.free.includedFollowUps - (r.followUpsUsed || 0)),
+  followUpsLimit: q.limit,
+  followUpsRemaining: q.remaining,
+  nextEligibleAt: q.nextEligibleAt,
   journeySaved: !!r.journeySavedAt,
   lifeGpsApplied: !!r.lifeGpsAppliedAt,
   lifeGpsPreview: analyseReading(r.cards, r.tarotCategoryName).dimensions,
@@ -115,7 +117,9 @@ const getReading = async (req, res) => {
   try {
     const r = await loadOwned(req, res);
     if (!r) return;
-    return res.json({ success: true, data: readingView(r, isPro(req.user)) });
+    const pro = isPro(req.user);
+    const q = await quota.getStatus(req.user, pro);
+    return res.json({ success: true, data: readingView(r, pro, q) });
   } catch (err) {
     console.error("[tarotCompanion] getReading:", err?.message || err);
     return res.status(500).json({ success: false, message: "Failed to load reading" });
@@ -153,35 +157,64 @@ const getCardPatterns = async (req, res) => {
   }
 };
 
-// POST /:readingId/follow-up   body: { message }
+// Accepts one card that is not already part of this reading or its follow-ups.
+// 4-card readings use the 22-card Major Arcana deck, so ids stay 0-21 there.
+function validateDraw(card, reading) {
+  const id = Number(card?.card_id);
+  const name = String(card?.card_name || "").trim().slice(0, 60);
+  const deckMax = (reading.cards || []).length === 4 ? 21 : 77;
+  if (!Number.isInteger(id) || id < 0 || id > deckMax || !name) return null;
+  const used = new Set([
+    ...(reading.cards || []).map((c) => String(c.cardId)),
+    ...(reading.followUps || []).map((f) => String(f.card?.cardId ?? "")),
+  ]);
+  if (used.has(String(id))) return null;
+  return { cardId: String(id), cardName: name };
+}
+
+// POST /:readingId/follow-up   body: { message, card: {card_id, card_name}, idempotencyKey }
 const followUp = async (req, res) => {
-  let claimed = false;
+  let scope = null;
   let reading = null;
   try {
     reading = await loadOwned(req, res);
     if (!reading) return;
-    const message = String(req.body?.message || "").trim().slice(0, 1000);
+    const message = String(req.body?.message || "").trim().slice(0, 280);
     if (!message) return res.status(400).json({ success: false, message: "message is required" });
 
-    const pro = isPro(req.user);
-    const limit = TAROT_COMPANION_FLOW.free.includedFollowUps;
+    // Each follow-up draws exactly one NEW card from the same deck.
+    const drawn = validateDraw(req.body?.card, reading);
+    if (!drawn) return res.status(400).json({ success: false, code: "INVALID_CARD", message: "A new, unused card is required" });
 
-    // Atomic: two simultaneous requests can never both take the last free follow-up.
-    if (!pro) {
-      const taken = await TarotHistory.findOneAndUpdate(
-        { _id: reading._id, userId: req.user._id, followUpsUsed: { $lt: limit } },
-        { $inc: { followUpsUsed: 1 } },
-        { projection: { _id: 1 } },
-      ).lean();
-      if (!taken) {
-        return res.status(402).json({
-          success: false,
-          code: "FOLLOWUP_LIMIT_REACHED",
-          message: "Continue this reading with Astria Pro.",
-          paywall: paywall(),
-        });
-      }
-      claimed = true;
+    // A retry with the same key returns the stored answer and consumes nothing.
+    const key = String(req.body?.idempotencyKey || "").slice(0, 64);
+    const prior = key && (reading.followUps || []).find((f) => f.idempotencyKey === key);
+    if (prior) {
+      const q = await quota.getStatus(req.user, isPro(req.user));
+      return res.status(200).json({
+        success: true,
+        aiResponse: prior.aiResponse,
+        followUpsRemaining: q.remaining,
+        nextEligibleAt: q.nextEligibleAt,
+        showPaywall: false,
+      });
+    }
+
+    const pro = isPro(req.user);
+
+    // Atomic account-wide reservation: parallel tabs/routes can never exceed the limit.
+    scope = await quota.reserve(req.user, pro);
+    if (!scope) {
+      const q = await quota.getStatus(req.user, pro);
+      return res.status(402).json({
+        success: false,
+        code: "FOLLOWUP_LIMIT_REACHED",
+        message: pro ? "You've used today's follow-ups. Come back tomorrow." : "Continue this reading with Astria Pro.",
+        followUpsRemaining: 0,
+        nextEligibleAt: q.nextEligibleAt,
+        // No upsell once a Pro account reaches its daily cap.
+        paywall: pro ? null : paywall(),
+      });
     }
 
     // Pro-only: connect this reading to the user's history.
@@ -208,7 +241,7 @@ const followUp = async (req, res) => {
 
     const lang = resolvePreferredLanguage({
       text: message,
-      preferredLanguage: req.user.preferredLanguage,
+      preferredLanguage: req.body?.language || req.user.preferredLanguage,
       region: req.user.region,
     });
     const cardsLine = reading.cards
@@ -223,10 +256,11 @@ Question: ${reading.question || "(none given)"}
 Cards:
 ${cardsLine}
 Theme: ${reading.theme || "reflection"}
+NEW CARD DRAWN FOR THIS FOLLOW-UP QUESTION: ${drawn.cardName}
 Reading text: ${String(reading.chats?.[0]?.aiResponse || reading.summary || "").slice(0, 2500)}
 ${patternBlock}
 HOW TO REPLY
-- Answer the user's question from the cards above; refer to specific cards.
+- Answer the follow-up question mainly from the NEW CARD, linking it to the original cards. Never say a card guarantees an event, and never read minds or diagnose.
 - Sound like a person who is paying attention, not a report. 90-170 words, no headings or bullet lists.
 - Never use fear-based or fatalistic language. Cards are a mirror for reflection, not a prediction.
 - Where it fits, end with ONE gentle question that invites them to connect the cards to their real life.
@@ -243,36 +277,36 @@ HOW TO REPLY
     const aiText = (await generateGeminiResponse(messages))?.trim();
     if (!aiText) throw new Error("empty AI response");
 
-    const entry = { userMessage: message, aiResponse: aiText, messageTime: new Date() };
-    const updated = await TarotHistory.findOneAndUpdate(
-      { _id: reading._id },
-      { $push: { followUps: entry }, ...(pro ? { $inc: { followUpsUsed: 1 } } : {}) },
-      { new: true, projection: { followUpsUsed: 1 } },
-    ).lean();
-    claimed = false;
+    const entry = {
+      userMessage: message,
+      aiResponse: aiText,
+      messageTime: new Date(),
+      card: { cardId: drawn.cardId, cardName: drawn.cardName },
+      ...(key ? { idempotencyKey: key } : {}),
+    };
+    await TarotHistory.updateOne(
+      { _id: reading._id, userId: req.user._id },
+      { $push: { followUps: entry }, $inc: { followUpsUsed: 1 } },
+    );
+    scope = null; // committed: the slot stays used
 
-    const used = updated?.followUpsUsed ?? (reading.followUpsUsed || 0) + 1;
-    const limitReached = !pro && used >= limit;
+    const q = await quota.getStatus(req.user, pro);
     return res.status(201).json({
       success: true,
       aiResponse: aiText,
       messageTime: entry.messageTime,
-      followUpsUsed: used,
-      followUpsRemaining: pro ? null : Math.max(0, limit - used),
-      // Shown AFTER the included reply, never instead of it.
-      showPaywall: limitReached,
-      paywall: limitReached ? paywall() : null,
+      followUpsLimit: q.limit,
+      followUpsRemaining: q.remaining,
+      nextEligibleAt: q.nextEligibleAt,
+      // Shown AFTER the reply, only to Free users who just used their one question.
+      showPaywall: !pro && q.remaining === 0,
+      paywall: !pro && q.remaining === 0 ? paywall() : null,
       patterns: pro ? recurrence : undefined,
     });
   } catch (err) {
     console.error("[tarotCompanion] followUp:", err?.message || err);
-    // Give the free follow-up back: the reply failed on our side.
-    if (claimed && reading) {
-      await TarotHistory.updateOne(
-        { _id: reading._id, followUpsUsed: { $gt: 0 } },
-        { $inc: { followUpsUsed: -1 } },
-      ).catch(() => {});
-    }
+    // Give the slot back: the reply failed on our side.
+    if (scope) await quota.release(req.user, scope);
     return res.status(500).json({ success: false, message: "Failed to continue the reading", fallbackResponse: FALLBACK });
   }
 };
