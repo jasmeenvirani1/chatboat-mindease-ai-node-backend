@@ -1,0 +1,147 @@
+{
+  "version": "1.0",
+  "fallbackMarket": "usa",
+  "regionAliases": {
+    "us": "usa",
+    "spanish": "spain"
+  },
+  "upgradeOfferRules": {
+    "showWhen": [
+      "after_second_session",
+      "after_second_module",
+      "after_relationship_query",
+      "after_depth_query"
+    ],
+    "neverShowWhen": [
+      "before_first_personal_insight"
+    ]
+  },
+  "markets": {
+    "india": {
+      "status": "production",
+      "currency": "INR",
+      "freeFeatures": ["bhavna_drishti"],
+      "proFeatures": ["upay_marg", "vyaktitva_darshan", "samay_pravah", "vivah_muhurat", "sambandh_taal_mel", "marriage_verdict"],
+      "upgradeKeywords": ["dasha", "marriage", "compatibility", "timing", "muhurat", "remedies"],
+      "salesCopy": "คุณได้เห็นภาพรวมแล้ว รายละเอียดของ Dasha ความสัมพันธ์ และช่วงเวลาสำคัญยังไม่ได้แสดงในเวอร์ชันนี้",
+      "buttonText": "Unlock Full Vedic Reading"
+    },
+    "korea": {
+      "status": "production",
+      "currency": "KRW",
+      "freeFeatures": ["daily_companion", "emotional_rhythm"],
+      "proFeatures": ["life_map", "daily_flow", "compatibility", "saju", "relationship"],
+      "upgradeKeywords": ["saju", "compatibility", "destiny_flow", "life_map"],
+      "salesCopy": "สิ่งที่เห็นตอนนี้เป็นเพียงจังหวะของวันนี้ รูปแบบชีวิตและการอ่าน Saju แบบเต็มยังไม่ได้เปิดเผย",
+      "buttonText": "Unlock Full Saju Reading"
+    },
+    "usa": {
+      "status": "production",
+      "currency": "USD",
+      "freeFeatures": ["big3_preview"],
+      "proFeatures": ["daily_flow", "signs", "aspects", "energy_match", "career", "compatibility"],
+      "upgradeKeywords": ["houses", "aspects", "career", "future_direction", "compatibility"],
+      "salesCopy": "คุณได้เห็นภาพรวมของตัวตนแล้ว โครงสร้างของดวง ดาว และปัจจัยที่กำลังส่งผลต่อชีวิตยังไม่ได้แสดง",
+      "buttonText": "Unlock Full Chart"
+    },
+    "canada": {
+      "status": "production",
+      "currency": "CAD",
+      "freeFeatures": ["big3", "daily_flow"],
+      "proFeatures": ["personality", "compatibility", "life_direction"],
+      "upgradeKeywords": ["personality", "compatibility"],
+      "salesCopy": "คุณได้เห็นรูปแบบหลักของตัวเองแล้ว เวอร์ชันเต็มจะแสดงว่ารูปแบบนี้ส่งผลต่อความสัมพันธ์และเส้นทางชีวิตอย่างไร",
+      "buttonText": "Unlock Personality Blueprint"
+    },
+    "spain": {
+      "status": "production",
+      "currency": "EUR",
+      "freeFeatures": ["big3_preview"],
+      "proFeatures": ["life_graph", "planets", "aspects", "compatibility"],
+      "upgradeKeywords": ["planets", "aspects", "life_graph"],
+      "salesCopy": "คุณได้เห็นภาพรวมของพลังงานหลักแล้ว การเคลื่อนไหวของดาวและรูปแบบที่ลึกกว่านี้ยังไม่ได้แสดง",
+      "buttonText": "Ver Lectura Completa"
+    },
+    "brazil": {
+      "status": "production",
+      "currency": "BRL",
+      "freeFeatures": ["daily_flow", "letter_never_send"],
+      "proFeatures": ["big3", "personality", "relationship", "compatibility"],
+      "upgradeKeywords": ["compatibility", "relationship", "personality"],
+      "salesCopy": "Você já viu a visão geral. A leitura completa revela padrões emocionais e relacionamentos mais profundos.",
+      "buttonText": "Desbloquear Leitura Completa"
+    },
+    "mexico": {
+      "status": "production",
+      "currency": "MXN",
+      "freeFeatures": ["companion_talk", "daily_flow", "cosmic_message"],
+      "proFeatures": ["big3", "personality", "relationship", "compatibility", "energy_match"],
+      "upgradeKeywords": ["relationship", "compatibility", "energy_match"],
+      "salesCopy": "Lo que has visto es la superficie de la conexión. La lectura completa muestra lo que fortalece la relación y lo que crea distancia con el tiempo.",
+      "buttonText": "Ver Compatibilidad Completa"
+    },
+    "uk": {
+      "status": "production",
+      "currency": "GBP",
+      "freeFeatures": ["daily_flow", "emotional_rhythm", "companion_talk"],
+      "proFeatures": ["zodiac_personality", "mate_scan", "compatibility", "relationship", "energy_match", "cosmic_uk"],
+      "upgradeKeywords": ["compatibility", "mate_scan", "energy_match"],
+      "salesCopy": "You've seen the surface pattern. The deeper reading explores what sits underneath it and how it shapes relationships over time.",
+      "buttonText": "See My Full Pattern"
+    },
+    "japan": {
+      "status": "production",
+      "currency": "JPY",
+      "freeFeatures": ["japan_talk", "quiet_letter", "daily_flow_lite"],
+      "proFeatures": ["big3", "personality", "relationship_pattern", "compatibility", "signs"],
+      "upgradeKeywords": ["relationship_pattern", "compatibility", "personality"],
+      "salesCopy": "今見えているのは表面の傾向です。繰り返しやすいパターンや人との距離感には、さらに深い背景があります。",
+      "buttonText": "詳しく見る"
+    },
+    "indonesia": {
+      "status": "production",
+      "currency": "IDR",
+      "freeFeatures": ["daily_flow"],
+      "proFeatures": ["big3", "personality", "signs", "compatibility", "healing_style", "growth_pattern"],
+      "upgradeKeywords": ["healing_style", "compatibility", "growth_pattern"],
+      "salesCopy": "Apa yang terlihat sekarang hanyalah pola permukaan. Masih ada pola hubungan dan kebutuhan penyembuhan yang lebih dalam.",
+      "buttonText": "Lihat Profil Lengkap"
+    },
+    "philippines": {
+      "status": "production",
+      "currency": "PHP",
+      "freeFeatures": ["soft_summary", "your_note", "emotion_balance"],
+      "proFeatures": ["guidance_path", "timing_rhythm", "connection_atmosphere"],
+      "upgradeKeywords": ["timing", "relationship", "connection"],
+      "salesCopy": "You've seen today's emotional surface. The full reading explores deeper relationship patterns, timing and emotional dynamics.",
+      "buttonText": "See My Full Pattern"
+    },
+    "vietnam": {
+      "status": "production",
+      "currency": "VND",
+      "freeFeatures": ["lucky_day", "tarot", "space_energy"],
+      "proFeatures": ["birth_chart_preview", "full_birth_chart", "compatibility", "yearly_cycles", "feng_shui_mapping"],
+      "upgradeKeywords": ["birth_chart", "life_theme", "compatibility"],
+      "salesCopy": "Bạn đã thấy nhịp điệu của hôm nay. Bản đầy đủ sẽ cho thấy các chu kỳ lớn hơn và chủ đề đang định hình cuộc sống của bạn.",
+      "buttonText": "Xem Bản Đầy Đủ"
+    },
+    "gcc": {
+      "status": "production",
+      "currency": "AED",
+      "freeFeatures": ["rhythm", "companion", "pattern_lite"],
+      "proFeatures": ["personality_lite", "personality", "emotional_intelligence", "relationship_pattern"],
+      "upgradeKeywords": ["emotional_intelligence", "relationship_pattern"],
+      "salesCopy": "هناك نمط أعمق خلف ما تراه الآن، وطريقة متكررة في فهم العالم والتفاعل معه لم يتم عرضها بعد.",
+      "buttonText": "اكتشف النمط الكامل"
+    },
+    "singapore": {
+      "status": "production",
+      "currency": "SGD",
+      "freeFeatures": ["daily_flow"],
+      "proFeatures": ["big3", "personality_preview", "compatibility_preview", "signs", "full_personality", "full_compatibility", "full_chart"],
+      "upgradeKeywords": ["full_chart", "compatibility", "personality"],
+      "salesCopy": "Your preview shows the core pattern. The full chart reveals how it shapes relationships, work and long-term decisions.",
+      "buttonText": "Unlock Full Chart"
+    }
+  }
+}

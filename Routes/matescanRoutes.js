@@ -9,10 +9,11 @@
 const express = require("express");
 const router = express.Router();
 const { onlyOwnUserIdOrGuest } = require("../middleware/requireOwnUserId.js");
+const { limitFreeMatescanGroup } = require("../helper/monetization/freeReadingLimit.js");
 const { scan, getById, getByUser } = require("../controllers/matescanController.js");
 
 // Run a group Matescan (leader + members energy analysis)
-router.post("/scan", scan);
+router.post("/scan", limitFreeMatescanGroup, scan);
 
 // Retrieve all scans for a user
 router.get("/user/:userId", onlyOwnUserIdOrGuest("params"), getByUser);
