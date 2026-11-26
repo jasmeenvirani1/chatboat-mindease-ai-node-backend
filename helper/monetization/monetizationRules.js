@@ -5,7 +5,7 @@
  *
  *   Free = see      Pro = understand
  *
- * Everything is controlled by MONETIZATION_MODE (default "off"):
+ * Everything is controlled by MONETIZATION_MODE (default "on" when it is not set):
  *   off      nothing changes for any user
  *   testers  the free Talk limit and the upgrade popup are live ONLY for the
  *            emails in MONETIZATION_TESTER_EMAILS (comma separated). Everyone
@@ -102,11 +102,26 @@ if (!ready) {
 
 // ─── Mode ───────────────────────────────────────────────────────────────────
 
-/** off | testers | on. Anything unknown, or a bad config, means "off". */
+/**
+ * off | testers | on. Default is "on" (unset or empty). A value that is not one of
+ * the three is logged once and also treated as "on", so a typo never silently
+ * turns the limits off. A bad masterConfig.json still means "off" (a code problem).
+ */
+let warnedBadMode = null;
 function getMonetizationMode(env = process.env) {
   if (!ready) return "off";
-  const mode = String(env.MONETIZATION_MODE || "off").trim().toLowerCase();
-  return MODES.includes(mode) ? mode : "off";
+  const raw = String(env.MONETIZATION_MODE || "").trim().toLowerCase();
+  if (!raw) return "on";
+  if (MODES.includes(raw)) return raw;
+  if (warnedBadMode !== raw) {
+    warnedBadMode = raw;
+    try {
+      require("../logger").error(`[Monetization] MONETIZATION_MODE="${raw.slice(0, 20)}" is not off|testers|on, using "on"`);
+    } catch {
+      /* logging must never break a request */
+    }
+  }
+  return "on";
 }
 
 /** Lower-case emails from MONETIZATION_TESTER_EMAILS ("a@x.com, b@y.com"). */
