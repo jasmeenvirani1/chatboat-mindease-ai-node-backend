@@ -24,43 +24,34 @@ const getUserLocalDay = (user, now = Date.now(), timeZone = null) =>
  * Take one Companion Talk question.
  * @returns {Promise<{taken:boolean, used:number}>}  taken=false → the limit was already reached.
  */
-async function countDailyUse(field, user, { limit, now = Date.now(), timeZone = null }) {
+async function countTalkQuestion(user, { limit, now = Date.now(), timeZone = null }) {
   const day = getUserLocalDay(user, now, timeZone);
   const updated = await User.findOneAndUpdate(
     {
       _id: user._id,
-      $or: [{ [`${field}.day`]: { $ne: day } }, { [`${field}.used`]: { $not: { $gte: limit } } }],
+      $or: [{ "freeTalkUsage.day": { $ne: day } }, { "freeTalkUsage.used": { $not: { $gte: limit } } }],
     },
     [
       {
         $set: {
-          [field]: {
+          freeTalkUsage: {
             day,
-            used: { $cond: [{ $eq: [`$${field}.day`, day] }, { $add: [{ $ifNull: [`$${field}.used`, 0] }, 1] }, 1] },
+            used: { $cond: [{ $eq: ["$freeTalkUsage.day", day] }, { $add: [{ $ifNull: ["$freeTalkUsage.used", 0] }, 1] }, 1] },
           },
         },
       },
     ],
-    { new: true, projection: { [field]: 1 } },
+    { new: true, projection: { freeTalkUsage: 1 } },
   ).lean();
   if (!updated) return { taken: false, used: limit };
-  return { taken: true, used: updated[field]?.used || 0 };
+  return { taken: true, used: updated.freeTalkUsage?.used || 0 };
 }
 
-/** Give a use back (the reply failed on our side). Never goes below 0. */
-async function giveBackDailyUse(field, user, { now = Date.now(), timeZone = null } = {}) {
+/** Give a question back (the reply failed on our side). Never goes below 0. */
+async function giveBackTalkQuestion(user, { now = Date.now(), timeZone = null } = {}) {
   const day = getUserLocalDay(user, now, timeZone);
-  await User.updateOne({ _id: user._id, [`${field}.day`]: day, [`${field}.used`]: { $gt: 0 } }, { $inc: { [`${field}.used`]: -1 } });
+  await User.updateOne({ _id: user._id, "freeTalkUsage.day": day, "freeTalkUsage.used": { $gt: 0 } }, { $inc: { "freeTalkUsage.used": -1 } });
 }
-
-const countTalkQuestion = (user, opts) => countDailyUse("freeTalkUsage", user, opts);
-const giveBackTalkQuestion = (user, opts) => giveBackDailyUse("freeTalkUsage", user, opts);
-
-/** Free chats in all the other tabs (everything except Companion Talk and the one-time readings). */
-const countTabChat = (user, opts) => countDailyUse("freeChatUsage", user, opts);
-const giveBackTabChat = (user, opts) => giveBackDailyUse("freeChatUsage", user, opts);
-const getTabChatsUsedToday = (user, now = Date.now(), timeZone = null) =>
-  user?.freeChatUsage?.day === getUserLocalDay(user, now, timeZone) ? user.freeChatUsage.used || 0 : 0;
 
 /** Read-only count for today. */
 const getTalkQuestionsUsedToday = (user, now = Date.now(), timeZone = null) =>
@@ -125,4 +116,4 @@ function saveAnalyticsEvent(name, userId, props) {
   );
 }
 
-module.exports = { getUserLocalDay, countTalkQuestion, giveBackTalkQuestion, getTalkQuestionsUsedToday, countTabChat, giveBackTabChat, getTabChatsUsedToday, recordPopupShown, recordPopupDismissed, saveAnalyticsEvent };
+module.exports = { getUserLocalDay, countTalkQuestion, giveBackTalkQuestion, getTalkQuestionsUsedToday, recordPopupShown, recordPopupDismissed, saveAnalyticsEvent };

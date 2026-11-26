@@ -129,19 +129,6 @@ const userSchema = new Schema(
       day: { type: String, default: "" }, // "YYYY-MM-DD" (user's local day) that `used` counts for
       used: { type: Number, default: 0 }, // Companion Talk questions asked that day
     },
-    // Free chats used today in all tabs except Companion Talk (see
-    // helper/monetization/freeTabChatLimit.js). Server-only, like freeTalkUsage.
-    freeChatUsage: {
-      day: { type: String, default: "" },
-      used: { type: Number, default: 0 },
-    },
-    // Free-tier readings already used in Energy Match V3 and MateScan (see
-    // helper/monetization/freeReadingLimit.js). Server-only, like freeTalkUsage.
-    freeReadingUsage: {
-      energyMatchV3: { type: Number, default: 0 },
-      matescan: { type: Number, default: 0 },
-      astriaTarot: { type: Number, default: 0 },
-    },
     upgradePopup: {
       day: { type: String, default: "" },
       shown: { type: Number, default: 0 }, // popups shown that day

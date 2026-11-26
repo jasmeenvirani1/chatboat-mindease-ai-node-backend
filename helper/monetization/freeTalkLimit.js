@@ -175,7 +175,6 @@ async function limitFreeTalkQuestions(req, res, next) {
     const user = req.authUser;
     // Guests cannot dodge the limit by logging out (only when Free/Pro rules are live for everyone).
     if (!user && rules.getMonetizationMode() === "on" && (await isCompanionTalkRequest(req.body))) {
-      req.isCompanionTalk = true; // counted by the Talk limit, not by the other-tabs limit
       const { dailyQuestionLimit } = rules.config.companionTalk.free;
       const { taken, used } = takeGuestQuestion(req, dailyQuestionLimit);
       if (!taken) {
@@ -191,7 +190,6 @@ async function limitFreeTalkQuestions(req, res, next) {
     }
     if (!user || !rules.isMonetizationOnFor(user) || !isFreePlanUser(user)) return next();
     if (!(await isCompanionTalkRequest(req.body))) return next();
-    req.isCompanionTalk = true; // counted by the Talk limit, not by the other-tabs limit
 
     const { dailyQuestionLimit } = rules.config.companionTalk.free;
     const { taken, used } = await monetizationDb.countTalkQuestion(user, { limit: dailyQuestionLimit });

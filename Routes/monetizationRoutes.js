@@ -18,8 +18,6 @@ const logger = require("../helper/logger");
 const rules = require("../helper/monetization/monetizationRules");
 const monetizationDb = require("../helper/monetization/monetizationDatabase");
 const { isFreePlanUser } = require("../helper/monetization/freeTalkLimit");
-const { getFreeReadingStatus } = require("../helper/monetization/freeReadingLimit");
-const { getTabChatStatus } = require("../helper/monetization/freeTabChatLimit");
 
 router.use(authenticateToken);
 
@@ -54,10 +52,6 @@ router.get("/status", answerQuietlyOnError(async (req, res) => {
     talk: isFreePlanUser(user)
       ? { limited: true, used, limit: dailyQuestionLimit, remaining: Math.max(dailyQuestionLimit - used, 0), softWarningAt }
       : { limited: false },
-    // Free readings in Energy Match V3 / MateScan: when `locked`, show the Pro card instead of the tab.
-    readings: getFreeReadingStatus(user),
-    // Free chats in every other tab (12 a day, one shared pool).
-    chats: getTabChatStatus(user),
   });
 }));
 
