@@ -5,7 +5,7 @@
  *
  *   Free = see      Pro = understand
  *
- * Everything is controlled by MONETIZATION_MODE (default "off"):
+ * Everything is controlled by MONETIZATION_MODE (default "on" when it is not set):
  *   off      nothing changes for any user
  *   testers  the free Talk limit and the upgrade popup are live ONLY for the
  *            emails in MONETIZATION_TESTER_EMAILS (comma separated). Everyone
@@ -105,7 +105,7 @@ if (!ready) {
 /** off | testers | on. Anything unknown, or a bad config, means "off". */
 function getMonetizationMode(env = process.env) {
   if (!ready) return "off";
-  const mode = String(env.MONETIZATION_MODE || "off").trim().toLowerCase();
+  const mode = String(env.MONETIZATION_MODE || "on").trim().toLowerCase();
   return MODES.includes(mode) ? mode : "off";
 }
 
