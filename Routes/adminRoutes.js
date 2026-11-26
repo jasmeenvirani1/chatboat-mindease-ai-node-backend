@@ -6,6 +6,8 @@ const { requireAdmin, requireSelfOrAdmin } = require("../middleware/adminAuth.js
 const { checkChatAccess, userUpdateGuard } = require("../helper/planAccess.js");
 const { onlyOwnUserIdOrGuest } = require("../middleware/requireOwnUserId.js");
 const { limitFreeTalkQuestions } = require("../helper/monetization/freeTalkLimit.js");
+const { limitFreeReadings, limitFreeTarotReading } = require("../helper/monetization/freeReadingLimit.js");
+const { limitFreeTabChats, limitFreeTabChatsOnRoute } = require("../helper/monetization/freeTabChatLimit.js");
 const { threeuploads, singleupload } = require("../utils/imageUploder.js");
 const SettingController = require("../controllers/settingController.js");
 const userController = require("../controllers/userController.js");
@@ -35,18 +37,18 @@ const {
 const IndexBuildController = require("../controllers/indexBuildController.js");
 
 //Public Routes
-router.post("/chat/create", checkChatAccess, limitFreeTalkQuestions, ChatHistory.createChat);
+router.post("/chat/create", checkChatAccess, limitFreeTalkQuestions, limitFreeReadings, limitFreeTabChats, ChatHistory.createChat);
 router.get("/headlines", HeadlineController.getAllHeadlines);
 router.get("/headline/:date", HeadlineController.getHeadlineByDate);
 
 // Guests may use these without a userId. When a userId is sent, it must be
 // the signed-in user's own (or an admin's request).
-router.post("/tarotChat/create", onlyOwnUserIdOrGuest("body"), createTarotHistory);
-router.post("/uranian/create", onlyOwnUserIdOrGuest("body"), createUranianHistory);
+router.post("/tarotChat/create", onlyOwnUserIdOrGuest("body"), limitFreeTarotReading, createTarotHistory);
+router.post("/uranian/create", onlyOwnUserIdOrGuest("body"), limitFreeTabChatsOnRoute, createUranianHistory);
 router.post("/lifeGraph/create", onlyOwnUserIdOrGuest("body"), createLifeGraphHistory);
 router.post("/lifeGps/create", onlyOwnUserIdOrGuest("body"), createLifeGpsMap);
 router.get("/lifeGps/latest/:userId", onlyOwnUserIdOrGuest("params"), getLatestLifeGpsMap);
-router.post("/energyMatch/create", onlyOwnUserIdOrGuest("body"), createEnergyMatchHistory);
+router.post("/energyMatch/create", onlyOwnUserIdOrGuest("body"), limitFreeTabChatsOnRoute, createEnergyMatchHistory);
 
 // Public: tester domain used by the frontend before login
 router.get(

@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const express = require("express");
+const { limitFreeTarotReading } = require("../helper/monetization/freeReadingLimit.js");
 const router = express.Router();
 const { lanes, questionTypes, cardReading } = require("../controllers/tarotLanesController.js");
 
@@ -19,6 +20,6 @@ router.get("/question-types", questionTypes);
 
 // Build + persist an LLM-generated reading from user-selected tarot cards,
 // for the lane named by body.locale.
-router.post("/card-reading", cardReading);
+router.post("/card-reading", limitFreeTarotReading, cardReading);
 
 module.exports = router;
