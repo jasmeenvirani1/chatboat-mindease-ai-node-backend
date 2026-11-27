@@ -16,27 +16,6 @@ const {
 const UserModel = require("../models/UserModel.js");
 const { resolvePreferredLanguage } = require("../helper/languageDetect.js");
 const { localizeValidation } = require("../utils/energyMatchMessages.js");
-const rules = require("../helper/monetization/monetizationRules");
-const planAccess = require("../helper/planAccess");
-const energyMatchPromo = require("../helper/promos/energyMatchPromo.json");
-const SubscriptionPlans = require("../models/SubscriptionPlansModel");
-const freeReadings = require("../helper/monetization/freeReadingLimit");
-
-// The Astria Pro option for the buy card: the user's region monthly plan, the same plan
-// createCheckoutSession charges. Never throws, so a DB hiccup cannot hide the 402.
-async function proOptionFor(user) {
-  try {
-    const plan = await SubscriptionPlans.findOne({
-      region: String(user.region || "healjai").toLowerCase(),
-      billingCadence: /^per month$/i,
-      isActive: { $ne: false },
-    }).select("_id").lean();
-    if (!plan) return null;
-    return { planId: String(plan._id), checkout: { method: "POST", path: "/api/payment/checkout", body: { planId: String(plan._id) } } };
-  } catch {
-    return null;
-  }
-}
 
 const OBJECT_ID_RE = /^[a-f\d]{24}$/i;
 
@@ -58,46 +37,7 @@ const scan = async (req, res) => {
 
     const userId = req.body?.userId || null;
 
-    // Free tier: ONE free Energy Match, then the buy card. Pro / add-on / admins are never limited.
-    // The free scan uses the same atomic counter as /chat/create (freeReadingUsage.energyMatchV3),
-    // so a user cannot get one free scan here and another there. No MONETIZATION_MODE switch.
-    {
-      const payer = req.authUser || null;
-      const guestBlocked = !payer;
-      let freeUsedUp = false;
-      if (payer && !planAccess.hasEnergyMatch(payer) && planAccess.getPlan(payer) === "free" && !planAccess.seesAll(payer)) {
-        const { taken } = await freeReadings.claimFreeReading(payer, "energy_match_v3");
-        if (taken) {
-          // The reading failed on our side (5xx): give the free scan back.
-          res.on("finish", () => {
-            if (res.statusCode >= 500) freeReadings.giveBackFreeReading(payer, "energy_match_v3").catch(() => {});
-          });
-        } else {
-          freeUsedUp = true;
-        }
-      }
-      if (guestBlocked || freeUsedUp) {
-        return res.status(402).json({
-          success: false, code: "ENERGY_MATCH_ADDON_REQUIRED",
-          upgradeRequired: true, // same flags as TAB_CHAT_LIMIT_REACHED, so the app shows the upgrade card
-          message: payer
-            ? "You've used your free Energy Match. Energy Match is part of Astria Pro or the Energy Match add-on."
-            : "Please sign in to use your free Energy Match.",
-          upgradeCopy: rules.getUpgradeCopy(payer?.preferredLanguage, rules.getCountryFromRegion(payer?.region)),
-          // The buy card: same copy as the Life GPS promo. Buying needs a signed-in user,
-          // so a guest gets requiresSignIn and no checkout endpoint.
-          energyMatchCard: {
-            ...energyMatchPromo.energyMatchPromoCard.default,
-            benefitsPreview: energyMatchPromo.energyMatchPromoCard.benefitsPreview,
-            requiresSignIn: !payer,
-            checkout: payer ? { method: "POST", path: "/api/payment/energy-match/checkout" } : null,
-          },
-          // Second option: Astria Pro (monthly plan of the user's region). Pay with
-          // POST /api/payment/checkout { planId }. Null when the region has no monthly plan.
-          proOption: payer ? await proOptionFor(payer) : null,
-        });
-      }
-    }
+    // Free-tier limit and paid add-on are enforced by limitFreeEnergyMatchScan (route middleware).
 
     let user = null;
     if (userId) {

@@ -103,6 +103,10 @@ const userSchema = new Schema(
       startedAt: { type: Date, default: null },
       expiresAt: { type: Date, default: null },
       stripeSessionId: { type: String, default: "" },
+      // Recurring add-on: the Stripe subscription that keeps `expiresAt` moving
+      // forward, and whether the user has asked to stop at the period end.
+      stripeSubscriptionId: { type: String, default: "", index: true },
+      cancelAtPeriodEnd: { type: Boolean, default: false },
     },
     // Kundali Report, bought once on its own by India accounts (see
     // helper/kundaliReport.js). Permanent, so there is no expiry. Written only
@@ -141,6 +145,8 @@ const userSchema = new Schema(
       energyMatchV3: { type: Number, default: 0 },
       matescan: { type: Number, default: 0 },
       astriaTarot: { type: Number, default: 0 },
+      // Follow-up questions used after the free Energy Match reading (limit: FREE_ENERGY_MATCH_FOLLOW_UPS).
+      energyMatchFollowUp: { type: Number, default: 0 },
     },
     upgradePopup: {
       day: { type: String, default: "" },

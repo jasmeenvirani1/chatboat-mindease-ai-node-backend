@@ -18,7 +18,9 @@ const logger = require("../helper/logger");
 const rules = require("../helper/monetization/monetizationRules");
 const monetizationDb = require("../helper/monetization/monetizationDatabase");
 const { isFreePlanUser } = require("../helper/monetization/freeTalkLimit");
-const { getFreeReadingStatus } = require("../helper/monetization/freeReadingLimit");
+const { hasEnergyMatch } = require("../helper/planAccess");
+const { ENERGY_MATCH_PRICE_USD } = require("../helper/energyMatchOffer");
+const { getFreeReadingStatus, buildUpgradeOffers } = require("../helper/monetization/freeReadingLimit");
 const { getTabChatStatus } = require("../helper/monetization/freeTabChatLimit");
 
 router.use(authenticateToken);
@@ -56,6 +58,17 @@ router.get("/status", answerQuietlyOnError(async (req, res) => {
       : { limited: false },
     // Free readings in Energy Match V3 / MateScan: when `locked`, show the Pro card instead of the tab.
     readings: getFreeReadingStatus(user),
+    // Energy Match add-on (USD 4.99/month, every region). When `unlocked`, every Energy Match
+    // product is unlimited; otherwise show the offer once `readings.energy_match_v3.locked`.
+    energyMatch: {
+      unlocked: hasEnergyMatch(user),
+      priceUsd: ENERGY_MATCH_PRICE_USD,
+      interval: "month",
+      expiresAt: user.energyMatchAccess?.expiresAt || null,
+      cancelAtPeriodEnd: !!user.energyMatchAccess?.cancelAtPeriodEnd,
+      // The two choices for the "free reading used" card: the add-on or Pro.
+      offers: buildUpgradeOffers("energy_match_v3"),
+    },
     // Free chats in every other tab (12 a day, one shared pool).
     chats: getTabChatStatus(user),
   });
