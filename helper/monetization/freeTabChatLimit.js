@@ -88,6 +88,8 @@ async function limitFreeTabChats(req, res, next) {
     }
 
     if (!rules.isMonetizationOnFor(user) || !isFreePlanUser(user)) return next();
+    // Energy Match add-on: Energy Match chats are unlimited.
+    if (req.isEnergyMatchRoute && planAccess.hasEnergyMatch(user)) return next();
 
     const { taken, used } = await monetizationDb.countTabChat(user, { limit: FREE_TAB_CHATS_PER_DAY });
     if (!taken) {
@@ -132,4 +134,16 @@ async function limitFreeTabChatsOnRoute(req, res, next) {
   }
 }
 
-module.exports = { FREE_TAB_CHATS_PER_DAY, limitFreeTabChats, limitFreeTabChatsOnRoute, getTabChatStatus };
+/** limitFreeTabChatsOnRoute for the Energy Match endpoints: the paid add-on skips the pool. */
+function limitEnergyMatchChatsOnRoute(req, res, next) {
+  req.isEnergyMatchRoute = true;
+  return limitFreeTabChatsOnRoute(req, res, next);
+}
+
+module.exports = {
+  FREE_TAB_CHATS_PER_DAY,
+  limitFreeTabChats,
+  limitFreeTabChatsOnRoute,
+  limitEnergyMatchChatsOnRoute,
+  getTabChatStatus,
+};

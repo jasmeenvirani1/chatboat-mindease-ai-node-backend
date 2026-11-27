@@ -9,6 +9,7 @@ const {
   activateEnergyMatch,
 } = require("./paymentController");
 const { KUNDALI_PRODUCT, activateKundaliReport, revokeKundaliReport } = require("../helper/kundaliReport");
+const energyMatch = require("../helper/energyMatchSubscription");
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -61,6 +62,20 @@ const handleStripeWebhook = async (req, res) => {
         logger.log(`Checkout session expired: ${event.data.object.id}`);
         break;
 
+      case "invoice.paid":
+        await energyMatch.onInvoicePaid(event.data.object, { isRecent: isRecentEvent(event) });
+        break;
+
+      case "invoice.payment_failed":
+        // Stripe retries the card; access continues until the paid period (+ grace) ends.
+        logger.log(`Invoice payment failed: ${event.data.object.id}`);
+        break;
+
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted":
+        await energyMatch.onSubscriptionChanged(event.data.object);
+        break;
+
       case "charge.refunded":
         await onChargeRefunded(event.data.object, event);
         break;
@@ -97,8 +112,27 @@ async function onKundaliCheckoutCompleted(session) {
   await activateKundaliReport({ session, user });
 }
 
+/** Energy Match subscription: no plan row or duration, the period comes from Stripe. */
+async function onEnergyMatchCheckoutCompleted(session) {
+  if (session.payment_status !== "paid") {
+    logger.log(`Energy Match checkout ${session.id} completed but unpaid (${session.payment_status}); waiting`);
+    return;
+  }
+  const user = await User.findById(session.metadata?.userId);
+  if (!user) {
+    logger.error(`Checkout ${session.id}: user ${session.metadata?.userId} not found`);
+    return;
+  }
+  await energyMatch.activateFromSession({ session, user });
+}
+
 async function onCheckoutCompleted(session) {
   if (session.metadata?.product === KUNDALI_PRODUCT) return onKundaliCheckoutCompleted(session);
+  // Sessions bought as a one-off before the switch have mode "payment" and keep the legacy path below.
+  if (session.metadata?.product === energyMatch.ENERGY_MATCH_PRODUCT && session.mode === "subscription") {
+    return onEnergyMatchCheckoutCompleted(session);
+  }
+
 
   const { userId, planId, durationDays, isTrial } = session.metadata || {};
 
@@ -155,11 +189,7 @@ async function revokeAccess(history) {
   }
 
   if (history.product === "energy_match") {
-    await User.updateOne(
-      { _id: history.userId, "energyMatchAccess.stripeSessionId": history.stripeSessionId },
-      { $set: { "energyMatchAccess.active": false } },
-    );
-    logger.log(`Energy Match revoked: user=${history.userId}`);
+    await energyMatch.revoke(history);
     return;
   }
 

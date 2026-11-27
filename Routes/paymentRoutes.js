@@ -5,6 +5,7 @@ const { paymentLimiter, statusLimiter } = require("../middleware/rateLimits");
 const {
   createCheckoutSession,
   createEnergyMatchCheckout,
+  createEnergyMatchPortal,
   verifyAndSavePlan,
   getMyRegionSubscriptions,
   getMyAccessStatus,
@@ -32,6 +33,8 @@ router.post("/checkout", parseJson, authenticate, paymentLimiter, createCheckout
 
 // Stripe Checkout for the Energy Match™ add-on (Life GPS promo card).
 router.post("/energy-match/checkout", parseJson, authenticate, paymentLimiter, createEnergyMatchCheckout);
+// Stripe Billing Portal: cancel, resume, change card, invoices.
+router.post("/energy-match/portal", parseJson, authenticate, paymentLimiter, createEnergyMatchPortal);
 
 // Stripe Checkout for the one-time Kundali Report (India accounts).
 router.post("/kundali-report/checkout", parseJson, authenticate, paymentLimiter, createKundaliReportCheckout);

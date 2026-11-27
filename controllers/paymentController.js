@@ -17,6 +17,12 @@ const {
 const { hasEnergyMatch, getPlan } = require("../helper/planAccess");
 const { downgradeIfLapsed } = require("../helper/subscriptionAccess");
 const { KUNDALI_PRODUCT, hasKundaliReport, activateKundaliReport } = require("../helper/kundaliReport");
+const {
+  ENERGY_MATCH_PRODUCT,
+  ENERGY_MATCH_PRICE_USD,
+  hasLiveSubscription: hasLiveEnergyMatchSubscription,
+  activateFromSession: activateEnergyMatchSubscription,
+} = require("../helper/energyMatchSubscription");
 
 const clientUrl = process.env.PAYMENT_URL;
 
@@ -263,63 +269,54 @@ async function activateEnergyMatch({ session, user, plan, durationDays }) {
 /**
  * POST /api/payment/energy-match/checkout
  *
- * Stripe Checkout for the Energy Match™ promo card. The amount is the price
- * the card shows: the monthly plan of the user's own region, read from the
- * database. The client sends nothing.
+ * Stripe Checkout for the Energy Match™ add-on: a monthly SUBSCRIPTION at one
+ * flat price in every region (USD 4.99, ENERGY_MATCH_PRICE_USD; or the saved Stripe
+ * Price in STRIPE_ENERGY_MATCH_PRICE_ID when set). The client sends nothing; the
+ * price never comes from a request.
  */
 const createEnergyMatchCheckout = async (req, res) => {
   try {
+    // Optional: a saved Stripe Price. Without it the same flat price is built inline
+    // (like every other checkout here), so no dashboard setup is needed.
+    const priceId = process.env.STRIPE_ENERGY_MATCH_PRICE_ID;
+
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     if (hasEnergyMatch(user)) {
       return res.status(409).json({ message: "Energy Match is already unlocked" });
     }
-
-    const plan = await SubscriptionPlans.findOne({
-      region: String(user.region || "healjai").toLowerCase(),
-      billingCadence: /^per month$/i,
-      isActive: { $ne: false },
-    });
-    const price = plan ? parsePlanPrice(plan.price) : null;
-    const duration = plan ? resolveDuration(plan.billingCadence) : null;
-    if (!plan || !price || !duration) {
-      logger.error(`No usable monthly plan for Energy Match, region=${user.region}`);
-      return res.status(404).json({ message: "Energy Match is not available in your region" });
+    // Access can lapse while Stripe is still retrying a failed card. Sending that
+    // user to a second checkout would bill them twice; they fix the card in the portal.
+    if (await hasLiveEnergyMatchSubscription(user)) {
+      return res.status(409).json({ message: "You already have an Energy Match subscription. Manage it from billing." });
     }
 
     const customerId = await ensureStripeCustomer(user);
-
-    const currency = (plan.currency || DEFAULT_CURRENCY).toLowerCase();
-    const metadata = {
-      product: "energy_match",
-      userId: String(user._id),
-      planId: String(plan._id),
-      durationDays: String(duration.days),
-      isTrial: "false",
-    };
+    const metadata = { product: ENERGY_MATCH_PRODUCT, userId: String(user._id) };
 
     const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
       customer: customerId,
       client_reference_id: String(user._id),
+      line_items: [
+        priceId
+          ? { price: priceId, quantity: 1 }
+          : {
+              price_data: {
+                currency: "usd",
+                unit_amount: toStripeAmount(ENERGY_MATCH_PRICE_USD, "usd"), // 499
+                recurring: { interval: "month" },
+                product_data: { name: "Energy Match™" },
+              },
+              quantity: 1,
+            },
+      ],
       metadata,
+      subscription_data: { metadata }, // lets renewals and cancellations be traced to the user
       success_url: `${clientUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${clientUrl}/payment-cancel`,
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency,
-            product_data: { name: "Energy Match™" },
-            unit_amount: toStripeAmount(price, currency),
-          },
-          quantity: 1,
-        },
-      ],
-      payment_intent_data: { metadata },
-      invoice_creation: { enabled: true },
     });
 
     logger.log(`Energy Match checkout ${session.id} created for user=${user._id}`);
@@ -327,6 +324,30 @@ const createEnergyMatchCheckout = async (req, res) => {
   } catch (err) {
     logger.error("Energy Match checkout failed", err);
     return res.status(500).json({ message: "Stripe checkout failed" });
+  }
+};
+
+/**
+ * POST /api/payment/energy-match/portal
+ *
+ * Stripe's hosted Billing Portal, where the user cancels, resumes, updates the
+ * card and downloads invoices. Cancelling keeps access until the period ends.
+ */
+const createEnergyMatchPortal = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.stripeCustomerId || !user.energyMatchAccess?.stripeSubscriptionId) {
+      return res.status(404).json({ message: "No Energy Match subscription to manage" });
+    }
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: clientUrl,
+    });
+    return res.status(200).json({ url: portal.url });
+  } catch (err) {
+    logger.error("Energy Match portal failed", err);
+    return res.status(500).json({ message: "Could not open billing" });
   }
 };
 
@@ -489,6 +510,30 @@ const verifyAndSavePlan = async (req, res) => {
         message: alreadyProcessed ? "Kundali Report already unlocked" : "Kundali Report unlocked",
         product: KUNDALI_PRODUCT,
         verdictId: session.metadata?.verdictId || null,
+      });
+    }
+
+    // Energy Match is a Stripe subscription: no plan row and no fixed duration,
+    // the period comes from Stripe. (Sessions bought as a one-off before the
+    // switch carry planId/durationDays and fall through to the legacy path.)
+    if (session.metadata?.product === ENERGY_MATCH_PRODUCT && session.mode === "subscription") {
+      if (session.status !== "complete" || session.payment_status !== "paid") {
+        return res.status(400).json({ message: "Payment not completed" });
+      }
+      const buyer = await User.findById(userId);
+      if (!buyer) return res.status(404).json({ message: "User not found" });
+      const { alreadyProcessed, duplicate } = await activateEnergyMatchSubscription({ session, user: buyer });
+      const fresh = await User.findById(userId);
+      return res.status(200).json({
+        success: !duplicate,
+        message: duplicate
+          ? "You already had Energy Match; the extra payment was refunded"
+          : alreadyProcessed
+            ? "Energy Match already unlocked"
+            : "Energy Match unlocked",
+        product: ENERGY_MATCH_PRODUCT,
+        energyMatch: hasEnergyMatch(fresh),
+        energyMatchAccess: fresh?.energyMatchAccess,
       });
     }
 
@@ -721,6 +766,12 @@ const getMyAccessStatus = async (req, res) => {
       region: user.region,
       unlockedRegions: user.unlockedRegions || [],
       energyMatch: hasEnergyMatch(user),
+      energyMatchDetail: {
+        priceUsd: ENERGY_MATCH_PRICE_USD,
+        interval: "month",
+        expiresAt: user.energyMatchAccess?.expiresAt || null,
+        cancelAtPeriodEnd: !!user.energyMatchAccess?.cancelAtPeriodEnd,
+      },
       kundaliReport: hasKundaliReport(user),
     });
   } catch (err) {
@@ -734,6 +785,7 @@ module.exports = {
   getMyAccessStatus,
   createCheckoutSession,
   createEnergyMatchCheckout,
+  createEnergyMatchPortal,
   activateEnergyMatch,
   verifyAndSavePlan,
   getMyRegionSubscriptions,
